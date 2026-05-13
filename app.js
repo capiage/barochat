@@ -765,17 +765,20 @@ window.nexusApp = () => ({
         try {
             const iconUrl = await this.uploadImage(this.editServer.icon);
             const bannerUrl = await this.uploadImage(this.editServer.banner);
-            await updateDoc(doc(this.db, `${this.publicDataPath}/servers`, this.editServer.id), {
-                name: this.editServer.name,
-                icon: iconUrl,
-                isPublic: this.editServer.isPublic,
-                channels: this.editServer.channels,
-                banner: bannerUrl,
-                bannerColor: this.editServer.bannerColor || '#5865F2',
-                bio: this.editServer.bio
-            });
+            
+            const updateData = {};
+            if (this.editServer.name !== undefined) updateData.name = this.editServer.name;
+            if (this.editServer.isPublic !== undefined) updateData.isPublic = this.editServer.isPublic;
+            if (this.editServer.channels !== undefined) updateData.channels = this.editServer.channels;
+            if (this.editServer.bannerColor !== undefined) updateData.bannerColor = this.editServer.bannerColor;
+            if (this.editServer.bio !== undefined) updateData.bio = this.editServer.bio;
+            if (iconUrl !== undefined) updateData.icon = iconUrl;
+            if (bannerUrl !== undefined) updateData.banner = bannerUrl;
+
+            await updateDoc(doc(this.db, `${this.publicDataPath}/servers`, this.editServer.id), updateData);
             this.showServerSettingsModal = false;
-            this.showToast("Server updated.");        } catch (e) {
+            this.showToast("Server updated.");
+        } catch (e) {
             console.error("Save Server Error:", e);
             this.showToast("Failed to save server settings.", true);
         }
