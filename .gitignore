@@ -40,3 +40,8 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+echo "babjeu-85d3e-firebase-adminsdk-fbsvc-0421569a66.json" >> .gitignore
+git add .gitignore
+git commit -m "chore: ignore firebase key"
+
+babjeu-85d3e-firebase-adminsdk-fbsvc-0421569a66.json

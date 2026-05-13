@@ -353,30 +353,27 @@ window.nexusApp = () => ({
 
     async loadLogicalProfile() {
         if(!this.logicalUid) return;
-        const fetchProfile = async () => {
-            const { data } = await this.supabase.from('users').select('*').eq('uid', this.logicalUid).single();
-            if (data) {
-                this.currentUserProfile = data;
-                this.cacheUser(this.currentUserProfile);
-                if(!this.isReady) {
-                    this.startGlobalListeners();
-                    this.isReady = true; this.authLoading = false;
-                    if (this._pendingJoinId) { this.joinServer(this._pendingJoinId); this._pendingJoinId = null; }
-                    this.updatePresence();
-                    this.heartbeatInterval = setInterval(() => this.updatePresence(), 15000);
-                }
-            } else {
-                localStorage.removeItem('lebarochat_session_v4');
-                this.logicalUid = null; this.isReady = false; this.authLoading = false;
+        const { data } = await this.supabase.from('users').select('*').eq('uid', this.logicalUid).single();
+        if (data) {
+            this.currentUserProfile = data;
+            this.cacheUser(this.currentUserProfile);
+            if(!this.isReady) {
+                this.supabase.channel(`public:users:me:${this.logicalUid}`).on('postgres_changes', { event: '*', schema: 'public', table: 'users', filter: `uid=eq.${this.logicalUid}` }, payload => {
+                    if (payload.new) {
+                        this.currentUserProfile = payload.new;
+                        this.cacheUser(this.currentUserProfile);
+                    }
+                }).subscribe();
+                this.startGlobalListeners();
+                this.isReady = true; this.authLoading = false;
+                if (this._pendingJoinId) { this.joinServer(this._pendingJoinId); this._pendingJoinId = null; }
+                this.updatePresence();
+                this.heartbeatInterval = setInterval(() => this.updatePresence(), 15000);
             }
-        };
-        await fetchProfile();
-        this.supabase.channel('public:users:me').on('postgres_changes', { event: '*', schema: 'public', table: 'users', filter: `uid=eq.${this.logicalUid}` }, payload => {
-            if (payload.new) {
-                this.currentUserProfile = payload.new;
-                this.cacheUser(this.currentUserProfile);
-            }
-        }).subscribe();
+        } else {
+            localStorage.removeItem('lebarochat_session_v4');
+            this.logicalUid = null; this.isReady = false; this.authLoading = false;
+        }
     },
 
     startGlobalListeners() {
