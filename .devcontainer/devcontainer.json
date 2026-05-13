@@ -9,20 +9,18 @@
   // Automatically installs Gemini CLI when the Codespace builds
   "postCreateCommand": "npm install -g @google/gemini-cli",
 
-  // Customizes individual VS Code workspace settings inside the container
+  // Auto-installs extensions when you or your friend open the codespace
   "customizations": {
     "vscode": {
       "extensions": [
-        "ms-vsliveshare.vsliveshare"
+        "ms-vsliveshare.vsliveshare",
+        "ms-vscode.live-server"
       ],
       "settings": {
         "terminal.integrated.defaultProfile.linux": "bash"
       }
     }
   },
-
-  // Keeps the container active even if you step away briefly
-  "updateContentCommand": "",
   
   "remoteUser": "node"
 }
