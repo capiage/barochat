@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Le BaroChat™</title>
     
@@ -29,8 +30,8 @@
 
         /* Corrected WebRTC Video Grid */
         #fullscreen-video-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            display: flex;
+            flex-wrap: wrap;
             gap: 1rem;
             width: 100%;
             height: 100%;
@@ -40,19 +41,39 @@
         }
         #fullscreen-video-grid .video-wrapper {
             position: relative;
-            width: 100%;
+            flex: 1 1 40%;
+            max-width: 100%;
+            min-width: 300px;
             aspect-ratio: 16 / 9;
             border-radius: 0.5rem;
             background-color: #1e1f22;
             overflow: hidden;
             border: 1px solid #2b2d31;
             box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.5);
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+        }
+        #fullscreen-video-grid .video-wrapper:hover {
+            border-color: #5865F2;
         }
         #fullscreen-video-grid video {
             width: 100%;
             height: 100%;
             background-color: #000;
-            object-fit: contain; /* Prevents screenshare from being cropped */
+            object-fit: contain; 
+        }
+
+        /* Fullscreen WebRTC Tile Class */
+        .video-fullscreen-mode {
+            position: fixed !important;
+            inset: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            z-index: 1000 !important;
+            border-radius: 0 !important;
+            background-color: #000 !important;
+            border: none !important;
+            max-width: none !important;
         }
 
         [x-cloak] { display: none !important; }
@@ -61,7 +82,7 @@
 <body class="h-screen w-screen flex bg-[#1e1f22]" x-data="nexusApp()" x-cloak>
 
     <!-- Global Toast Notification -->
-    <div x-show="toast.show" x-transition.opacity class="fixed top-5 left-1/2 transform -translate-x-1/2 z-[100] px-4 py-3 rounded-md shadow-2xl text-sm font-bold text-white transition-all flex items-center gap-3" :class="toast.isError ? 'bg-red-500' : 'bg-[#5865F2]'" style="display: none;">
+    <div x-show="toast.show" x-transition.opacity class="fixed top-5 left-1/2 transform -translate-x-1/2 z-[1000] px-4 py-3 rounded-md shadow-2xl text-sm font-bold text-white transition-all flex items-center gap-3" :class="toast.isError ? 'bg-red-500' : 'bg-[#5865F2]'" style="display: none;">
         <i class="ph-fill text-xl" :class="toast.isError ? 'ph-warning-circle' : 'ph-info'"></i>
         <span x-text="toast.message"></span>
     </div>
@@ -79,13 +100,13 @@
             <div class="bg-[#313338] p-8 rounded-xl shadow-2xl w-full max-w-md">
                 <div class="text-center mb-8">
                     <h2 class="text-2xl font-bold text-gray-100" x-text="authMode === 'login' ? 'Welcome Back!' : 'Create an Account'"></h2>
-                    <p class="text-gray-400 mt-1 text-sm" x-text="authMode === 'login' ? 'We\'re so excited to see you again!' : 'Join Le BaroChat™ and connect with friends.'"></p>
+                    <p class="text-gray-400 mt-1 text-sm" x-text="authMode === 'login' ? 'Log in to your claimed username.' : 'Join Le BaroChat™ and connect with friends.'"></p>
                 </div>
 
                 <div class="space-y-4">
                     <div>
-                        <label class="block text-xs font-bold text-gray-400 uppercase mb-2">Email Address</label>
-                        <input type="email" x-model="authEmail" class="w-full px-4 py-3 bg-[#1e1f22] border border-transparent rounded-md focus:border-[#5865F2] focus:ring-1 focus:ring-[#5865F2] text-gray-100 text-sm outline-none transition">
+                        <label class="block text-xs font-bold text-gray-400 uppercase mb-2">Username</label>
+                        <input type="text" x-model="authUsername" placeholder="e.g. capybara" class="w-full px-4 py-3 bg-[#1e1f22] border border-transparent rounded-md focus:border-[#5865F2] focus:ring-1 focus:ring-[#5865F2] text-gray-100 text-sm outline-none transition">
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-400 uppercase mb-2">Password</label>
@@ -96,7 +117,7 @@
                         <div class="space-y-4 pt-2 border-t border-[#2b2d31] mt-4">
                             <div>
                                 <label class="block text-xs font-bold text-gray-400 uppercase mb-2 mt-4">Display Name</label>
-                                <input type="text" x-model="authDisplayName" maxlength="20" class="w-full px-4 py-3 bg-[#1e1f22] border border-transparent rounded-md focus:border-[#5865F2] focus:ring-1 focus:ring-[#5865F2] text-gray-100 text-sm outline-none transition">
+                                <input type="text" x-model="authDisplayName" placeholder="How you appear to others" maxlength="20" class="w-full px-4 py-3 bg-[#1e1f22] border border-transparent rounded-md focus:border-[#5865F2] focus:ring-1 focus:ring-[#5865F2] text-gray-100 text-sm outline-none transition">
                             </div>
                             <div>
                                 <label class="block text-xs font-bold text-gray-400 uppercase mb-2">Choose an Avatar</label>
@@ -114,7 +135,7 @@
                         </div>
                     </template>
 
-                    <button @click="processAuth()" :disabled="!authEmail || !authPassword || (authMode === 'register' && !authDisplayName)" class="w-full py-3 bg-[#5865F2] hover:bg-[#4752C4] disabled:opacity-50 text-white font-bold rounded-md shadow transition mt-6">
+                    <button @click="processAuth()" :disabled="!authUsername || !authPassword || (authMode === 'register' && !authDisplayName)" class="w-full py-3 bg-[#5865F2] hover:bg-[#4752C4] disabled:opacity-50 text-white font-bold rounded-md shadow transition mt-6">
                         <span x-text="authMode === 'login' ? 'Log In' : 'Register'"></span>
                     </button>
 
@@ -127,21 +148,24 @@
                 </div>
             </div>
 
+            <!-- Live Profile Preview -->
             <div class="w-full max-w-sm hidden md:block" x-show="authMode === 'register'">
                 <div class="text-xs font-bold text-gray-500 uppercase mb-3 text-center">Live Profile Preview</div>
                 <div class="bg-[#232428] rounded-xl shadow-2xl w-full overflow-hidden">
-                    <div class="h-24 bg-[#5865F2] w-full relative">
-                        <!-- Fix: Absolute positioning ensures avatar never clips or distorts layout -->
-                        <img :src="authAvatar" class="absolute -bottom-10 left-4 w-24 h-24 rounded-full border-[6px] border-[#232428] bg-[#1e1f22] object-cover shadow-sm z-10">
-                    </div>
-                    <div class="px-5 pt-12 pb-6 relative">
-                        <h3 class="text-xl font-extrabold text-gray-100 leading-tight truncate" x-text="authDisplayName || 'Your Name'"></h3>
-                        <p class="text-sm text-gray-400 font-medium mb-4" x-text="(authDisplayName || 'YourName').replace(/\s+/g, '').toLowerCase() + '#1234'"></p>
-                        
-                        <div class="w-full h-[1px] bg-[#313338] mb-4"></div>
-                        
-                        <h4 class="text-[11px] font-bold text-gray-400 uppercase mb-2">About Me</h4>
-                        <p class="text-sm text-gray-300">Ready to chat on Le BaroChat™!</p>
+                    <div class="h-24 bg-[#5865F2] w-full"></div>
+                    <div class="px-5 pb-6 relative">
+                        <div class="absolute -top-12 left-4 z-10 bg-[#232428] rounded-full p-1.5">
+                            <img :src="authAvatar" class="w-20 h-20 rounded-full object-cover bg-[#1e1f22] shadow-sm">
+                        </div>
+                        <div class="pt-12">
+                            <h3 class="text-xl font-extrabold text-gray-100 leading-tight truncate" x-text="authDisplayName || 'Your Name'"></h3>
+                            <p class="text-sm text-gray-400 font-medium mb-4" x-text="'@' + (authUsername.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase() || 'username')"></p>
+                            
+                            <div class="w-full h-[1px] bg-[#313338] mb-4"></div>
+                            
+                            <h4 class="text-[11px] font-bold text-gray-400 uppercase mb-2">About Me</h4>
+                            <p class="text-sm text-gray-300">Ready to chat on Le BaroChat™!</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -159,6 +183,8 @@
                 <button @click="openHome()" class="w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-[#313338] text-gray-100 flex items-center justify-center transition-all duration-200 relative group" :class="{'rounded-[16px] bg-[#5865F2] text-white': activeView === 'home'}">
                     <img :src="defaultAvatars[0].data" class="w-8 h-8 object-contain drop-shadow-md">
                     <div class="absolute -left-3 w-1 bg-white rounded-r-md transition-all duration-200" :class="activeView === 'home' ? 'h-10' : 'h-0 group-hover:h-5'"></div>
+                    <!-- Home DM Notification Badge -->
+                    <div x-show="totalUnreadDms > 0" class="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-[#1e1f22] text-[9px] font-bold text-white flex items-center justify-center" x-text="totalUnreadDms"></div>
                 </button>
 
                 <div class="w-8 h-[2px] bg-[#313338] rounded-full my-1"></div>
@@ -193,13 +219,12 @@
                 <template x-if="activeView === 'home' || activeView === 'discovery'">
                     <div class="flex flex-col h-full">
                         <div class="h-12 border-b border-[#1e1f22] shadow-sm flex items-center px-4">
-                            <button class="w-full bg-[#1e1f22] text-gray-400 text-sm py-1.5 px-3 rounded text-left hover:text-gray-200 transition">Find or start a conversation</button>
+                            <button class="w-full bg-[#1e1f22] text-gray-400 text-sm py-1.5 px-3 rounded text-left hover:text-gray-200 transition truncate" x-text="'Find or start a conversation'"></button>
                         </div>
                         <div class="flex-1 overflow-y-auto p-2 space-y-[2px]">
                             <button @click="activeTarget = null; activeView = 'home'" class="w-full flex items-center px-3 py-2 rounded-md transition mb-2" :class="!activeTarget && activeView === 'home' ? 'bg-[#3f4147] text-white' : 'text-gray-400 hover:text-gray-100 hover:bg-[#35373c]'">
                                 <i class="ph-fill ph-users mr-3 text-lg"></i>
                                 <div class="flex-1 text-left font-medium text-[15px]">Friends</div>
-                                <!-- Badge for pending requests -->
                                 <template x-if="incomingFriendRequests.length > 0">
                                     <div class="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full" x-text="incomingFriendRequests.length"></div>
                                 </template>
@@ -212,7 +237,7 @@
                             
                             <!-- DM List -->
                             <template x-for="dm in dms" :key="dm.id">
-                                <button @click="openDM(dm.id)" class="w-full flex items-center px-2 py-1.5 rounded-md transition group" :class="activeTarget === dm.id ? 'bg-[#3f4147] text-white' : 'hover:bg-[#35373c] text-gray-400 hover:text-gray-200'">
+                                <button @click="openDM(dm.id)" class="w-full flex items-center px-2 py-1.5 rounded-md transition group" :class="activeTarget === dm.id && activeView === 'home' ? 'bg-[#3f4147] text-white' : 'hover:bg-[#35373c] text-gray-400 hover:text-gray-200'">
                                     <div class="relative">
                                         <img :src="getUser(dm.partnerUid)?.avatar" class="w-8 h-8 rounded-full mr-3 object-cover bg-[#1e1f22]">
                                         <div class="absolute bottom-0 right-3 w-3 h-3 border-2 border-[#2b2d31] rounded-full" :class="isUserOnline(dm.partnerUid) ? 'bg-[#23A559]' : 'bg-gray-500'"></div>
@@ -220,6 +245,10 @@
                                     <div class="flex-1 text-left truncate">
                                         <div class="font-medium text-[15px] truncate" x-text="getUser(dm.partnerUid)?.displayName || 'Unknown'"></div>
                                     </div>
+                                    <!-- DM Unread Badge -->
+                                    <template x-if="hasUnread(dm.id)">
+                                        <div class="w-2.5 h-2.5 bg-red-500 rounded-full flex-shrink-0 shadow"></div>
+                                    </template>
                                 </button>
                             </template>
                         </div>
@@ -263,9 +292,12 @@
                                 </template>
                             </div>
                             <template x-for="channel in (getServer()?.channels || []).filter(c => c.type === 'text')" :key="channel.id">
-                                <button @click="activeChannelId = channel.id; viewingVoice = false;" class="w-full flex items-center px-2 py-1.5 rounded-md transition" :class="activeChannelId === channel.id && !viewingVoice ? 'bg-[#3f4147] text-white' : 'text-gray-400 hover:bg-[#35373c] hover:text-gray-200'">
-                                    <i class="ph ph-hash mr-2 text-lg"></i>
-                                    <span class="font-medium text-[15px] truncate" x-text="channel.name"></span>
+                                <button @click="activeChannelId = channel.id; viewingVoice = false; markRead(channel.id)" class="w-full flex items-center px-2 py-1.5 rounded-md transition" :class="activeChannelId === channel.id && !viewingVoice ? 'bg-[#3f4147] text-white' : 'text-gray-400 hover:bg-[#35373c] hover:text-gray-200'">
+                                    <i class="ph ph-hash mr-2 text-lg" :class="hasUnread(channel.id) ? 'text-gray-200' : ''"></i>
+                                    <span class="font-medium text-[15px] truncate flex-1 text-left" :class="hasUnread(channel.id) ? 'text-gray-100 font-bold' : ''" x-text="channel.name"></span>
+                                    <template x-if="hasUnread(channel.id) && activeChannelId !== channel.id">
+                                        <div class="w-1.5 h-1.5 bg-white rounded-full flex-shrink-0"></div>
+                                    </template>
                                 </button>
                             </template>
 
@@ -298,7 +330,7 @@
                                     
                                     <!-- Contextual "Show Video" button if you are in THIS channel -->
                                     <template x-if="inVoiceRoom === channel.id && !viewingVoice">
-                                        <div class="pl-6 mt-1">
+                                        <div class="pl-6 mt-1 mb-2">
                                             <button @click="viewingVoice = true" class="w-full flex items-center justify-center gap-2 py-1 bg-[#1e1f22] hover:bg-[#111214] border border-[#3f4147] rounded text-xs font-bold text-gray-300 hover:text-white transition">
                                                 <i class="ph-fill ph-video-camera"></i> Show Video Grid
                                             </button>
@@ -309,10 +341,10 @@
                         </div>
 
                         <!-- Active Voice Connection Strip -->
-                        <div x-show="inVoiceRoom" class="bg-[#111214] p-2 border-t border-[#1e1f22] flex flex-col gap-2 relative z-20" style="display: none;">
+                        <div x-show="inVoiceRoom && activeView === 'server'" class="bg-[#111214] p-2 border-t border-[#1e1f22] flex flex-col gap-2 relative z-20" style="display: none;">
                             <div class="flex items-center justify-between text-[#23A559] px-1 pt-1">
                                 <div class="flex flex-col cursor-pointer hover:underline" @click="viewingVoice = true">
-                                    <span class="font-bold text-xs uppercase tracking-wide">Voice Connected</span>
+                                    <span class="font-bold text-xs uppercase tracking-wide flex items-center gap-1"><i class="ph-fill ph-check-circle"></i> Voice Connected</span>
                                     <span class="text-[11px] text-gray-400 truncate" x-text="getChannelName(inVoiceRoom) + ' / ' + (getServer()?.name || 'Server')"></span>
                                 </div>
                                 <button @click="leaveVoiceRoom()" class="text-red-400 hover:text-red-500 transition p-1" title="Disconnect">
@@ -321,7 +353,7 @@
                             </div>
                             <div class="flex gap-1 justify-between bg-[#2b2d31] p-1 rounded-md">
                                 <button @click="rtcToggleVideo()" class="p-1.5 flex-1 rounded hover:bg-[#3f4147] transition flex justify-center items-center" :class="!rtcVideoOff ? 'text-white bg-[#3f4147]' : 'text-gray-400'" title="Toggle Camera">
-                                    <i class="ph-fill text-lg" :class="rtcVideoOff ? 'ph-video-camera-slash text-red-400' : 'ph-video-camera'"></i>
+                                    <i class="ph-fill text-lg" :class="rtcVideoOff ? 'ph-video-camera-slash' : 'ph-video-camera'"></i>
                                 </button>
                                 <button @click="rtcToggleScreenShare()" class="p-1.5 flex-1 rounded hover:bg-[#3f4147] transition flex justify-center items-center" :class="isScreenSharing ? 'text-white bg-[#3f4147]' : 'text-gray-400'" title="Share Screen">
                                     <i class="ph-fill ph-screencast text-lg" :class="isScreenSharing ? 'text-[#5865F2]' : ''"></i>
@@ -333,14 +365,14 @@
 
                 <!-- Current User Profile Strip (Bottom Left) -->
                 <div class="h-[52px] bg-[#232428] flex items-center px-2 justify-between flex-shrink-0 relative z-30 w-full">
-                    <div class="flex items-center min-w-0 hover:bg-[#3f4147]/50 p-1 rounded-md cursor-pointer transition w-32" @click="openSettingsModal()">
+                    <div class="flex items-center min-w-0 hover:bg-[#3f4147]/50 p-1 rounded-md cursor-pointer transition w-32" @click="openSettings()">
                         <div class="relative">
                             <img :src="currentUserProfile?.avatar" class="w-8 h-8 rounded-full object-cover flex-shrink-0 bg-[#1e1f22]">
-                            <div class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-[#23A559] border-2 border-[#232428] rounded-full"></div>
+                            <div class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 border-2 border-[#232428] rounded-full transition-colors" :class="isDeafened ? 'bg-red-500' : 'bg-[#23A559]'"></div>
                         </div>
                         <div class="ml-2 truncate pb-0.5">
                             <div class="text-[13px] font-bold text-gray-100 leading-none truncate" x-text="currentUserProfile?.displayName"></div>
-                            <div class="text-[11px] text-gray-400 leading-none mt-1 truncate" x-text="'#' + currentUserProfile?.tag"></div>
+                            <div class="text-[11px] text-gray-400 leading-none mt-1 truncate" x-text="'@' + currentUserProfile?.username"></div>
                         </div>
                     </div>
                     <div class="flex items-center gap-0.5">
@@ -350,7 +382,7 @@
                         <button @click="toggleDeafen()" class="w-7 h-7 rounded-md flex items-center justify-center hover:bg-[#3f4147] transition flex-shrink-0" :class="isDeafened ? 'text-red-400' : 'text-gray-400 hover:text-gray-200'" title="Deafen">
                             <i class="ph-fill text-lg" :class="isDeafened ? 'ph-headphones-slash' : 'ph-headphones'"></i>
                         </button>
-                        <button @click="openSettingsModal()" class="w-7 h-7 rounded-md flex items-center justify-center hover:bg-[#3f4147] text-gray-400 hover:text-gray-200 transition flex-shrink-0" title="User Settings">
+                        <button @click="openSettings()" class="w-7 h-7 rounded-md flex items-center justify-center hover:bg-[#3f4147] text-gray-400 hover:text-gray-200 transition flex-shrink-0" title="User Settings">
                             <i class="ph-fill ph-gear text-lg"></i>
                         </button>
                     </div>
@@ -362,7 +394,7 @@
                 
                 <!-- Main Header -->
                 <div class="h-12 border-b border-[#1e1f22] shadow-sm flex items-center px-4 flex-shrink-0 justify-between bg-[#313338]">
-                    <div class="flex items-center text-gray-100 font-bold text-[15px]">
+                    <div class="flex items-center text-gray-100 font-bold text-[15px] truncate">
                         <template x-if="activeView === 'home' && !activeTarget">
                             <div class="flex items-center"><i class="ph-fill ph-users mr-2 text-gray-400 text-xl"></i> Friends</div>
                         </template>
@@ -370,9 +402,10 @@
                             <div class="flex items-center"><i class="ph-fill ph-compass mr-2 text-gray-400 text-xl"></i> Discover Servers</div>
                         </template>
                         <template x-if="activeView === 'home' && activeTarget">
-                            <div class="flex items-center">
-                                <i class="ph ph-at mr-2 text-gray-400 text-xl"></i>
+                            <div class="flex items-center gap-2">
+                                <i class="ph ph-at mr-1 text-gray-400 text-xl"></i>
                                 <span x-text="getUser(getDmPartner(activeTarget))?.displayName || 'Direct Message'"></span>
+                                <span class="text-xs text-gray-400 font-medium" x-text="'@' + getUser(getDmPartner(activeTarget))?.username"></span>
                             </div>
                         </template>
                         <template x-if="activeView === 'server' && !viewingVoice">
@@ -381,7 +414,7 @@
                                 <span x-text="getChannelName(activeChannelId)"></span>
                             </div>
                         </template>
-                        <template x-if="activeView === 'server' && viewingVoice">
+                        <template x-if="viewingVoice">
                             <div class="flex items-center text-gray-100">
                                 <i class="ph-fill ph-video-camera mr-2 text-xl text-[#23A559]"></i>
                                 <span>Voice Call — <span x-text="getChannelName(inVoiceRoom)"></span></span>
@@ -389,11 +422,37 @@
                         </template>
                     </div>
                     
-                    <template x-if="activeView === 'server' && !viewingVoice || (activeView === 'home' && activeTarget)">
-                        <button @click="showMembersList = !showMembersList" class="p-1 text-gray-400 hover:text-gray-200 hover:bg-[#3f4147] rounded-md transition" title="Toggle Member List">
-                            <i class="ph-fill ph-users text-xl"></i>
+                    <div class="flex items-center gap-3">
+                        <!-- DM Voice Call Button -->
+                        <template x-if="activeView === 'home' && activeTarget">
+                            <button @click="handleVoiceChannelClick(activeTarget)" class="p-1 text-gray-400 hover:text-gray-200 hover:bg-[#3f4147] rounded-md transition" :class="inVoiceRoom === activeTarget ? 'text-[#23A559]' : ''" title="Voice/Video Call">
+                                <i class="ph-fill ph-phone-call text-xl"></i>
+                            </button>
+                        </template>
+
+                        <template x-if="activeView === 'server' && !viewingVoice || (activeView === 'home' && activeTarget)">
+                            <button @click="showMembersList = !showMembersList" class="p-1 text-gray-400 hover:text-gray-200 hover:bg-[#3f4147] rounded-md transition" title="Toggle Member List">
+                                <i class="ph-fill ph-users text-xl"></i>
+                            </button>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- DM Active Voice Connection Strip (Top of chat) -->
+                <div x-show="inVoiceRoom && activeView === 'home' && inVoiceRoom === activeTarget && !viewingVoice" class="bg-[#111214] p-3 border-b border-[#1e1f22] flex justify-between items-center" style="display: none;">
+                    <div class="flex items-center gap-3 text-[#23A559] font-bold text-sm cursor-pointer hover:underline" @click="viewingVoice = true">
+                        <i class="ph-fill ph-phone-call text-xl animate-pulse"></i>
+                        <span>Call in Progress... Click to view.</span>
+                    </div>
+                    <div class="flex gap-2">
+                        <button @click="rtcToggleVideo()" class="p-2 rounded bg-[#2b2d31] hover:bg-[#3f4147] transition flex justify-center items-center" :class="!rtcVideoOff ? 'text-white' : 'text-gray-400'" title="Toggle Camera">
+                            <i class="ph-fill text-lg" :class="rtcVideoOff ? 'ph-video-camera-slash' : 'ph-video-camera'"></i>
                         </button>
-                    </template>
+                        <button @click="rtcToggleScreenShare()" class="p-2 rounded bg-[#2b2d31] hover:bg-[#3f4147] transition flex justify-center items-center" :class="isScreenSharing ? 'text-white' : 'text-gray-400'" title="Share Screen">
+                            <i class="ph-fill ph-screencast text-lg" :class="isScreenSharing ? 'text-[#5865F2]' : ''"></i>
+                        </button>
+                        <button @click="leaveVoiceRoom()" class="px-4 py-1.5 bg-red-500 hover:bg-red-600 text-white font-bold rounded shadow transition text-sm">Disconnect</button>
+                    </div>
                 </div>
 
                 <!-- Friends Hub -->
@@ -428,7 +487,10 @@
                                                     <div class="absolute bottom-0 right-0 w-3.5 h-3.5 border-2 border-[#313338] group-hover:border-[#3f4147] rounded-full transition-colors" :class="isUserOnline(friend.uid) ? 'bg-[#23A559]' : 'bg-gray-500'"></div>
                                                 </div>
                                                 <div class="flex flex-col">
-                                                    <span class="font-bold text-gray-100 text-[15px]" x-text="friend.displayName"></span>
+                                                    <div class="flex items-center gap-1">
+                                                        <span class="font-bold text-gray-100 text-[15px]" x-text="friend.displayName"></span>
+                                                        <span class="text-[11px] text-gray-400 hidden group-hover:block" x-text="'@' + friend.username"></span>
+                                                    </div>
                                                     <span class="text-xs text-gray-400" x-text="isUserOnline(friend.uid) ? 'Online' : 'Offline'"></span>
                                                 </div>
                                             </div>
@@ -461,15 +523,18 @@
                                             <div class="flex items-center gap-3">
                                                 <img :src="user.avatar" class="w-10 h-10 rounded-full object-cover bg-[#1e1f22]">
                                                 <div class="flex flex-col">
-                                                    <span class="font-bold text-gray-100 text-[15px]" x-text="user.displayName"></span>
+                                                    <div class="flex items-center gap-1">
+                                                        <span class="font-bold text-gray-100 text-[15px]" x-text="user.displayName"></span>
+                                                        <span class="text-[11px] text-gray-400" x-text="'@' + user.username"></span>
+                                                    </div>
                                                     <span class="text-xs text-gray-400">Incoming Friend Request</span>
                                                 </div>
                                             </div>
                                             <div class="flex gap-2">
-                                                <button @click.stop="addFriend(user.uid)" class="w-9 h-9 rounded-full bg-[#2b2d31] hover:bg-[#23A559] text-gray-300 hover:text-white flex items-center justify-center transition" title="Accept">
+                                                <button @click.stop="addFriend(user.uid)" class="w-9 h-9 rounded-full bg-[#2b2d31] hover:bg-[#23A559] text-gray-300 hover:text-white flex items-center justify-center transition shadow" title="Accept">
                                                     <i class="ph-bold ph-check text-lg"></i>
                                                 </button>
-                                                <button @click.stop="removeFriend(user.uid)" class="w-9 h-9 rounded-full bg-[#2b2d31] hover:bg-red-500 text-gray-300 hover:text-white flex items-center justify-center transition" title="Ignore">
+                                                <button @click.stop="removeFriend(user.uid)" class="w-9 h-9 rounded-full bg-[#2b2d31] hover:bg-red-500 text-gray-300 hover:text-white flex items-center justify-center transition shadow" title="Ignore">
                                                     <i class="ph-bold ph-x text-lg"></i>
                                                 </button>
                                             </div>
@@ -482,12 +547,15 @@
                                             <div class="flex items-center gap-3">
                                                 <img :src="user.avatar" class="w-10 h-10 rounded-full object-cover bg-[#1e1f22]">
                                                 <div class="flex flex-col">
-                                                    <span class="font-bold text-gray-100 text-[15px]" x-text="user.displayName"></span>
+                                                    <div class="flex items-center gap-1">
+                                                        <span class="font-bold text-gray-100 text-[15px]" x-text="user.displayName"></span>
+                                                        <span class="text-[11px] text-gray-400" x-text="'@' + user.username"></span>
+                                                    </div>
                                                     <span class="text-xs text-gray-400">Outgoing Friend Request</span>
                                                 </div>
                                             </div>
                                             <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition">
-                                                <button @click.stop="removeFriend(user.uid)" class="w-9 h-9 rounded-full bg-[#2b2d31] hover:bg-red-500 text-gray-300 hover:text-white flex items-center justify-center transition" title="Cancel Request">
+                                                <button @click.stop="removeFriend(user.uid)" class="w-9 h-9 rounded-full bg-[#2b2d31] hover:bg-red-500 text-gray-300 hover:text-white flex items-center justify-center transition shadow" title="Cancel Request">
                                                     <i class="ph-bold ph-x text-lg"></i>
                                                 </button>
                                             </div>
@@ -520,9 +588,12 @@
                                     <h3 class="mt-8 text-lg font-bold text-gray-100 truncate" x-text="server.name"></h3>
                                     <p class="text-sm text-gray-400 mt-1 flex-1">A public community server.</p>
                                     
-                                    <div class="flex items-center text-xs text-gray-400 mt-2 font-medium">
-                                        <div class="w-2 h-2 rounded-full bg-[#23A559] mr-1.5"></div>
-                                        Public Server
+                                    <div class="flex items-center justify-between text-xs text-gray-400 mt-2 font-medium">
+                                        <div class="flex items-center">
+                                            <div class="w-2 h-2 rounded-full bg-[#23A559] mr-1.5"></div>
+                                            Public Server
+                                        </div>
+                                        <button class="bg-[#5865F2] hover:bg-[#4752C4] text-white px-3 py-1 rounded transition opacity-0 group-hover:opacity-100">Join</button>
                                     </div>
                                 </div>
                             </div>
@@ -537,10 +608,10 @@
                 </div>
 
                 <!-- WebRTC Fullscreen Video Grid -->
-                <div x-show="viewingVoice && inVoiceRoom && activeView === 'server'" class="flex-1 bg-[#000000] p-4 flex flex-col relative" style="display: none;">
+                <div x-show="viewingVoice && inVoiceRoom" class="flex-1 bg-[#000000] flex flex-col relative" style="display: none;">
                     <div id="fullscreen-video-grid">
                         <!-- Local Camera Video (Always exists if in room) -->
-                        <div class="video-wrapper">
+                        <div class="video-wrapper group" :class="fullscreenVideoId === 'local' ? 'video-fullscreen-mode' : ''" @click="toggleFullscreenVideo('local')">
                             <video id="local-video" autoplay playsinline muted class="transition-opacity duration-300" :class="rtcVideoOff ? 'opacity-0' : 'opacity-100'"></video>
                             
                             <!-- Avatar overlay when cam is off -->
@@ -552,6 +623,10 @@
                                 <span x-text="currentUserProfile?.displayName + ' (You)'"></span>
                                 <i class="ph-fill text-red-500" x-show="rtcVideoOff" class="ph-video-camera-slash"></i>
                                 <i class="ph-fill text-red-500" x-show="isMuted" class="ph-microphone-slash"></i>
+                            </div>
+
+                            <div class="absolute top-3 right-3 bg-black/60 p-1.5 rounded text-white opacity-0 group-hover:opacity-100 transition backdrop-blur-sm">
+                                <i class="ph-bold" :class="fullscreenVideoId === 'local' ? 'ph-corners-in' : 'ph-corners-out'"></i>
                             </div>
                         </div>
                         <!-- Remote Videos and Local Screenshare dynamically injected here -->
@@ -578,12 +653,13 @@
                             <div class="flex-1 min-w-0">
                                 <div class="flex items-baseline mb-0.5">
                                     <span class="font-medium text-gray-100 mr-2 cursor-pointer hover:underline text-[15px]" @click="openProfilePopout(group.senderId)" x-text="getUser(group.senderId)?.displayName || 'Unknown'"></span>
+                                    <i x-show="activeView === 'server' && getServer()?.owner === group.senderId" class="ph-fill ph-crown text-[#F1C40F] mr-2 text-sm" title="Server Owner"></i>
                                     <span class="text-[11px] text-gray-400 font-medium" x-text="formatTime(group.timestamp)"></span>
                                 </div>
                                 <div class="space-y-0.5">
                                     <template x-for="msg in group.messages" :key="msg.id">
-                                        <div>
-                                            <div class="text-gray-300 whitespace-pre-wrap break-words leading-snug text-[15px]" x-text="msg.text" x-show="msg.text"></div>
+                                        <div class="px-1 -mx-1 rounded" :class="isMentioned(msg.text) ? 'bg-[#5865F2]/10 border-l-2 border-[#5865F2]' : 'hover:bg-[#35373c]/50'">
+                                            <div class="text-gray-300 whitespace-pre-wrap break-words leading-snug text-[15px]" x-html="formatMessage(msg.text)" x-show="msg.text"></div>
                                             <template x-if="msg.image">
                                                 <img :src="msg.image" class="mt-2 max-w-md w-full rounded-md object-contain border border-[#1e1f22] bg-[#2b2d31] cursor-pointer" @click="window.open(msg.image, '_blank')">
                                             </template>
@@ -620,37 +696,74 @@
             </div>
 
             <!-- Far Right Sidebar (Member List) -->
-            <div class="bg-[#2b2d31] flex flex-col flex-shrink-0 transition-all duration-300 overflow-hidden" :class="(showMembersList && activeView === 'server' && !viewingVoice) ? 'w-60' : 'w-0'">
+            <div class="bg-[#2b2d31] flex flex-col flex-shrink-0 transition-all duration-300 overflow-hidden" :class="(showMembersList && activeView === 'server' && !viewingVoice) || (showMembersList && activeView === 'home' && activeTarget && !viewingVoice) ? 'w-60' : 'w-0'">
                 <div class="p-4 w-60 overflow-y-auto">
-                    <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-3">Online — <span x-text="getServerMembers('online').length"></span></div>
-                    <div class="space-y-[2px] mb-6">
-                        <template x-for="p in getServerMembers('online')" :key="p.uid">
-                            <div @click="openProfilePopout(p.uid)" class="flex items-center px-2 py-1.5 rounded-md hover:bg-[#35373c] cursor-pointer transition group">
-                                <div class="relative">
-                                    <img :src="p.avatar" class="w-8 h-8 rounded-full object-cover bg-[#1e1f22]">
-                                    <div class="absolute bottom-0 right-0 w-3.5 h-3.5 bg-[#23A559] border-2 border-[#2b2d31] rounded-full"></div>
-                                </div>
-                                <div class="ml-3 truncate flex-1">
-                                    <div class="text-[15px] font-medium text-gray-400 group-hover:text-gray-200 truncate transition" x-text="p.displayName"></div>
-                                </div>
+                    
+                    <!-- Server Member List -->
+                    <template x-if="activeView === 'server'">
+                        <div>
+                            <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-3">Online — <span x-text="getServerMembers('online').length"></span></div>
+                            <div class="space-y-[2px] mb-6">
+                                <template x-for="p in getServerMembers('online')" :key="p.uid">
+                                    <div @click="openProfilePopout(p.uid)" class="flex items-center px-2 py-1.5 rounded-md hover:bg-[#35373c] cursor-pointer transition group">
+                                        <div class="relative">
+                                            <img :src="p.avatar" class="w-8 h-8 rounded-full object-cover bg-[#1e1f22]">
+                                            <div class="absolute bottom-0 right-0 w-3.5 h-3.5 bg-[#23A559] border-2 border-[#2b2d31] rounded-full"></div>
+                                        </div>
+                                        <div class="ml-3 truncate flex-1 flex justify-between items-center">
+                                            <div class="text-[15px] font-medium text-gray-300 group-hover:text-gray-100 truncate transition" :class="p.uid === getServer()?.owner ? 'text-gray-100 font-bold' : ''" x-text="p.displayName"></div>
+                                            <i x-show="getServer()?.owner === p.uid" class="ph-fill ph-crown text-[#F1C40F] ml-1" title="Server Owner"></i>
+                                        </div>
+                                    </div>
+                                </template>
                             </div>
-                        </template>
-                    </div>
 
-                    <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-3">Offline — <span x-text="getServerMembers('offline').length"></span></div>
-                    <div class="space-y-[2px]">
-                        <template x-for="p in getServerMembers('offline')" :key="p.uid">
-                            <div @click="openProfilePopout(p.uid)" class="flex items-center px-2 py-1.5 rounded-md hover:bg-[#35373c] cursor-pointer transition group opacity-50 hover:opacity-100">
-                                <div class="relative">
-                                    <img :src="p.avatar" class="w-8 h-8 rounded-full object-cover bg-[#1e1f22] grayscale">
-                                    <div class="absolute bottom-0 right-0 w-3.5 h-3.5 bg-gray-500 border-2 border-[#2b2d31] rounded-full"></div>
+                            <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-3">Offline — <span x-text="getServerMembers('offline').length"></span></div>
+                            <div class="space-y-[2px]">
+                                <template x-for="p in getServerMembers('offline')" :key="p.uid">
+                                    <div @click="openProfilePopout(p.uid)" class="flex items-center px-2 py-1.5 rounded-md hover:bg-[#35373c] cursor-pointer transition group opacity-50 hover:opacity-100">
+                                        <div class="relative">
+                                            <img :src="p.avatar" class="w-8 h-8 rounded-full object-cover bg-[#1e1f22] grayscale group-hover:grayscale-0 transition">
+                                            <div class="absolute bottom-0 right-0 w-3.5 h-3.5 bg-gray-500 border-2 border-[#2b2d31] rounded-full"></div>
+                                        </div>
+                                        <div class="ml-3 truncate flex-1 flex justify-between items-center">
+                                            <div class="text-[15px] font-medium text-gray-400 group-hover:text-gray-200 truncate transition" x-text="p.displayName"></div>
+                                            <i x-show="getServer()?.owner === p.uid" class="ph-fill ph-crown text-[#F1C40F] ml-1 grayscale" title="Server Owner"></i>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- DM Member List (Just shows the two participants) -->
+                    <template x-if="activeView === 'home' && activeTarget">
+                        <div>
+                            <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-3">Participants</div>
+                            <div class="space-y-[2px] mb-6">
+                                <!-- The Partner -->
+                                <div @click="openProfilePopout(getDmPartner(activeTarget))" class="flex items-center px-2 py-1.5 rounded-md hover:bg-[#35373c] cursor-pointer transition group">
+                                    <div class="relative">
+                                        <img :src="getUser(getDmPartner(activeTarget))?.avatar" class="w-8 h-8 rounded-full object-cover bg-[#1e1f22]" :class="isUserOnline(getDmPartner(activeTarget)) ? '' : 'grayscale'">
+                                        <div class="absolute bottom-0 right-0 w-3.5 h-3.5 border-2 border-[#2b2d31] rounded-full" :class="isUserOnline(getDmPartner(activeTarget)) ? 'bg-[#23A559]' : 'bg-gray-500'"></div>
+                                    </div>
+                                    <div class="ml-3 truncate flex-1">
+                                        <div class="text-[15px] font-medium text-gray-300 group-hover:text-gray-100 truncate transition" x-text="getUser(getDmPartner(activeTarget))?.displayName"></div>
+                                    </div>
                                 </div>
-                                <div class="ml-3 truncate flex-1">
-                                    <div class="text-[15px] font-medium text-gray-400 group-hover:text-gray-200 truncate transition" x-text="p.displayName"></div>
+                                <!-- You -->
+                                <div class="flex items-center px-2 py-1.5 rounded-md hover:bg-[#35373c] cursor-pointer transition group" @click="openSettings()">
+                                    <div class="relative">
+                                        <img :src="currentUserProfile?.avatar" class="w-8 h-8 rounded-full object-cover bg-[#1e1f22]">
+                                        <div class="absolute bottom-0 right-0 w-3.5 h-3.5 bg-[#23A559] border-2 border-[#2b2d31] rounded-full"></div>
+                                    </div>
+                                    <div class="ml-3 truncate flex-1">
+                                        <div class="text-[15px] font-medium text-gray-300 group-hover:text-gray-100 truncate transition" x-text="currentUserProfile?.displayName + ' (You)'"></div>
+                                    </div>
                                 </div>
                             </div>
-                        </template>
-                    </div>
+                        </div>
+                    </template>
                 </div>
             </div>
 
@@ -663,7 +776,9 @@
         <div class="bg-[#232428] rounded-xl shadow-2xl w-full max-w-sm overflow-hidden" @click.away="showProfilePopout = false">
             <div class="h-28 bg-[#5865F2] w-full relative">
                 <!-- Absolute positioning fixes the top clipping issue completely -->
-                <img :src="popoutUser?.avatar" class="absolute -bottom-10 left-5 w-24 h-24 rounded-full border-[6px] border-[#232428] bg-[#1e1f22] object-cover z-10 shadow-sm">
+                <div class="absolute -bottom-10 left-5 z-20 bg-[#232428] rounded-full p-1.5">
+                    <img :src="popoutUser?.avatar" class="w-20 h-20 rounded-full bg-[#1e1f22] object-cover shadow-sm">
+                </div>
             </div>
             <div class="px-5 pt-14 pb-6 relative">
                 <div class="absolute top-3 right-5 flex gap-2 z-20">
@@ -698,7 +813,7 @@
                 
                 <div>
                     <h3 class="text-2xl font-extrabold text-gray-100 leading-tight truncate pr-20" x-text="popoutUser?.displayName"></h3>
-                    <p class="text-sm text-gray-400 font-medium mb-4" x-text="(popoutUser?.displayName || 'User').replace(/\s+/g, '').toLowerCase() + '#' + (popoutUser?.tag || '0000')"></p>
+                    <p class="text-sm text-gray-400 font-medium mb-4" x-text="'@' + popoutUser?.username"></p>
                     
                     <div class="w-full h-[1px] bg-[#313338] mb-4"></div>
                     
@@ -725,7 +840,7 @@
                     <div class="flex-1">
                         <label class="block text-xs font-bold text-gray-400 uppercase mb-2">Display Name</label>
                         <input type="text" x-model="editProfile.displayName" maxlength="20" class="w-full px-3 py-2 bg-[#1e1f22] rounded-md text-gray-100 focus:outline-none focus:ring-1 focus:ring-[#5865F2] text-sm">
-                        <div class="mt-2 text-xs text-gray-400">Your ID: <span class="font-bold text-gray-200" x-text="(editProfile.displayName || '').replace(/\s+/g, '').toLowerCase() + '#' + editProfile.tag"></span></div>
+                        <div class="mt-2 text-xs text-gray-400">Username: <span class="font-bold text-gray-200" x-text="'@' + editProfile.username"></span></div>
                     </div>
                 </div>
 
@@ -734,9 +849,12 @@
                     <textarea x-model="editProfile.bio" rows="3" class="w-full px-3 py-2 bg-[#1e1f22] rounded-md text-gray-100 focus:outline-none focus:ring-1 focus:ring-[#5865F2] text-sm resize-none"></textarea>
                 </div>
 
-                <div class="flex justify-end gap-3 pt-4 border-t border-[#2b2d31]">
-                    <button @click="showSettingsModal = false" class="px-4 py-2 text-sm font-medium text-gray-300 hover:text-white transition">Cancel</button>
-                    <button @click="saveProfileSettings()" class="px-5 py-2 text-sm font-bold text-white bg-[#5865F2] hover:bg-[#4752C4] rounded-md transition shadow">Save Changes</button>
+                <div class="flex justify-between items-center pt-4 border-t border-[#2b2d31]">
+                    <button @click="logout()" class="px-4 py-2 text-sm font-bold text-red-500 hover:text-white hover:bg-red-500 rounded transition">Log Out</button>
+                    <div class="flex gap-3">
+                        <button @click="showSettingsModal = false" class="px-4 py-2 text-sm font-medium text-gray-300 hover:text-white transition">Cancel</button>
+                        <button @click="saveProfileSettings()" class="px-5 py-2 text-sm font-bold text-white bg-[#5865F2] hover:bg-[#4752C4] rounded-md transition shadow">Save Changes</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -751,8 +869,8 @@
                 
                 <div class="flex justify-center mb-6">
                     <div class="relative group cursor-pointer w-24 h-24" @click="triggerImageUpload('server')">
-                        <img x-show="newServerIcon" :src="newServerIcon" class="w-full h-full rounded-full object-cover border-2 border-dashed border-[#5865F2]">
-                        <div x-show="!newServerIcon" class="w-full h-full rounded-full border-2 border-dashed border-gray-500 flex flex-col items-center justify-center text-gray-400 hover:border-[#5865F2] hover:text-[#5865F2] transition">
+                        <img x-show="newServerIcon" :src="newServerIcon" class="w-full h-full rounded-2xl object-cover border-2 border-dashed border-[#5865F2]">
+                        <div x-show="!newServerIcon" class="w-full h-full rounded-2xl border-2 border-dashed border-gray-500 flex flex-col items-center justify-center text-gray-400 hover:border-[#5865F2] hover:text-[#5865F2] transition">
                             <i class="ph-fill ph-camera text-2xl mb-1"></i>
                             <span class="text-[10px] font-bold uppercase">Upload</span>
                         </div>
@@ -803,7 +921,7 @@
                                 <label class="block text-xs font-bold text-gray-400 uppercase mb-2">Server Name</label>
                                 <input type="text" x-model="editServer.name" class="w-full px-3 py-2 bg-[#1e1f22] rounded-md text-gray-100 focus:outline-none focus:ring-1 focus:ring-[#5865F2] text-sm">
                             </div>
-                            <label class="flex items-center gap-3 cursor-pointer p-3 bg-[#1e1f22] rounded-md border border-[#2b2d31]">
+                            <label class="flex items-center gap-3 cursor-pointer p-3 bg-[#1e1f22] rounded-md border border-[#2b2d31] transition hover:border-[#3f4147]">
                                 <input type="checkbox" x-model="editServer.isPublic" class="w-5 h-5 accent-[#5865F2]">
                                 <div>
                                     <div class="text-sm font-bold text-gray-200">Public Server</div>
@@ -839,7 +957,7 @@
                                     <i class="mr-2 text-lg text-gray-400" :class="channel.type === 'text' ? 'ph ph-hash' : 'ph ph-speaker-high'"></i>
                                     <span class="text-sm font-medium" x-text="channel.name"></span>
                                 </div>
-                                <button @click="removeChannel(channel.id)" class="text-red-400 hover:text-red-500 p-1" title="Delete Channel">
+                                <button @click="removeChannel(channel.id)" class="text-red-400 hover:text-red-500 p-1 bg-[#1e1f22] rounded hover:bg-red-500/10 transition" title="Delete Channel">
                                     <i class="ph ph-trash"></i>
                                 </button>
                             </div>
@@ -848,7 +966,7 @@
                 </div>
             </div>
             
-            <button @click="showServerSettingsModal = false" class="absolute top-4 right-4 text-gray-400 hover:text-white transition">
+            <button @click="showServerSettingsModal = false" class="absolute top-4 right-4 text-gray-400 hover:text-white transition bg-[#1e1f22] p-1.5 rounded-full shadow-lg">
                 <i class="ph ph-x text-xl"></i>
             </button>
         </div>
@@ -863,7 +981,7 @@
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, addDoc, deleteDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Modern UI SVGs (Handcrafted, Gradients, Shadows)
+        // Meticulously Handcrafted Modern SVGs
         const svgC = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%235865F2"/><stop offset="100%" stop-color="%234752C4"/></linearGradient><filter id="s"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.3"/></filter></defs><rect width="100" height="100" fill="url(%23g)"/><text x="50" y="72" font-family="Arial, sans-serif" font-size="65" font-weight="900" fill="white" text-anchor="middle" filter="url(%23s)">C</text></svg>`;
         const svgPerson = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="%23313338"/><circle cx="50" cy="40" r="22" fill="%2380848E"/><path d="M15 100 C15 65, 85 65, 85 100 Z" fill="%2380848E"/></svg>`;
         const svgPen = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="f" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%23EAB308"/><stop offset="100%" stop-color="%23A16207"/></linearGradient></defs><rect width="100" height="100" fill="%231e1f22"/><path d="M50 15 L65 50 L50 85 L35 50 Z" fill="url(%23f)"/><circle cx="50" cy="55" r="4" fill="%231e1f22"/><path d="M50 55 v30" stroke="%231e1f22" stroke-width="2"/></svg>`;
@@ -873,7 +991,7 @@
             isReady: false,
             authLoading: true,
             authMode: 'login', // login | register
-            authEmail: '', authPassword: '', authDisplayName: '', authAvatar: svgC,
+            authUsername: '', authPassword: '', authDisplayName: '', authAvatar: svgC,
             defaultAvatars: [{ data: svgC }, { data: svgPerson }, { data: svgPen }, { data: svgHat }],
             
             logicalUid: null, 
@@ -894,6 +1012,7 @@
             showMembersList: true,
             viewingVoice: false,
             friendsTab: 'all', // all, pending
+            fullscreenVideoId: null,
             
             // Data
             servers: [], dms: [], messages: [], filteredMessages: [], users: {}, globalPresence: [],
@@ -916,13 +1035,33 @@
                 return Object.values(this.users).filter(u => myFriends.includes(u.uid) && !u.friends?.includes(this.logicalUid));
             },
 
-            // Message Grouping (Discord Style)
+            // Unread DMs Logic
+            get totalUnreadDms() {
+                return this.dms.filter(dm => this.hasUnread(dm.id)).length;
+            },
+            hasUnread(roomId) {
+                if (!roomId || !this.messages) return false;
+                const msgs = this.messages.filter(m => m.roomId === roomId);
+                if (msgs.length === 0) return false;
+                const lastMsg = msgs[msgs.length - 1];
+                if (lastMsg.senderId === this.logicalUid) return false; // I sent the last message
+                const lastRead = this.currentUserProfile?.lastRead?.[roomId] || 0;
+                return lastMsg.timestamp > lastRead;
+            },
+            markRead(roomId) {
+                if (!roomId || !this.logicalUid || !this.currentUserProfile) return;
+                const lr = this.currentUserProfile.lastRead || {};
+                lr[roomId] = Date.now();
+                updateDoc(doc(this.usersRef, this.logicalUid), { lastRead: lr });
+            },
+
+            // Message Grouping & Mentions
             get groupedMessages() {
-                if (!this.filteredMessages) return [];
+                if (!this.filteredMessages || this.filteredMessages.length === 0) return [];
                 const groups = [];
                 let currentGroup = null;
                 for (const msg of this.filteredMessages) {
-                    // Start new group if different sender, or if 5+ minutes passed since last message in group
+                    // Group if same sender AND less than 5 minutes gap
                     if (!currentGroup || currentGroup.senderId !== msg.senderId || (msg.timestamp - currentGroup.lastTimestamp) > 300000) {
                         currentGroup = {
                             id: msg.id + '_grp',
@@ -938,6 +1077,23 @@
                     }
                 }
                 return groups;
+            },
+            
+            escapeHTML(str) {
+                if (!str) return '';
+                return str.replace(/[&<>'"]/g, tag => ({
+                    '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+                }[tag]));
+            },
+            formatMessage(text) {
+                let safe = this.escapeHTML(text);
+                // Highlight @mentions dynamically based on usernames
+                safe = safe.replace(/@([a-zA-Z0-9_]+)/g, '<span class="text-[#5865F2] bg-[#5865F2]/20 px-1 rounded font-medium cursor-pointer hover:underline">@$1</span>');
+                return safe;
+            },
+            isMentioned(text) {
+                if(!this.currentUserProfile || !this.currentUserProfile.username || !text) return false;
+                return text.includes('@' + this.currentUserProfile.username);
             },
 
             newMessage: '', pendingImage: null,
@@ -973,31 +1129,26 @@
                         this.isReady = false;
                     }
 
-                    // Auto-Scroll chat when messages update
+                    // Auto-Scroll and Read Receipts
                     this.$watch('filteredMessages', () => {
                         this.$nextTick(() => {
                             const c = document.getElementById('chatContainer');
                             if(c) c.scrollTop = c.scrollHeight;
                         });
+                        // Mark as read if we are looking at it
+                        if(this.currentChatId && this.messages.length > 0) {
+                            const lastMsg = this.messages[this.messages.length - 1];
+                            if(lastMsg.roomId === this.currentChatId) this.markRead(this.currentChatId);
+                        }
                     });
-                    this.$watch('currentChatId', () => { this.filterMessages(); });
+                    this.$watch('currentChatId', (newVal) => { 
+                        this.filterMessages(); 
+                        this.markRead(newVal); 
+                    });
                     
                     window.addEventListener('beforeunload', () => {
                         if(this.logicalUid) setDoc(doc(this.db, `${this.publicDataPath}/presence`, this.logicalUid), { status: 'offline' }, { merge: true });
                     });
-
-                    // Screen share DOM cleanup
-                    this.cleanupInterval = setInterval(() => {
-                        document.querySelectorAll('video.remote-vid').forEach(v => {
-                            if (v.srcObject && v.srcObject.getTracks().length > 0) {
-                                if (v.srcObject.getTracks()[0].readyState === 'ended') {
-                                    if (v.parentElement && v.parentElement.className.includes('video-wrapper')) {
-                                        v.parentElement.remove();
-                                    }
-                                }
-                            }
-                        });
-                    }, 2000);
 
                     // Handle Join links
                     const urlParams = new URLSearchParams(window.location.search);
@@ -1016,14 +1167,16 @@
             async processAuth() {
                 this.authLoading = true;
                 try {
-                    const emailNormalized = this.authEmail.trim().toLowerCase();
-                    
+                    const usernameNormalized = this.authUsername.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
+                    if(!usernameNormalized) throw new Error("Please enter a valid username.");
+
                     if (this.authMode === 'login') {
                         const snap = await getDocs(this.accountsRef);
                         let foundAccount = null;
                         snap.forEach(doc => {
                             const data = doc.data();
-                            if(data.email === emailNormalized && data.password === this.authPassword) {
+                            // Support legacy email logins or new username logins
+                            if((data.username === usernameNormalized || data.email === usernameNormalized) && data.password === this.authPassword) {
                                 foundAccount = data;
                             }
                         });
@@ -1033,32 +1186,32 @@
                             localStorage.setItem('lebarochat_session', this.logicalUid);
                             await this.loadLogicalProfile();
                         } else {
-                            throw new Error("Invalid email or password.");
+                            throw new Error("Invalid username or password.");
                         }
 
                     } else {
                         const snap = await getDocs(this.accountsRef);
-                        let emailExists = false;
-                        snap.forEach(d => { if(d.data().email === emailNormalized) emailExists = true; });
-                        if(emailExists) throw new Error("Email already in use.");
+                        let usernameTaken = false;
+                        snap.forEach(d => { if(d.data().username === usernameNormalized) usernameTaken = true; });
+                        if(usernameTaken) throw new Error("Username already taken.");
 
                         const newProfileId = "user_" + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
                         
                         await setDoc(doc(this.accountsRef, newProfileId), {
-                            email: emailNormalized,
+                            username: usernameNormalized,
                             password: this.authPassword, 
                             profileId: newProfileId
                         });
 
-                        const tag = Math.floor(1000 + Math.random() * 9000).toString();
                         const profile = {
                             uid: newProfileId,
-                            displayName: this.authDisplayName.trim(),
+                            username: usernameNormalized,
+                            displayName: this.authDisplayName.trim() || usernameNormalized,
                             avatar: this.authAvatar,
-                            tag: tag,
                             bio: "Ready to chat on Le BaroChat™!",
                             joinedServers: [],
-                            friends: []
+                            friends: [],
+                            lastRead: {}
                         };
                         await setDoc(doc(this.usersRef, newProfileId), profile);
 
@@ -1079,6 +1232,11 @@
                         this.currentUserProfile = docSnap.data();
                         if (!this.currentUserProfile.joinedServers) this.currentUserProfile.joinedServers = [];
                         if (!this.currentUserProfile.friends) this.currentUserProfile.friends = [];
+                        if (!this.currentUserProfile.lastRead) this.currentUserProfile.lastRead = {};
+                        // Polyfill old accounts without username
+                        if (!this.currentUserProfile.username) {
+                            this.currentUserProfile.username = "user" + Math.floor(Math.random()*9999);
+                        }
                         this.cacheUser(this.currentUserProfile);
                         
                         if(!this.isReady) {
@@ -1102,6 +1260,11 @@
                         this.isReady = false;
                     }
                 });
+            },
+
+            logout() {
+                localStorage.removeItem('lebarochat_session');
+                window.location.reload();
             },
 
             startGlobalListeners() {
@@ -1202,9 +1365,14 @@
             },
 
             cacheUser(data) { if(data && data.uid) this.users[data.uid] = data; },
-            getUser(uid) { return this.users[uid] || { displayName: 'Loading...', avatar: svgPerson, tag: '0000' }; },
+            getUser(uid) { return this.users[uid] || { displayName: 'Loading...', username: 'loading', avatar: svgPerson }; },
             getServer() { return this.servers.find(s => s.id === this.activeTarget); },
             getChannelName(cid) {
+                if (cid && cid.includes('_')) {
+                    // It's a DM
+                    const partner = this.getDmPartner(cid);
+                    return this.getUser(partner)?.displayName || 'Direct Message';
+                }
                 const s = this.getServer(); if(!s || !s.channels) return '';
                 const c = s.channels.find(ch => ch.id === cid); return c ? c.name : '';
             },
@@ -1215,11 +1383,16 @@
                 const s = this.getServer();
                 if(!s) return [];
                 const members = Object.values(this.users).filter(u => u.joinedServers && u.joinedServers.includes(this.activeTarget));
-                if (status === 'online') {
-                    return members.filter(m => this.isUserOnline(m.uid));
-                } else {
-                    return members.filter(m => !this.isUserOnline(m.uid));
-                }
+                
+                // Sort by owner first, then alphabetically
+                members.sort((a, b) => {
+                    if (a.uid === s.owner) return -1;
+                    if (b.uid === s.owner) return 1;
+                    return a.displayName.localeCompare(b.displayName);
+                });
+
+                if (status === 'online') return members.filter(m => this.isUserOnline(m.uid));
+                else return members.filter(m => !this.isUserOnline(m.uid));
             },
             getVoiceUsers(channelId) { return this.globalPresence.filter(p => p.currentVoice === channelId); },
 
@@ -1240,13 +1413,15 @@
                 }
                 const voiceChannels = s?.channels?.filter(c => c.type === 'voice').map(c=>c.id) || [];
                 if(!voiceChannels.includes(this.inVoiceRoom)) this.viewingVoice = false;
+                this.markRead(this.activeChannelId);
                 this.updatePresence();
             },
 
             getDmPartner(dmId) { const dm = this.dms.find(d => d.id === dmId); return dm ? dm.partnerUid : null; },
             openDM(id) {
                 this.activeView = 'home'; this.activeTarget = id; this.activeChannelId = null;
-                this.viewingVoice = false;
+                this.viewingVoice = (this.inVoiceRoom === id);
+                this.markRead(id);
             },
             async initiateDM(targetUid) {
                 if (targetUid === this.logicalUid) return;
@@ -1282,7 +1457,7 @@
             },
 
             getChatPlaceholder() {
-                if (this.activeView === 'home') return `Message @${this.getUser(this.getDmPartner(this.activeTarget))?.displayName || 'User'}`;
+                if (this.activeView === 'home' && this.activeTarget) return `Message @${this.getUser(this.getDmPartner(this.activeTarget))?.username || 'User'}`;
                 return `Message #${this.getChannelName(this.activeChannelId) || 'channel'}`;
             },
 
@@ -1291,6 +1466,7 @@
                 const payload = { roomId: this.currentChatId, senderId: this.logicalUid, text: this.newMessage.trim(), image: this.pendingImage, timestamp: Date.now() };
                 this.newMessage = ''; this.pendingImage = null;
                 await addDoc(collection(this.db, `${this.publicDataPath}/messages`), payload);
+                this.markRead(this.currentChatId); // Mark read instantly since we sent it
             },
 
             async createServer() {
@@ -1323,7 +1499,8 @@
                 this.openHome();
             },
 
-            openSettingsModal() {
+            openSettings() {
+                if (!this.currentUserProfile) return;
                 this.editProfile = JSON.parse(JSON.stringify(this.currentUserProfile));
                 this.showSettingsModal = true;
             },
@@ -1392,9 +1569,17 @@
             // WebRTC Logic
             handleVoiceChannelClick(channelId) {
                 if (this.inVoiceRoom === channelId) {
-                    this.viewingVoice = !this.viewingVoice; 
+                    this.viewingVoice = true; 
                 } else {
                     this.joinVoiceRoom(channelId);
+                }
+            },
+
+            toggleFullscreenVideo(id) {
+                if (this.fullscreenVideoId === id) {
+                    this.fullscreenVideoId = null;
+                } else {
+                    this.fullscreenVideoId = id;
                 }
             },
 
@@ -1441,7 +1626,7 @@
                     });
                 }
                 
-                this.inVoiceRoom = null; this.localStream = null; this.viewingVoice = false;
+                this.inVoiceRoom = null; this.localStream = null; this.viewingVoice = false; this.fullscreenVideoId = null;
                 this.updatePresence();
             },
 
@@ -1455,7 +1640,7 @@
             toggleDeafen() {
                 this.isDeafened = !this.isDeafened;
                 if (this.isDeafened && !this.isMuted) this.toggleMute();
-                document.querySelectorAll('video.remote-vid').forEach(v => { v.muted = this.isDeafened; });
+                document.querySelectorAll('.remote-vid').forEach(v => { v.muted = this.isDeafened; });
             },
 
             async rtcToggleVideo() {
@@ -1493,15 +1678,21 @@
                     try {
                         this.screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
                         
-                        // Add as a secondary stream to all peers
+                        // Add as an entirely independent stream to all peers (requires new peer connections or stream adding)
                         Object.values(this.simplePeers).forEach(p => p.addStream(this.screenStream));
                         this.isScreenSharing = true; this.viewingVoice = true;
                         this.updatePresence();
 
-                        // Render local screen share
+                        // Render local screen share locally
                         const grid = document.getElementById('fullscreen-video-grid');
+                        const screenId = `local_screen`;
+                        
                         let wrapper = document.createElement('div');
-                        wrapper.id = `vid_wrap_local_screen`; wrapper.className = "video-wrapper";
+                        wrapper.id = `vid_wrap_${screenId}`; 
+                        wrapper.className = "video-wrapper group";
+                        // Custom Alpine click binding for dynamically injected HTML
+                        wrapper.setAttribute('x-bind:class', `fullscreenVideoId === '${screenId}' ? 'video-fullscreen-mode' : ''`);
+                        wrapper.onclick = () => this.toggleFullscreenVideo(screenId);
                         
                         const v = document.createElement('video');
                         v.autoplay = true; v.playsInline = true; v.muted = true;
@@ -1511,7 +1702,11 @@
                         overlay.className = "absolute bottom-3 left-3 bg-black/60 px-2.5 py-1.5 rounded text-[13px] text-white font-bold backdrop-blur-sm flex items-center gap-2";
                         overlay.innerHTML = `<i class="ph-fill ph-screencast text-[#5865F2]"></i> <span>${this.currentUserProfile.displayName} (Screen)</span>`;
                         
-                        wrapper.appendChild(v); wrapper.appendChild(overlay); grid.appendChild(wrapper);
+                        const expand = document.createElement('div');
+                        expand.className = "absolute top-3 right-3 bg-black/60 p-1.5 rounded text-white opacity-0 group-hover:opacity-100 transition backdrop-blur-sm";
+                        expand.setAttribute('x-html', `fullscreenVideoId === '${screenId}' ? '<i class="ph-bold ph-corners-in"></i>' : '<i class="ph-bold ph-corners-out"></i>'`);
+
+                        wrapper.appendChild(v); wrapper.appendChild(overlay); wrapper.appendChild(expand); grid.appendChild(wrapper);
 
                         this.screenStream.getVideoTracks()[0].onended = () => { this.stopScreenShare(); };
                     } catch(e) { this.showToast("Screen share cancelled.", true); }
@@ -1527,6 +1722,7 @@
                     this.screenStream = null;
                 }
                 this.isScreenSharing = false;
+                if(this.fullscreenVideoId === 'local_screen') this.fullscreenVideoId = null;
                 this.updatePresence();
                 const w = document.getElementById('vid_wrap_local_screen'); if(w) w.remove();
             },
@@ -1543,7 +1739,7 @@
                     }
                 });
                 
-                // If we are currently screensharing, add it to the new peer immediately
+                // If we are currently screensharing, attach it to the new connection
                 if(this.isScreenSharing && this.screenStream) {
                     peer.addStream(this.screenStream);
                 }
@@ -1562,25 +1758,35 @@
                     setTimeout(() => {
                         const grid = document.getElementById('fullscreen-video-grid'); if(!grid) return;
                         
-                        // ID includes stream.id to handle multiple streams (camera + screen) per user seamlessly
-                        const wrapperId = `vid_wrap_${targetUid}_${stream.id}`;
+                        // Use stream.id so simultaneous Cam and Screenshare create separate tiles
+                        const vId = `${targetUid}_${stream.id}`;
+                        const wrapperId = `vid_wrap_${vId}`;
                         let wrapper = document.getElementById(wrapperId);
                         
                         if (!wrapper) {
                             wrapper = document.createElement('div');
-                            wrapper.id = wrapperId; wrapper.className = "video-wrapper";
+                            wrapper.id = wrapperId; 
+                            wrapper.className = "video-wrapper group";
+                            wrapper.setAttribute('x-bind:class', `fullscreenVideoId === '${vId}' ? 'video-fullscreen-mode' : ''`);
+                            wrapper.onclick = () => this.toggleFullscreenVideo(vId);
                             
                             const v = document.createElement('video');
-                            v.id = `vid_${targetUid}_${stream.id}`; v.autoplay = true; v.playsInline = true; 
+                            v.id = `vid_${vId}`; v.autoplay = true; v.playsInline = true; 
                             v.className = "remote-vid"; v.muted = this.isDeafened;
                             
                             const overlay = document.createElement('div');
                             overlay.className = "absolute bottom-3 left-3 bg-black/60 px-2.5 py-1.5 rounded text-[13px] text-white font-bold backdrop-blur-sm";
-                            overlay.innerText = this.getUser(targetUid).displayName;
+                            // Basic heuristic to detect screenshares (they usually don't have audio tracks while cams do)
+                            const isScreen = stream.getAudioTracks().length === 0;
+                            overlay.innerText = this.getUser(targetUid).displayName + (isScreen ? " (Screen)" : "");
                             
-                            wrapper.appendChild(v); wrapper.appendChild(overlay); grid.appendChild(wrapper);
+                            const expand = document.createElement('div');
+                            expand.className = "absolute top-3 right-3 bg-black/60 p-1.5 rounded text-white opacity-0 group-hover:opacity-100 transition backdrop-blur-sm";
+                            expand.setAttribute('x-html', `fullscreenVideoId === '${vId}' ? '<i class="ph-bold ph-corners-in"></i>' : '<i class="ph-bold ph-corners-out"></i>'`);
+
+                            wrapper.appendChild(v); wrapper.appendChild(overlay); wrapper.appendChild(expand); grid.appendChild(wrapper);
                         }
-                        document.getElementById(`vid_${targetUid}_${stream.id}`).srcObject = stream;
+                        document.getElementById(`vid_${vId}`).srcObject = stream;
                     }, 200);
                 });
 
@@ -1597,7 +1803,11 @@
             removePeer(uid) {
                 if (this.simplePeers[uid]) { this.simplePeers[uid].destroy(); delete this.simplePeers[uid]; }
                 document.querySelectorAll('.video-wrapper').forEach(w => {
-                    if (w.id.startsWith(`vid_wrap_${uid}_`)) w.remove();
+                    if (w.id.startsWith(`vid_wrap_${uid}_`)) {
+                        const vidId = w.id.replace('vid_wrap_', '');
+                        if(this.fullscreenVideoId === vidId) this.fullscreenVideoId = null;
+                        w.remove();
+                    }
                 });
             }
         });
