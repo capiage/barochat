@@ -284,7 +284,8 @@ window.nexusApp = () => ({
 
     async init() {
         try {
-            console.log("Supabase initialized globally:", !!this.supabase);
+            this.supabase = supabase;
+            console.log("Supabase attached to component:", !!this.supabase);
 
             const savedSession = localStorage.getItem('lebarochat_session_v4');
             if (savedSession) {
