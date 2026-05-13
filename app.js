@@ -272,9 +272,18 @@ window.nexusApp = () => ({
             const supabaseUrl = 'https://tzdwxrdkqcntskwdvkfl.supabase.co';
             const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6ZHd4cmRrcWNudHNrd2R2a2ZsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2ODUzNjksImV4cCI6MjA5NDI2MTM2OX0.MpMEqeXXgAGuOwu9fCgSYMmWsP4JHze2s2DerNrUBu4';
             
+            console.log("Initializing Supabase with URL:", supabaseUrl);
+            
             this.supabase = createClient(supabaseUrl, supabaseKey, {
                 global: {
-                    headers: { 'apikey': supabaseKey }
+                    headers: { 
+                        'apikey': supabaseKey,
+                        'Authorization': `Bearer ${supabaseKey}`
+                    }
+                },
+                auth: {
+                    persistSession: true,
+                    autoRefreshToken: true
                 }
             });
 
