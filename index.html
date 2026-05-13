@@ -27,10 +27,10 @@
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-        /* Fullscreen WebRTC Video Grid */
+        /* Corrected WebRTC Video Grid */
         #fullscreen-video-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
             gap: 1rem;
             width: 100%;
             height: 100%;
@@ -38,15 +38,21 @@
             justify-content: center;
             padding: 1rem;
         }
+        #fullscreen-video-grid .video-wrapper {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            border-radius: 0.5rem;
+            background-color: #1e1f22;
+            overflow: hidden;
+            border: 1px solid #2b2d31;
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.5);
+        }
         #fullscreen-video-grid video {
             width: 100%;
             height: 100%;
-            max-height: 45vh;
-            border-radius: 0.5rem;
             background-color: #000;
-            object-fit: cover;
-            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.5);
-            border: 2px solid #1e1f22;
+            object-fit: contain; /* Prevents screenshare from being cropped */
         }
 
         [x-cloak] { display: none !important; }
@@ -54,11 +60,13 @@
 </head>
 <body class="h-screen w-screen flex bg-[#1e1f22]" x-data="nexusApp()" x-cloak>
 
+    <!-- Global Toast Notification -->
     <div x-show="toast.show" x-transition.opacity class="fixed top-5 left-1/2 transform -translate-x-1/2 z-[100] px-4 py-3 rounded-md shadow-2xl text-sm font-bold text-white transition-all flex items-center gap-3" :class="toast.isError ? 'bg-red-500' : 'bg-[#5865F2]'" style="display: none;">
         <i class="ph-fill text-xl" :class="toast.isError ? 'ph-warning-circle' : 'ph-info'"></i>
         <span x-text="toast.message"></span>
     </div>
 
+    <!-- Onboarding / Auth Overlay -->
     <div x-show="!isReady" class="fixed inset-0 z-50 flex items-center justify-center bg-[#1e1f22] overflow-y-auto py-10" style="display: none;">
         
         <div x-show="authLoading" class="flex flex-col items-center text-gray-300">
@@ -110,7 +118,7 @@
                         <span x-text="authMode === 'login' ? 'Log In' : 'Register'"></span>
                     </button>
 
-                    <div class="text-sm text-gray-400 mt-4">
+                    <div class="text-sm text-gray-400 mt-4 text-center">
                         <span x-text="authMode === 'login' ? 'Need an account?' : 'Already have an account?'"></span>
                         <button @click="authMode = authMode === 'login' ? 'register' : 'login'" class="text-[#00A8FC] hover:underline ml-1 font-medium">
                             <span x-text="authMode === 'login' ? 'Register' : 'Log In'"></span>
@@ -122,27 +130,25 @@
             <div class="w-full max-w-sm hidden md:block" x-show="authMode === 'register'">
                 <div class="text-xs font-bold text-gray-500 uppercase mb-3 text-center">Live Profile Preview</div>
                 <div class="bg-[#232428] rounded-xl shadow-2xl w-full overflow-hidden">
-                    <div class="h-24 bg-[#5865F2] w-full"></div>
-                    <div class="px-5 pb-6">
-                        <!-- Fix for the overlapping issue: Using standard flow with negative margin -->
-                        <div class="flex justify-between items-end -mt-12 mb-3">
-                            <img :src="authAvatar" class="w-24 h-24 rounded-full border-[6px] border-[#232428] bg-[#1e1f22] object-cover shadow-sm">
-                        </div>
-                        <div>
-                            <h3 class="text-xl font-extrabold text-gray-100 leading-tight truncate" x-text="authDisplayName || 'Your Name'"></h3>
-                            <p class="text-sm text-gray-400 font-medium mb-4" x-text="(authDisplayName || 'YourName').replace(/\s+/g, '').toLowerCase() + '#1234'"></p>
-                            
-                            <div class="w-full h-[1px] bg-[#313338] mb-4"></div>
-                            
-                            <h4 class="text-[11px] font-bold text-gray-400 uppercase mb-2">About Me</h4>
-                            <p class="text-sm text-gray-300">Ready to chat on Le BaroChat™!</p>
-                        </div>
+                    <div class="h-24 bg-[#5865F2] w-full relative">
+                        <!-- Fix: Absolute positioning ensures avatar never clips or distorts layout -->
+                        <img :src="authAvatar" class="absolute -bottom-10 left-4 w-24 h-24 rounded-full border-[6px] border-[#232428] bg-[#1e1f22] object-cover shadow-sm z-10">
+                    </div>
+                    <div class="px-5 pt-12 pb-6 relative">
+                        <h3 class="text-xl font-extrabold text-gray-100 leading-tight truncate" x-text="authDisplayName || 'Your Name'"></h3>
+                        <p class="text-sm text-gray-400 font-medium mb-4" x-text="(authDisplayName || 'YourName').replace(/\s+/g, '').toLowerCase() + '#1234'"></p>
+                        
+                        <div class="w-full h-[1px] bg-[#313338] mb-4"></div>
+                        
+                        <h4 class="text-[11px] font-bold text-gray-400 uppercase mb-2">About Me</h4>
+                        <p class="text-sm text-gray-300">Ready to chat on Le BaroChat™!</p>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- Main Application Interface -->
     <template x-if="isReady && currentUserProfile">
         <div class="flex h-full w-full">
             
@@ -151,7 +157,7 @@
                 
                 <!-- Home Button -->
                 <button @click="openHome()" class="w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-[#313338] text-gray-100 flex items-center justify-center transition-all duration-200 relative group" :class="{'rounded-[16px] bg-[#5865F2] text-white': activeView === 'home'}">
-                    <i class="ph-fill ph-house text-2xl"></i>
+                    <img :src="defaultAvatars[0].data" class="w-8 h-8 object-contain drop-shadow-md">
                     <div class="absolute -left-3 w-1 bg-white rounded-r-md transition-all duration-200" :class="activeView === 'home' ? 'h-10' : 'h-0 group-hover:h-5'"></div>
                 </button>
 
@@ -180,6 +186,7 @@
                 </button>
             </div>
 
+            <!-- Secondary Sidebar (Channels or DMs) -->
             <div class="w-60 h-full bg-[#2b2d31] flex flex-col flex-shrink-0 z-20 relative">
                 
                 <!-- Home Sidebar (Friends & DMs) -->
@@ -191,7 +198,11 @@
                         <div class="flex-1 overflow-y-auto p-2 space-y-[2px]">
                             <button @click="activeTarget = null; activeView = 'home'" class="w-full flex items-center px-3 py-2 rounded-md transition mb-2" :class="!activeTarget && activeView === 'home' ? 'bg-[#3f4147] text-white' : 'text-gray-400 hover:text-gray-100 hover:bg-[#35373c]'">
                                 <i class="ph-fill ph-users mr-3 text-lg"></i>
-                                <span class="font-medium text-[15px]">Friends</span>
+                                <div class="flex-1 text-left font-medium text-[15px]">Friends</div>
+                                <!-- Badge for pending requests -->
+                                <template x-if="incomingFriendRequests.length > 0">
+                                    <div class="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full" x-text="incomingFriendRequests.length"></div>
+                                </template>
                             </button>
                             
                             <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wider px-3 py-2 mt-2 flex justify-between items-center hover:text-gray-300 cursor-pointer">
@@ -268,7 +279,7 @@
                             <template x-for="channel in (getServer()?.channels || []).filter(c => c.type === 'voice')" :key="channel.id">
                                 <div class="mb-1">
                                     <button @click="handleVoiceChannelClick(channel.id)" class="w-full flex items-center px-2 py-1.5 rounded-md transition" :class="inVoiceRoom === channel.id ? 'bg-[#3f4147] text-white' : 'text-gray-400 hover:bg-[#35373c] hover:text-gray-200'">
-                                        <i class="ph ph-speaker-high mr-2 text-lg" :class="inVoiceRoom === channel.id ? 'text-[#23A559]' : ''"></i>
+                                        <i class="ph-fill mr-2 text-lg" :class="inVoiceRoom === channel.id ? 'ph-speaker-high text-[#23A559]' : 'ph-speaker-low'"></i>
                                         <span class="font-medium text-[15px] truncate" x-text="channel.name"></span>
                                     </button>
                                     
@@ -278,13 +289,26 @@
                                             <div class="flex items-center gap-2 px-2 py-1 rounded hover:bg-[#35373c] cursor-pointer transition" @click="openProfilePopout(p.uid)">
                                                 <img :src="getUser(p.uid)?.avatar" class="w-6 h-6 rounded-full object-cover bg-[#1e1f22]">
                                                 <span class="text-sm font-medium text-gray-300 hover:text-gray-100 truncate" x-text="getUser(p.uid)?.displayName"></span>
+                                                <template x-if="p.isScreenSharing">
+                                                    <i class="ph-fill ph-screencast text-xs text-[#5865F2] ml-auto"></i>
+                                                </template>
                                             </div>
                                         </template>
                                     </div>
+                                    
+                                    <!-- Contextual "Show Video" button if you are in THIS channel -->
+                                    <template x-if="inVoiceRoom === channel.id && !viewingVoice">
+                                        <div class="pl-6 mt-1">
+                                            <button @click="viewingVoice = true" class="w-full flex items-center justify-center gap-2 py-1 bg-[#1e1f22] hover:bg-[#111214] border border-[#3f4147] rounded text-xs font-bold text-gray-300 hover:text-white transition">
+                                                <i class="ph-fill ph-video-camera"></i> Show Video Grid
+                                            </button>
+                                        </div>
+                                    </template>
                                 </div>
                             </template>
                         </div>
 
+                        <!-- Active Voice Connection Strip -->
                         <div x-show="inVoiceRoom" class="bg-[#111214] p-2 border-t border-[#1e1f22] flex flex-col gap-2 relative z-20" style="display: none;">
                             <div class="flex items-center justify-between text-[#23A559] px-1 pt-1">
                                 <div class="flex flex-col cursor-pointer hover:underline" @click="viewingVoice = true">
@@ -297,10 +321,10 @@
                             </div>
                             <div class="flex gap-1 justify-between bg-[#2b2d31] p-1 rounded-md">
                                 <button @click="rtcToggleVideo()" class="p-1.5 flex-1 rounded hover:bg-[#3f4147] transition flex justify-center items-center" :class="!rtcVideoOff ? 'text-white bg-[#3f4147]' : 'text-gray-400'" title="Toggle Camera">
-                                    <i class="ph-fill text-lg" :class="rtcVideoOff ? 'ph-video-camera-slash' : 'ph-video-camera'"></i>
+                                    <i class="ph-fill text-lg" :class="rtcVideoOff ? 'ph-video-camera-slash text-red-400' : 'ph-video-camera'"></i>
                                 </button>
                                 <button @click="rtcToggleScreenShare()" class="p-1.5 flex-1 rounded hover:bg-[#3f4147] transition flex justify-center items-center" :class="isScreenSharing ? 'text-white bg-[#3f4147]' : 'text-gray-400'" title="Share Screen">
-                                    <i class="ph-fill ph-screencast text-lg"></i>
+                                    <i class="ph-fill ph-screencast text-lg" :class="isScreenSharing ? 'text-[#5865F2]' : ''"></i>
                                 </button>
                             </div>
                         </div>
@@ -309,7 +333,7 @@
 
                 <!-- Current User Profile Strip (Bottom Left) -->
                 <div class="h-[52px] bg-[#232428] flex items-center px-2 justify-between flex-shrink-0 relative z-30 w-full">
-                    <div class="flex items-center flex-1 min-w-0 hover:bg-[#3f4147]/50 p-1 rounded-md cursor-pointer transition" @click="openSettingsModal()">
+                    <div class="flex items-center min-w-0 hover:bg-[#3f4147]/50 p-1 rounded-md cursor-pointer transition w-32" @click="openSettingsModal()">
                         <div class="relative">
                             <img :src="currentUserProfile?.avatar" class="w-8 h-8 rounded-full object-cover flex-shrink-0 bg-[#1e1f22]">
                             <div class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-[#23A559] border-2 border-[#232428] rounded-full"></div>
@@ -319,14 +343,21 @@
                             <div class="text-[11px] text-gray-400 leading-none mt-1 truncate" x-text="'#' + currentUserProfile?.tag"></div>
                         </div>
                     </div>
-                    <div class="flex items-center">
-                        <button @click="openSettingsModal()" class="w-8 h-8 rounded-md flex items-center justify-center hover:bg-[#3f4147] text-gray-400 hover:text-gray-200 transition flex-shrink-0" title="User Settings">
+                    <div class="flex items-center gap-0.5">
+                        <button @click="toggleMute()" class="w-7 h-7 rounded-md flex items-center justify-center hover:bg-[#3f4147] transition flex-shrink-0" :class="isMuted ? 'text-red-400' : 'text-gray-400 hover:text-gray-200'" title="Mute">
+                            <i class="ph-fill text-lg" :class="isMuted ? 'ph-microphone-slash' : 'ph-microphone'"></i>
+                        </button>
+                        <button @click="toggleDeafen()" class="w-7 h-7 rounded-md flex items-center justify-center hover:bg-[#3f4147] transition flex-shrink-0" :class="isDeafened ? 'text-red-400' : 'text-gray-400 hover:text-gray-200'" title="Deafen">
+                            <i class="ph-fill text-lg" :class="isDeafened ? 'ph-headphones-slash' : 'ph-headphones'"></i>
+                        </button>
+                        <button @click="openSettingsModal()" class="w-7 h-7 rounded-md flex items-center justify-center hover:bg-[#3f4147] text-gray-400 hover:text-gray-200 transition flex-shrink-0" title="User Settings">
                             <i class="ph-fill ph-gear text-lg"></i>
                         </button>
                     </div>
                 </div>
             </div>
 
+            <!-- Central Content Area -->
             <div class="flex-1 flex flex-col bg-[#313338] min-w-0 relative z-10">
                 
                 <!-- Main Header -->
@@ -352,8 +383,8 @@
                         </template>
                         <template x-if="activeView === 'server' && viewingVoice">
                             <div class="flex items-center text-gray-100">
-                                <i class="ph-fill ph-speaker-high mr-2 text-xl text-[#23A559]"></i>
-                                <span x-text="getChannelName(inVoiceRoom)"></span>
+                                <i class="ph-fill ph-video-camera mr-2 text-xl text-[#23A559]"></i>
+                                <span>Voice Call — <span x-text="getChannelName(inVoiceRoom)"></span></span>
                             </div>
                         </template>
                     </div>
@@ -365,40 +396,110 @@
                     </template>
                 </div>
 
-                <div x-show="activeView === 'home' && !activeTarget" class="flex-1 p-6 overflow-y-auto" style="display: none;">
-                    <h2 class="text-gray-100 font-bold mb-4 uppercase text-xs tracking-wide border-b border-[#3f4147] pb-2">All Friends - <span x-text="(currentUserProfile?.friends || []).length"></span></h2>
-                    
-                    <template x-if="!(currentUserProfile?.friends?.length)">
-                        <div class="flex flex-col items-center justify-center h-64 text-gray-500">
-                            <i class="ph-fill ph-user-plus text-6xl mb-4 text-[#3f4147]"></i>
-                            <p class="text-gray-400 font-medium">You don't have any friends yet.</p>
-                            <p class="text-gray-500 text-sm mt-2">Find people in servers and click their avatar to add them!</p>
-                        </div>
-                    </template>
+                <!-- Friends Hub -->
+                <div x-show="activeView === 'home' && !activeTarget" class="flex-1 flex flex-col overflow-hidden" style="display: none;">
+                    <div class="flex gap-6 px-6 pt-4 border-b border-[#3f4147] flex-shrink-0">
+                        <button @click="friendsTab = 'all'" class="pb-2 border-b-2 font-medium text-[15px] transition" :class="friendsTab === 'all' ? 'border-[#5865F2] text-white' : 'border-transparent text-gray-400 hover:text-gray-200'">All Friends</button>
+                        <button @click="friendsTab = 'pending'" class="pb-2 border-b-2 font-medium text-[15px] transition flex items-center gap-1" :class="friendsTab === 'pending' ? 'border-[#5865F2] text-white' : 'border-transparent text-gray-400 hover:text-gray-200'">
+                            Pending
+                            <template x-if="incomingFriendRequests.length > 0">
+                                <span class="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full" x-text="incomingFriendRequests.length"></span>
+                            </template>
+                        </button>
+                    </div>
 
-                    <div class="space-y-2">
-                        <template x-for="friendId in (currentUserProfile?.friends || [])" :key="friendId">
-                            <div class="flex items-center justify-between p-3 hover:bg-[#3f4147] rounded-md transition group border-t border-[#3f4147]/50 first:border-0 cursor-pointer" @click="openProfilePopout(friendId)">
-                                <div class="flex items-center gap-3">
-                                    <div class="relative">
-                                        <img :src="getUser(friendId)?.avatar" class="w-10 h-10 rounded-full object-cover bg-[#1e1f22]">
-                                        <div class="absolute bottom-0 right-0 w-3.5 h-3.5 border-2 border-[#313338] group-hover:border-[#3f4147] rounded-full transition-colors" :class="isUserOnline(friendId) ? 'bg-[#23A559]' : 'bg-gray-500'"></div>
+                    <div class="flex-1 p-6 overflow-y-auto">
+                        <!-- All Friends -->
+                        <template x-if="friendsTab === 'all'">
+                            <div>
+                                <h2 class="text-gray-400 font-bold mb-4 uppercase text-xs tracking-wide">Mutual Friends — <span x-text="myFriendsList.length"></span></h2>
+                                <template x-if="myFriendsList.length === 0">
+                                    <div class="flex flex-col items-center justify-center h-64 text-gray-500">
+                                        <i class="ph-fill ph-users text-6xl mb-4 text-[#3f4147]"></i>
+                                        <p class="text-gray-400 font-medium">No one's around to play with Wumpus.</p>
                                     </div>
-                                    <div class="flex flex-col">
-                                        <span class="font-bold text-gray-100 text-[15px]" x-text="getUser(friendId)?.displayName"></span>
-                                        <span class="text-xs text-gray-400" x-text="isUserOnline(friendId) ? 'Online' : 'Offline'"></span>
-                                    </div>
+                                </template>
+                                <div class="space-y-1">
+                                    <template x-for="friend in myFriendsList" :key="friend.uid">
+                                        <div class="flex items-center justify-between p-2.5 hover:bg-[#3f4147] rounded-md transition group border-t border-[#3f4147]/50 first:border-0 cursor-pointer" @click="openProfilePopout(friend.uid)">
+                                            <div class="flex items-center gap-3">
+                                                <div class="relative">
+                                                    <img :src="friend.avatar" class="w-10 h-10 rounded-full object-cover bg-[#1e1f22]">
+                                                    <div class="absolute bottom-0 right-0 w-3.5 h-3.5 border-2 border-[#313338] group-hover:border-[#3f4147] rounded-full transition-colors" :class="isUserOnline(friend.uid) ? 'bg-[#23A559]' : 'bg-gray-500'"></div>
+                                                </div>
+                                                <div class="flex flex-col">
+                                                    <span class="font-bold text-gray-100 text-[15px]" x-text="friend.displayName"></span>
+                                                    <span class="text-xs text-gray-400" x-text="isUserOnline(friend.uid) ? 'Online' : 'Offline'"></span>
+                                                </div>
+                                            </div>
+                                            <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition">
+                                                <button @click.stop="initiateDM(friend.uid)" class="w-9 h-9 rounded-full bg-[#2b2d31] hover:bg-[#1e1f22] text-gray-300 hover:text-white flex items-center justify-center transition" title="Message">
+                                                    <i class="ph-fill ph-chat-circle-dots text-lg"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </template>
                                 </div>
-                                <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition">
-                                    <button @click.stop="initiateDM(friendId)" class="w-9 h-9 rounded-full bg-[#2b2d31] hover:bg-[#1e1f22] text-gray-300 hover:text-white flex items-center justify-center transition" title="Message">
-                                        <i class="ph-fill ph-chat-circle-dots text-lg"></i>
-                                    </button>
+                            </div>
+                        </template>
+
+                        <!-- Pending Requests -->
+                        <template x-if="friendsTab === 'pending'">
+                            <div>
+                                <h2 class="text-gray-400 font-bold mb-4 uppercase text-xs tracking-wide">Pending Requests — <span x-text="incomingFriendRequests.length + outgoingFriendRequests.length"></span></h2>
+                                <template x-if="incomingFriendRequests.length === 0 && outgoingFriendRequests.length === 0">
+                                    <div class="flex flex-col items-center justify-center h-64 text-gray-500">
+                                        <i class="ph-fill ph-user-focus text-6xl mb-4 text-[#3f4147]"></i>
+                                        <p class="text-gray-400 font-medium">There are no pending friend requests.</p>
+                                    </div>
+                                </template>
+
+                                <div class="space-y-1">
+                                    <!-- Incoming -->
+                                    <template x-for="user in incomingFriendRequests" :key="user.uid">
+                                        <div class="flex items-center justify-between p-2.5 hover:bg-[#3f4147] rounded-md transition group border-t border-[#3f4147]/50 first:border-0 cursor-pointer" @click="openProfilePopout(user.uid)">
+                                            <div class="flex items-center gap-3">
+                                                <img :src="user.avatar" class="w-10 h-10 rounded-full object-cover bg-[#1e1f22]">
+                                                <div class="flex flex-col">
+                                                    <span class="font-bold text-gray-100 text-[15px]" x-text="user.displayName"></span>
+                                                    <span class="text-xs text-gray-400">Incoming Friend Request</span>
+                                                </div>
+                                            </div>
+                                            <div class="flex gap-2">
+                                                <button @click.stop="addFriend(user.uid)" class="w-9 h-9 rounded-full bg-[#2b2d31] hover:bg-[#23A559] text-gray-300 hover:text-white flex items-center justify-center transition" title="Accept">
+                                                    <i class="ph-bold ph-check text-lg"></i>
+                                                </button>
+                                                <button @click.stop="removeFriend(user.uid)" class="w-9 h-9 rounded-full bg-[#2b2d31] hover:bg-red-500 text-gray-300 hover:text-white flex items-center justify-center transition" title="Ignore">
+                                                    <i class="ph-bold ph-x text-lg"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </template>
+
+                                    <!-- Outgoing -->
+                                    <template x-for="user in outgoingFriendRequests" :key="user.uid">
+                                        <div class="flex items-center justify-between p-2.5 hover:bg-[#3f4147] rounded-md transition group border-t border-[#3f4147]/50 first:border-0 cursor-pointer" @click="openProfilePopout(user.uid)">
+                                            <div class="flex items-center gap-3">
+                                                <img :src="user.avatar" class="w-10 h-10 rounded-full object-cover bg-[#1e1f22]">
+                                                <div class="flex flex-col">
+                                                    <span class="font-bold text-gray-100 text-[15px]" x-text="user.displayName"></span>
+                                                    <span class="text-xs text-gray-400">Outgoing Friend Request</span>
+                                                </div>
+                                            </div>
+                                            <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition">
+                                                <button @click.stop="removeFriend(user.uid)" class="w-9 h-9 rounded-full bg-[#2b2d31] hover:bg-red-500 text-gray-300 hover:text-white flex items-center justify-center transition" title="Cancel Request">
+                                                    <i class="ph-bold ph-x text-lg"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </template>
                                 </div>
                             </div>
                         </template>
                     </div>
                 </div>
 
+                <!-- Server Discovery Hub -->
                 <div x-show="activeView === 'discovery'" class="flex-1 p-8 overflow-y-auto" style="display: none;">
                     <div class="text-center mb-10 mt-8">
                         <h1 class="text-3xl font-extrabold text-white mb-2">Discover Public Servers</h1>
@@ -435,27 +536,29 @@
                     </div>
                 </div>
 
+                <!-- WebRTC Fullscreen Video Grid -->
                 <div x-show="viewingVoice && inVoiceRoom && activeView === 'server'" class="flex-1 bg-[#000000] p-4 flex flex-col relative" style="display: none;">
                     <div id="fullscreen-video-grid">
-                        <!-- Local Video -->
-                        <div class="relative rounded-lg overflow-hidden bg-[#1e1f22] flex items-center justify-center border border-[#2b2d31]">
-                            <video id="local-video" autoplay playsinline muted class="w-full h-full object-cover transition-opacity duration-300" :class="rtcVideoOff && !isScreenSharing ? 'opacity-0' : 'opacity-100'"></video>
+                        <!-- Local Camera Video (Always exists if in room) -->
+                        <div class="video-wrapper">
+                            <video id="local-video" autoplay playsinline muted class="transition-opacity duration-300" :class="rtcVideoOff ? 'opacity-0' : 'opacity-100'"></video>
                             
                             <!-- Avatar overlay when cam is off -->
-                            <div x-show="rtcVideoOff && !isScreenSharing" class="absolute inset-0 flex items-center justify-center bg-[#1e1f22]">
+                            <div x-show="rtcVideoOff" class="absolute inset-0 flex items-center justify-center bg-[#1e1f22]">
                                 <img :src="currentUserProfile?.avatar" class="w-32 h-32 rounded-full object-cover shadow-2xl">
                             </div>
 
                             <div class="absolute bottom-3 left-3 bg-black/60 px-2.5 py-1.5 rounded text-[13px] text-white font-bold backdrop-blur-sm flex items-center gap-2">
                                 <span x-text="currentUserProfile?.displayName + ' (You)'"></span>
-                                <i class="ph-fill text-red-500" x-show="rtcVideoOff && !isScreenSharing" class="ph-video-camera-slash"></i>
-                                <i class="ph-fill text-[#5865F2]" x-show="isScreenSharing" class="ph-screencast"></i>
+                                <i class="ph-fill text-red-500" x-show="rtcVideoOff" class="ph-video-camera-slash"></i>
+                                <i class="ph-fill text-red-500" x-show="isMuted" class="ph-microphone-slash"></i>
                             </div>
                         </div>
-                        <!-- Remote Videos injected dynamically via JS -->
+                        <!-- Remote Videos and Local Screenshare dynamically injected here -->
                     </div>
                 </div>
 
+                <!-- Text Chat Window -->
                 <div x-show="!viewingVoice && activeView !== 'discovery' && (activeTarget || activeChannelId)" class="flex-1 overflow-y-auto flex flex-col p-4" id="chatContainer">
                     <template x-if="!currentChatId">
                         <div class="flex flex-col items-center justify-center h-full text-gray-500">
@@ -464,27 +567,35 @@
                         </div>
                     </template>
 
-                    <!-- Chat padding top -->
                     <div class="mt-auto"></div>
 
-                    <!-- Render Messages -->
-                    <template x-for="msg in (filteredMessages || [])" :key="msg.id">
-                        <div class="flex group hover:bg-[#2b2d31] p-1 pr-4 rounded-md transition -mx-2 px-2 mt-4">
-                            <img :src="getUser(msg.senderId)?.avatar" @click="openProfilePopout(msg.senderId)" class="w-10 h-10 rounded-full mt-0.5 object-cover cursor-pointer flex-shrink-0 bg-[#1e1f22]">
-                            <div class="ml-4 flex-1 min-w-0">
-                                <div class="flex items-baseline">
-                                    <span class="font-medium text-gray-100 mr-2 cursor-pointer hover:underline text-[15px]" @click="openProfilePopout(msg.senderId)" x-text="getUser(msg.senderId)?.displayName || 'Unknown'"></span>
-                                    <span class="text-[11px] text-gray-400 font-medium" x-text="formatTime(msg.timestamp)"></span>
+                    <!-- Discord-Style Grouped Messages -->
+                    <template x-for="group in groupedMessages" :key="group.id">
+                        <div class="flex hover:bg-[#2b2d31] mt-4 p-1 pr-4 rounded-md transition -mx-2 px-2 group">
+                            <div class="flex-shrink-0 mr-4">
+                                <img :src="getUser(group.senderId)?.avatar" @click="openProfilePopout(group.senderId)" class="w-10 h-10 rounded-full mt-0.5 object-cover cursor-pointer bg-[#1e1f22]">
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-baseline mb-0.5">
+                                    <span class="font-medium text-gray-100 mr-2 cursor-pointer hover:underline text-[15px]" @click="openProfilePopout(group.senderId)" x-text="getUser(group.senderId)?.displayName || 'Unknown'"></span>
+                                    <span class="text-[11px] text-gray-400 font-medium" x-text="formatTime(group.timestamp)"></span>
                                 </div>
-                                <div class="text-gray-300 whitespace-pre-wrap break-words mt-0.5 leading-snug text-[15px]" x-text="msg.text"></div>
-                                <template x-if="msg.image">
-                                    <img :src="msg.image" class="mt-2 max-w-md w-full rounded-md object-contain border border-[#1e1f22] bg-[#2b2d31] cursor-pointer" @click="window.open(msg.image, '_blank')">
-                                </template>
+                                <div class="space-y-0.5">
+                                    <template x-for="msg in group.messages" :key="msg.id">
+                                        <div>
+                                            <div class="text-gray-300 whitespace-pre-wrap break-words leading-snug text-[15px]" x-text="msg.text" x-show="msg.text"></div>
+                                            <template x-if="msg.image">
+                                                <img :src="msg.image" class="mt-2 max-w-md w-full rounded-md object-contain border border-[#1e1f22] bg-[#2b2d31] cursor-pointer" @click="window.open(msg.image, '_blank')">
+                                            </template>
+                                        </div>
+                                    </template>
+                                </div>
                             </div>
                         </div>
                     </template>
                 </div>
 
+                <!-- Chat Input Bar -->
                 <div class="p-4 pt-0 flex-shrink-0 bg-[#313338]" x-show="currentChatId && !viewingVoice && activeView !== 'discovery'" style="display: none;">
                     <div class="bg-[#383a40] rounded-lg flex items-center px-4 py-2.5 transition">
                         <button @click="triggerImageUpload('chat')" class="text-gray-400 hover:text-gray-200 p-1 flex-shrink-0 transition mr-2 bg-[#2b2d31] rounded-full h-7 w-7 flex items-center justify-center hover:bg-[#5865F2] hover:text-white">
@@ -508,6 +619,7 @@
                 </div>
             </div>
 
+            <!-- Far Right Sidebar (Member List) -->
             <div class="bg-[#2b2d31] flex flex-col flex-shrink-0 transition-all duration-300 overflow-hidden" :class="(showMembersList && activeView === 'server' && !viewingVoice) ? 'w-60' : 'w-0'">
                 <div class="p-4 w-60 overflow-y-auto">
                     <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-3">Online — <span x-text="getServerMembers('online').length"></span></div>
@@ -518,7 +630,7 @@
                                     <img :src="p.avatar" class="w-8 h-8 rounded-full object-cover bg-[#1e1f22]">
                                     <div class="absolute bottom-0 right-0 w-3.5 h-3.5 bg-[#23A559] border-2 border-[#2b2d31] rounded-full"></div>
                                 </div>
-                                <div class="ml-3 truncate">
+                                <div class="ml-3 truncate flex-1">
                                     <div class="text-[15px] font-medium text-gray-400 group-hover:text-gray-200 truncate transition" x-text="p.displayName"></div>
                                 </div>
                             </div>
@@ -533,7 +645,7 @@
                                     <img :src="p.avatar" class="w-8 h-8 rounded-full object-cover bg-[#1e1f22] grayscale">
                                     <div class="absolute bottom-0 right-0 w-3.5 h-3.5 bg-gray-500 border-2 border-[#2b2d31] rounded-full"></div>
                                 </div>
-                                <div class="ml-3 truncate">
+                                <div class="ml-3 truncate flex-1">
                                     <div class="text-[15px] font-medium text-gray-400 group-hover:text-gray-200 truncate transition" x-text="p.displayName"></div>
                                 </div>
                             </div>
@@ -546,34 +658,46 @@
     </template>
 
     
-    <!-- Profile Popout -->
+    <!-- Profile Popout Overlay (FIXED ABSOLUTE POSITIONING) -->
     <div x-show="showProfilePopout" style="display: none;" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm transition-opacity">
         <div class="bg-[#232428] rounded-xl shadow-2xl w-full max-w-sm overflow-hidden" @click.away="showProfilePopout = false">
-            <div class="h-28 bg-[#5865F2] w-full relative"></div>
-            <div class="px-5 pb-6">
-                <!-- Using negative margin to fix overlap universally -->
-                <div class="flex justify-between items-end -mt-14 mb-4">
-                    <img :src="popoutUser?.avatar" class="w-28 h-28 rounded-full border-[6px] border-[#232428] bg-[#1e1f22] object-cover">
-                    <div class="pb-2 flex gap-2">
-                        <template x-if="popoutUser?.uid !== currentUserProfile?.uid">
-                            <button @click="initiateDM(popoutUser?.uid)" class="w-9 h-9 rounded-full bg-[#313338] hover:bg-[#5865F2] text-gray-200 hover:text-white flex items-center justify-center transition shadow-lg" title="Send Message">
-                                <i class="ph-fill ph-chat-circle-dots text-lg"></i>
-                            </button>
-                        </template>
-                        <template x-if="popoutUser?.uid !== currentUserProfile?.uid && !isFriend(popoutUser?.uid)">
-                            <button @click="addFriend(popoutUser?.uid)" class="w-9 h-9 rounded-full bg-[#23A559] hover:bg-[#1f8c4b] text-white flex items-center justify-center transition shadow-lg" title="Add Friend">
-                                <i class="ph-fill ph-user-plus text-lg"></i>
-                            </button>
-                        </template>
-                        <template x-if="popoutUser?.uid !== currentUserProfile?.uid && isFriend(popoutUser?.uid)">
-                            <button @click="removeFriend(popoutUser?.uid)" class="w-9 h-9 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center transition shadow-lg" title="Remove Friend">
-                                <i class="ph-fill ph-user-minus text-lg"></i>
-                            </button>
-                        </template>
-                    </div>
+            <div class="h-28 bg-[#5865F2] w-full relative">
+                <!-- Absolute positioning fixes the top clipping issue completely -->
+                <img :src="popoutUser?.avatar" class="absolute -bottom-10 left-5 w-24 h-24 rounded-full border-[6px] border-[#232428] bg-[#1e1f22] object-cover z-10 shadow-sm">
+            </div>
+            <div class="px-5 pt-14 pb-6 relative">
+                <div class="absolute top-3 right-5 flex gap-2 z-20">
+                    <template x-if="popoutUser?.uid !== currentUserProfile?.uid">
+                        <button @click="initiateDM(popoutUser?.uid)" class="w-9 h-9 rounded-full bg-[#313338] hover:bg-[#5865F2] text-gray-200 hover:text-white flex items-center justify-center transition shadow-lg border border-[#1e1f22]" title="Send Message">
+                            <i class="ph-fill ph-chat-circle-dots text-lg"></i>
+                        </button>
+                    </template>
+                    
+                    <!-- Mutual Friend Request Logic -->
+                    <template x-if="popoutUser?.uid !== currentUserProfile?.uid && !isFriend(popoutUser?.uid) && !isPendingOutgoing(popoutUser?.uid) && !isPendingIncoming(popoutUser?.uid)">
+                        <button @click="addFriend(popoutUser?.uid)" class="w-9 h-9 rounded-full bg-[#23A559] hover:bg-[#1f8c4b] text-white flex items-center justify-center transition shadow-lg border border-[#1e1f22]" title="Add Friend">
+                            <i class="ph-fill ph-user-plus text-lg"></i>
+                        </button>
+                    </template>
+                    <template x-if="popoutUser?.uid !== currentUserProfile?.uid && isPendingOutgoing(popoutUser?.uid)">
+                        <button @click="removeFriend(popoutUser?.uid)" class="w-9 h-9 rounded-full bg-gray-500 hover:bg-red-500 text-white flex items-center justify-center transition shadow-lg border border-[#1e1f22]" title="Cancel Request">
+                            <i class="ph-fill ph-user-minus text-lg"></i>
+                        </button>
+                    </template>
+                    <template x-if="popoutUser?.uid !== currentUserProfile?.uid && isPendingIncoming(popoutUser?.uid)">
+                        <button @click="addFriend(popoutUser?.uid)" class="w-9 h-9 rounded-full bg-[#5865F2] hover:bg-[#4752C4] text-white flex items-center justify-center transition shadow-lg border border-[#1e1f22]" title="Accept Request">
+                            <i class="ph-bold ph-check text-lg"></i>
+                        </button>
+                    </template>
+                    <template x-if="popoutUser?.uid !== currentUserProfile?.uid && isFriend(popoutUser?.uid)">
+                        <button @click="removeFriend(popoutUser?.uid)" class="w-9 h-9 rounded-full bg-[#313338] hover:bg-red-500 text-gray-300 hover:text-white flex items-center justify-center transition shadow-lg border border-[#1e1f22]" title="Remove Friend">
+                            <i class="ph-fill ph-user-minus text-lg"></i>
+                        </button>
+                    </template>
                 </div>
+                
                 <div>
-                    <h3 class="text-2xl font-extrabold text-gray-100 leading-tight truncate" x-text="popoutUser?.displayName"></h3>
+                    <h3 class="text-2xl font-extrabold text-gray-100 leading-tight truncate pr-20" x-text="popoutUser?.displayName"></h3>
                     <p class="text-sm text-gray-400 font-medium mb-4" x-text="(popoutUser?.displayName || 'User').replace(/\s+/g, '').toLowerCase() + '#' + (popoutUser?.tag || '0000')"></p>
                     
                     <div class="w-full h-[1px] bg-[#313338] mb-4"></div>
@@ -601,6 +725,7 @@
                     <div class="flex-1">
                         <label class="block text-xs font-bold text-gray-400 uppercase mb-2">Display Name</label>
                         <input type="text" x-model="editProfile.displayName" maxlength="20" class="w-full px-3 py-2 bg-[#1e1f22] rounded-md text-gray-100 focus:outline-none focus:ring-1 focus:ring-[#5865F2] text-sm">
+                        <div class="mt-2 text-xs text-gray-400">Your ID: <span class="font-bold text-gray-200" x-text="(editProfile.displayName || '').replace(/\s+/g, '').toLowerCase() + '#' + editProfile.tag"></span></div>
                     </div>
                 </div>
 
@@ -636,7 +761,7 @@
 
                 <div class="text-left">
                     <label class="block text-xs font-bold text-gray-400 uppercase mb-2">Server Name</label>
-                    <input type="text" x-model="newServerName" class="w-full px-3 py-2 bg-[#1e1f22] rounded-md text-gray-100 focus:outline-none focus:ring-1 focus:ring-[#5865F2] text-sm">
+                    <input type="text" x-model="newServerName" @keydown.enter="createServer()" class="w-full px-3 py-2 bg-[#1e1f22] rounded-md text-gray-100 focus:outline-none focus:ring-1 focus:ring-[#5865F2] text-sm">
                 </div>
             </div>
             <div class="bg-[#2b2d31] p-4 flex justify-between items-center">
@@ -649,17 +774,13 @@
     <!-- Server Settings Modal -->
     <div x-show="showServerSettingsModal" style="display: none;" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm">
         <div class="bg-[#313338] rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden flex h-[500px]" @click.away="showServerSettingsModal = false">
-            <!-- Sidebar -->
             <div class="w-48 bg-[#2b2d31] p-4 flex flex-col gap-1 border-r border-[#1e1f22]">
                 <h3 class="text-xs font-bold text-gray-400 uppercase px-2 mb-2 truncate" x-text="editServer.name"></h3>
                 <button @click="serverSettingsTab = 'overview'" class="text-left px-2 py-1.5 rounded-md text-sm font-medium transition" :class="serverSettingsTab === 'overview' ? 'bg-[#3f4147] text-white' : 'text-gray-400 hover:bg-[#35373c] hover:text-gray-200'">Overview</button>
                 <button @click="serverSettingsTab = 'channels'" class="text-left px-2 py-1.5 rounded-md text-sm font-medium transition" :class="serverSettingsTab === 'channels' ? 'bg-[#3f4147] text-white' : 'text-gray-400 hover:bg-[#35373c] hover:text-gray-200'">Channels</button>
             </div>
             
-            <!-- Content -->
             <div class="flex-1 p-6 overflow-y-auto">
-                
-                <!-- Overview Tab -->
                 <div x-show="serverSettingsTab === 'overview'">
                     <h2 class="text-xl font-bold text-gray-100 mb-6">Server Overview</h2>
                     <div class="flex gap-6 mb-6">
@@ -696,7 +817,6 @@
                     </div>
                 </div>
 
-                <!-- Channels Tab -->
                 <div x-show="serverSettingsTab === 'channels'" style="display: none;">
                     <h2 class="text-xl font-bold text-gray-100 mb-6">Manage Channels</h2>
                     
@@ -726,17 +846,15 @@
                         </template>
                     </div>
                 </div>
-
             </div>
             
-            <!-- Close button overlay -->
             <button @click="showServerSettingsModal = false" class="absolute top-4 right-4 text-gray-400 hover:text-white transition">
                 <i class="ph ph-x text-xl"></i>
             </button>
         </div>
     </div>
 
-    <!-- Hidden Textarea for copying -->
+    <!-- Hidden Textarea for copying (iframe safe) -->
     <textarea id="hiddenCopyTextarea" style="position: absolute; left: -9999px;"></textarea>
 
     <script type="module">
@@ -758,7 +876,6 @@
             authEmail: '', authPassword: '', authDisplayName: '', authAvatar: svgC,
             defaultAvatars: [{ data: svgC }, { data: svgPerson }, { data: svgPen }, { data: svgHat }],
             
-            // Custom Auth Layer
             logicalUid: null, 
             currentUserProfile: null,
             
@@ -775,7 +892,8 @@
             activeTarget: null, 
             activeChannelId: null, 
             showMembersList: true,
-            viewingVoice: false, // Toggles center pane to video grid
+            viewingVoice: false,
+            friendsTab: 'all', // all, pending
             
             // Data
             servers: [], dms: [], messages: [], filteredMessages: [], users: {}, globalPresence: [],
@@ -783,14 +901,53 @@
             get myServers() { return this.servers.filter(s => this.currentUserProfile?.joinedServers?.includes(s.id)); },
             get discoveryServers() { return this.servers.filter(s => s.isPublic && !this.currentUserProfile?.joinedServers?.includes(s.id)); },
             get currentChatId() { return this.activeView === 'server' ? this.activeChannelId : this.activeTarget; },
+            
+            // Friend Request Logic (Mutual Check)
+            get myFriendsList() {
+                const myFriends = this.currentUserProfile?.friends || [];
+                return Object.values(this.users).filter(u => myFriends.includes(u.uid) && u.friends?.includes(this.logicalUid));
+            },
+            get incomingFriendRequests() {
+                const myFriends = this.currentUserProfile?.friends || [];
+                return Object.values(this.users).filter(u => u.friends?.includes(this.logicalUid) && !myFriends.includes(u.uid));
+            },
+            get outgoingFriendRequests() {
+                const myFriends = this.currentUserProfile?.friends || [];
+                return Object.values(this.users).filter(u => myFriends.includes(u.uid) && !u.friends?.includes(this.logicalUid));
+            },
+
+            // Message Grouping (Discord Style)
+            get groupedMessages() {
+                if (!this.filteredMessages) return [];
+                const groups = [];
+                let currentGroup = null;
+                for (const msg of this.filteredMessages) {
+                    // Start new group if different sender, or if 5+ minutes passed since last message in group
+                    if (!currentGroup || currentGroup.senderId !== msg.senderId || (msg.timestamp - currentGroup.lastTimestamp) > 300000) {
+                        currentGroup = {
+                            id: msg.id + '_grp',
+                            senderId: msg.senderId,
+                            timestamp: msg.timestamp,
+                            lastTimestamp: msg.timestamp,
+                            messages: [msg]
+                        };
+                        groups.push(currentGroup);
+                    } else {
+                        currentGroup.messages.push(msg);
+                        currentGroup.lastTimestamp = msg.timestamp;
+                    }
+                }
+                return groups;
+            },
 
             newMessage: '', pendingImage: null,
 
-            // WebRTC State
-            inVoiceRoom: null, voicePeers: {}, rtcVideoOff: true, isScreenSharing: false,
+            // WebRTC State & Hardware
+            inVoiceRoom: null, voicePeers: {}, 
+            rtcVideoOff: true, isMuted: false, isDeafened: false, isScreenSharing: false,
             localStream: null, screenStream: null, simplePeers: {},
 
-            db: null, auth: null, publicDataPath: '', usersRef: null, accountsRef: null, heartbeatInterval: null,
+            db: null, auth: null, publicDataPath: '', usersRef: null, accountsRef: null, heartbeatInterval: null, cleanupInterval: null,
 
             async init() {
                 try {
@@ -805,22 +962,18 @@
                     this.usersRef = collection(this.db, `${this.publicDataPath}/users`);
                     this.accountsRef = collection(this.db, `${this.publicDataPath}/accounts`);
 
-                    // 1. Authenticate anonymously with Firebase to satisfy security rules
                     await signInAnonymously(this.auth);
 
-                    // 2. Check for our Custom "Logical" Session in localStorage
                     const savedSession = localStorage.getItem('lebarochat_session');
-                    
                     if (savedSession) {
                         this.logicalUid = savedSession;
                         await this.loadLogicalProfile();
                     } else {
-                        // Show Auth Screen
                         this.authLoading = false;
                         this.isReady = false;
                     }
 
-                    // Setup Chat Scroll Watcher
+                    // Auto-Scroll chat when messages update
                     this.$watch('filteredMessages', () => {
                         this.$nextTick(() => {
                             const c = document.getElementById('chatContainer');
@@ -833,13 +986,24 @@
                         if(this.logicalUid) setDoc(doc(this.db, `${this.publicDataPath}/presence`, this.logicalUid), { status: 'offline' }, { merge: true });
                     });
 
-                    // Handle Join links (e.g. ?join=serverId)
+                    // Screen share DOM cleanup
+                    this.cleanupInterval = setInterval(() => {
+                        document.querySelectorAll('video.remote-vid').forEach(v => {
+                            if (v.srcObject && v.srcObject.getTracks().length > 0) {
+                                if (v.srcObject.getTracks()[0].readyState === 'ended') {
+                                    if (v.parentElement && v.parentElement.className.includes('video-wrapper')) {
+                                        v.parentElement.remove();
+                                    }
+                                }
+                            }
+                        });
+                    }, 2000);
+
+                    // Handle Join links
                     const urlParams = new URLSearchParams(window.location.search);
                     const joinId = urlParams.get('join');
                     if (joinId) {
-                        // Strip parameter so it doesn't loop
                         window.history.replaceState({}, document.title, window.location.pathname);
-                        // Once ready, it will try to join
                         this._pendingJoinId = joinId;
                     }
 
@@ -855,8 +1019,6 @@
                     const emailNormalized = this.authEmail.trim().toLowerCase();
                     
                     if (this.authMode === 'login') {
-                        // Custom Login Query (Bypassing Firebase Auth restrictions)
-                        // Note: Using client-side filtering to adhere to strict "No complex queries" rule
                         const snap = await getDocs(this.accountsRef);
                         let foundAccount = null;
                         snap.forEach(doc => {
@@ -875,25 +1037,19 @@
                         }
 
                     } else {
-                        // Custom Register Flow
-                        // Check if email exists
                         const snap = await getDocs(this.accountsRef);
                         let emailExists = false;
                         snap.forEach(d => { if(d.data().email === emailNormalized) emailExists = true; });
-                        
                         if(emailExists) throw new Error("Email already in use.");
 
-                        // Generate UUID for Profile
                         const newProfileId = "user_" + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
                         
-                        // Save Credentials
                         await setDoc(doc(this.accountsRef, newProfileId), {
                             email: emailNormalized,
-                            password: this.authPassword, // Stored plain for custom implementation constraint
+                            password: this.authPassword, 
                             profileId: newProfileId
                         });
 
-                        // Create Profile
                         const tag = Math.floor(1000 + Math.random() * 9000).toString();
                         const profile = {
                             uid: newProfileId,
@@ -918,8 +1074,6 @@
 
             async loadLogicalProfile() {
                 if(!this.logicalUid) return;
-                
-                // Realtime listener for our profile
                 onSnapshot(doc(this.usersRef, this.logicalUid), (docSnap) => {
                     if (docSnap.exists()) {
                         this.currentUserProfile = docSnap.data();
@@ -932,18 +1086,15 @@
                             this.isReady = true;
                             this.authLoading = false;
                             
-                            // Process pending join
                             if (this._pendingJoinId) {
                                 this.joinServer(this._pendingJoinId);
                                 this._pendingJoinId = null;
                             }
                             
-                            // Presence Heartbeat
                             this.updatePresence();
                             this.heartbeatInterval = setInterval(() => this.updatePresence(), 15000);
                         }
                     } else {
-                        // Session invalid
                         localStorage.removeItem('lebarochat_session');
                         this.logicalUid = null;
                         this.authMode = 'login';
@@ -954,15 +1105,12 @@
             },
 
             startGlobalListeners() {
-                // Users Dictionary
                 onSnapshot(this.usersRef, (snap) => snap.forEach(d => this.cacheUser(d.data())), (e) => console.error(e));
                 
-                // Servers
                 onSnapshot(collection(this.db, `${this.publicDataPath}/servers`), (snap) => {
                     const s = []; snap.forEach(d => s.push({id: d.id, ...d.data()})); this.servers = s;
                 }, (e) => console.error(e));
                 
-                // DMs (Filter client-side to satisfy constraints)
                 onSnapshot(collection(this.db, `${this.publicDataPath}/dms`), (snap) => {
                     const ds = []; 
                     snap.forEach(d => {
@@ -974,13 +1122,11 @@
                     this.dms = ds;
                 }, (e) => console.error(e));
 
-                // Messages
                 onSnapshot(collection(this.db, `${this.publicDataPath}/messages`), (snap) => {
                     const m = []; snap.forEach(d => m.push({id: d.id, ...d.data()}));
                     this.messages = m; this.filterMessages();
                 }, (e) => console.error(e));
 
-                // Presence tracking (only users active in last 60s)
                 onSnapshot(collection(this.db, `${this.publicDataPath}/presence`), (snap) => {
                     const pres = [];
                     const now = Date.now();
@@ -988,9 +1134,7 @@
                         const data = d.data();
                         if (now - data.lastActive < 60000 && data.status === 'online') {
                             pres.push(data);
-                            // WebRTC discovery (Initiator)
                             if (this.inVoiceRoom && data.currentVoice === this.inVoiceRoom && data.uid !== this.logicalUid && !this.simplePeers[data.uid]) {
-                                // Deterministic initiator: The UID that is alphabetically smaller initiates
                                 this.createPeer(data.uid, this.logicalUid < data.uid);
                             }
                         }
@@ -1005,7 +1149,6 @@
                     }
                 });
 
-                // WebRTC Signaling
                 onSnapshot(collection(this.db, `${this.publicDataPath}/signaling`), (snap) => {
                     snap.docChanges().forEach(change => {
                         if (change.type === 'added') {
@@ -1026,6 +1169,7 @@
                     status: 'online',
                     currentServer: this.activeView === 'server' ? this.activeTarget : null,
                     currentVoice: this.inVoiceRoom,
+                    isScreenSharing: this.isScreenSharing,
                     lastActive: Date.now()
                 }, { merge: true });
             },
@@ -1054,7 +1198,7 @@
                 if (!this.currentChatId) { this.filteredMessages = []; return; }
                 this.filteredMessages = this.messages
                     .filter(m => m.roomId === this.currentChatId)
-                    .sort((a, b) => a.timestamp - b.timestamp); // Chronological Order
+                    .sort((a, b) => a.timestamp - b.timestamp);
             },
 
             cacheUser(data) { if(data && data.uid) this.users[data.uid] = data; },
@@ -1065,27 +1209,19 @@
                 const c = s.channels.find(ch => ch.id === cid); return c ? c.name : '';
             },
 
-            isUserOnline(uid) {
-                return this.globalPresence.some(p => p.uid === uid);
-            },
+            isUserOnline(uid) { return this.globalPresence.some(p => p.uid === uid); },
             getServerMembers(status) {
-                // Returns members of current server filtered by status ('online' or 'offline')
                 if(!this.activeTarget || this.activeView !== 'server') return [];
                 const s = this.getServer();
                 if(!s) return [];
-                
-                // Get all users who have this server in their joinedServers list
                 const members = Object.values(this.users).filter(u => u.joinedServers && u.joinedServers.includes(this.activeTarget));
-                
                 if (status === 'online') {
                     return members.filter(m => this.isUserOnline(m.uid));
                 } else {
                     return members.filter(m => !this.isUserOnline(m.uid));
                 }
             },
-            getVoiceUsers(channelId) {
-                return this.globalPresence.filter(p => p.currentVoice === channelId);
-            },
+            getVoiceUsers(channelId) { return this.globalPresence.filter(p => p.currentVoice === channelId); },
 
             openHome() {
                 this.activeView = 'home'; this.activeTarget = null; this.activeChannelId = null;
@@ -1098,19 +1234,15 @@
             openServer(id) {
                 this.activeView = 'server'; this.activeTarget = id;
                 const s = this.servers.find(server => server.id === id);
-                if (s && s.channels) {
+                if (s && s.channels && !this.activeChannelId) {
                     const texts = s.channels.filter(c => c.type === 'text');
                     this.activeChannelId = texts.length > 0 ? texts[0].id : null;
                 }
-                // If they are in a voice room in THIS server, keep viewingVoice state, else false
                 const voiceChannels = s?.channels?.filter(c => c.type === 'voice').map(c=>c.id) || [];
-                if(!voiceChannels.includes(this.inVoiceRoom)) {
-                    this.viewingVoice = false;
-                }
+                if(!voiceChannels.includes(this.inVoiceRoom)) this.viewingVoice = false;
                 this.updatePresence();
             },
 
-            // DMs and Friends
             getDmPartner(dmId) { const dm = this.dms.find(d => d.id === dmId); return dm ? dm.partnerUid : null; },
             openDM(id) {
                 this.activeView = 'home'; this.activeTarget = id; this.activeChannelId = null;
@@ -1129,19 +1261,19 @@
                 this.openDM(dmId);
             },
             
-            isFriend(uid) {
-                return this.currentUserProfile?.friends?.includes(uid);
-            },
+            isFriend(uid) { return this.currentUserProfile?.friends?.includes(uid) && this.getUser(uid)?.friends?.includes(this.logicalUid); },
+            isPendingOutgoing(uid) { return this.currentUserProfile?.friends?.includes(uid) && !this.getUser(uid)?.friends?.includes(this.logicalUid); },
+            isPendingIncoming(uid) { return !this.currentUserProfile?.friends?.includes(uid) && this.getUser(uid)?.friends?.includes(this.logicalUid); },
+            
             async addFriend(uid) {
                 if(uid === this.logicalUid || this.isFriend(uid)) return;
                 const newFriends = [...(this.currentUserProfile.friends || []), uid];
                 await updateDoc(doc(this.usersRef, this.logicalUid), { friends: newFriends });
-                this.showToast("Friend added!");
+                this.showToast(this.isPendingIncoming(uid) ? "Friend request accepted!" : "Friend request sent!");
             },
             async removeFriend(uid) {
                 const newFriends = (this.currentUserProfile.friends || []).filter(id => id !== uid);
                 await updateDoc(doc(this.usersRef, this.logicalUid), { friends: newFriends });
-                this.showToast("Friend removed.");
             },
 
             openProfilePopout(uid) {
@@ -1165,18 +1297,10 @@
                 if(!this.newServerName.trim()) return;
                 const newServerRef = doc(collection(this.db, `${this.publicDataPath}/servers`));
                 const payload = {
-                    name: this.newServerName.trim(),
-                    icon: this.newServerIcon,
-                    owner: this.logicalUid,
-                    isPublic: false,
-                    channels: [
-                        { id: 'c1_' + Date.now(), name: 'general', type: 'text' },
-                        { id: 'c2_' + Date.now(), name: 'General Voice', type: 'voice' }
-                    ]
+                    name: this.newServerName.trim(), icon: this.newServerIcon, owner: this.logicalUid, isPublic: false,
+                    channels: [ { id: 'c1_' + Date.now(), name: 'general', type: 'text' }, { id: 'c2_' + Date.now(), name: 'Lounge', type: 'voice' } ]
                 };
                 await setDoc(newServerRef, payload);
-                
-                // Join it
                 const joined = [...(this.currentUserProfile.joinedServers || []), newServerRef.id];
                 await updateDoc(doc(this.usersRef, this.logicalUid), { joinedServers: joined });
                 
@@ -1185,10 +1309,7 @@
             },
 
             async joinServer(serverId) {
-                if(this.currentUserProfile?.joinedServers?.includes(serverId)) {
-                    this.openServer(serverId);
-                    return;
-                }
+                if(this.currentUserProfile?.joinedServers?.includes(serverId)) { this.openServer(serverId); return; }
                 const joined = [...(this.currentUserProfile.joinedServers || []), serverId];
                 await updateDoc(doc(this.usersRef, this.logicalUid), { joinedServers: joined });
                 this.showToast("Joined Server!");
@@ -1202,21 +1323,21 @@
                 this.openHome();
             },
 
+            openSettingsModal() {
+                this.editProfile = JSON.parse(JSON.stringify(this.currentUserProfile));
+                this.showSettingsModal = true;
+            },
+
             openServerSettingsModal(tab = 'overview') {
-                const s = this.getServer();
-                if(!s) return;
-                this.editServer = JSON.parse(JSON.stringify(s)); // Deep clone
+                const s = this.getServer(); if(!s) return;
+                this.editServer = JSON.parse(JSON.stringify(s)); 
                 if(!this.editServer.channels) this.editServer.channels = [];
-                this.serverSettingsTab = tab;
-                this.showServerSettingsModal = true;
+                this.serverSettingsTab = tab; this.showServerSettingsModal = true;
             },
 
             async saveServerSettings() {
                 await updateDoc(doc(this.db, `${this.publicDataPath}/servers`, this.editServer.id), {
-                    name: this.editServer.name,
-                    icon: this.editServer.icon,
-                    isPublic: this.editServer.isPublic,
-                    channels: this.editServer.channels
+                    name: this.editServer.name, icon: this.editServer.icon, isPublic: this.editServer.isPublic, channels: this.editServer.channels
                 });
                 this.showToast("Server updated.");
             },
@@ -1225,8 +1346,7 @@
                 if(!this.newChannelName.trim()) return;
                 const newId = 'c_' + Date.now() + Math.random().toString(36).substr(2, 5);
                 this.editServer.channels.push({ id: newId, name: this.newChannelName.trim().toLowerCase().replace(/\s+/g, '-'), type: this.newChannelType });
-                this.newChannelName = '';
-                await this.saveServerSettings();
+                this.newChannelName = ''; await this.saveServerSettings();
             },
             
             async removeChannel(cid) {
@@ -1234,22 +1354,11 @@
                 await this.saveServerSettings();
             },
 
-            openSettingsModal() {
-                this.editProfile = JSON.parse(JSON.stringify(this.currentUserProfile));
-                this.showSettingsModal = true;
-            },
-
             async saveProfileSettings() {
-                await updateDoc(doc(this.usersRef, this.logicalUid), {
-                    displayName: this.editProfile.displayName,
-                    bio: this.editProfile.bio,
-                    avatar: this.editProfile.avatar
-                });
-                this.showSettingsModal = false;
-                this.showToast("Profile updated.");
+                await updateDoc(doc(this.usersRef, this.logicalUid), { displayName: this.editProfile.displayName, bio: this.editProfile.bio, avatar: this.editProfile.avatar });
+                this.showSettingsModal = false; this.showToast("Profile updated.");
             },
 
-            // Image Downsampling
             triggerImageUpload(context) {
                 const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*';
                 input.onchange = (e) => this.processImage(e.target.files[0], context); input.click();
@@ -1280,9 +1389,10 @@
 
             formatTime(ts) { return new Date(ts).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}); },
 
+            // WebRTC Logic
             handleVoiceChannelClick(channelId) {
                 if (this.inVoiceRoom === channelId) {
-                    this.viewingVoice = !this.viewingVoice; // Toggle Video Grid View
+                    this.viewingVoice = !this.viewingVoice; 
                 } else {
                     this.joinVoiceRoom(channelId);
                 }
@@ -1291,23 +1401,19 @@
             async joinVoiceRoom(channelId) {
                 if (this.inVoiceRoom) this.leaveVoiceRoom();
                 try {
-                    // Create dummy stream for immediate connection logic
                     const canvas = document.createElement('canvas'); canvas.width = 1; canvas.height = 1;
                     const dummyVideo = canvas.captureStream().getVideoTracks()[0];
                     const dummyAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
                     const dummyAudio = dummyAudioCtx.createMediaStreamDestination().stream.getAudioTracks()[0];
                     this.localStream = new MediaStream([dummyVideo, dummyAudio]);
                     
-                    this.inVoiceRoom = channelId;
-                    this.rtcVideoOff = true;
-                    this.isScreenSharing = false;
-                    this.viewingVoice = true; // Switch to grid view
+                    this.inVoiceRoom = channelId; this.rtcVideoOff = true; this.isScreenSharing = false; this.viewingVoice = true; 
                     
                     this.updatePresence();
 
-                    // Request real Microphone
                     navigator.mediaDevices.getUserMedia({ video: false, audio: true }).then(stream => {
                         const micTrack = stream.getAudioTracks()[0];
+                        micTrack.enabled = !this.isMuted;
                         this.localStream.removeTrack(this.localStream.getAudioTracks()[0]);
                         this.localStream.addTrack(micTrack);
                         Object.values(this.simplePeers).forEach(p => p.replaceTrack(dummyAudio, micTrack, this.localStream));
@@ -1323,26 +1429,37 @@
 
             leaveVoiceRoom() {
                 if (this.localStream) this.localStream.getTracks().forEach(t => t.stop());
-                if (this.screenStream) this.screenStream.getTracks().forEach(t => t.stop());
+                if (this.screenStream) this.stopScreenShare();
                 
                 Object.values(this.simplePeers).forEach(p => p.destroy());
                 this.simplePeers = {}; this.voicePeers = {}; 
                 
-                // Cleanup remote videos safely
                 const grid = document.getElementById('fullscreen-video-grid');
                 if(grid) {
                     Array.from(grid.children).forEach(child => {
-                        if(child.id !== 'local-video' && !child.id.includes('local-video')) child.remove();
+                        if(child.className.includes('video-wrapper') && !child.innerHTML.includes('local-video')) child.remove();
                     });
                 }
                 
-                this.inVoiceRoom = null; this.localStream = null; this.screenStream = null;
-                this.viewingVoice = false;
+                this.inVoiceRoom = null; this.localStream = null; this.viewingVoice = false;
                 this.updatePresence();
             },
 
+            toggleMute() {
+                this.isMuted = !this.isMuted;
+                if(this.localStream) {
+                    this.localStream.getAudioTracks().forEach(t => t.enabled = !this.isMuted);
+                }
+            },
+            
+            toggleDeafen() {
+                this.isDeafened = !this.isDeafened;
+                if (this.isDeafened && !this.isMuted) this.toggleMute();
+                document.querySelectorAll('video.remote-vid').forEach(v => { v.muted = this.isDeafened; });
+            },
+
             async rtcToggleVideo() {
-                if (!this.localStream || this.isScreenSharing) return;
+                if (!this.localStream) return;
                 
                 if (this.rtcVideoOff) {
                     try {
@@ -1354,8 +1471,7 @@
                         this.localStream.addTrack(vidTrack);
                         Object.values(this.simplePeers).forEach(p => p.replaceTrack(oldTrack, vidTrack, this.localStream));
                         
-                        this.rtcVideoOff = false;
-                        this.viewingVoice = true; // Ensure they see the grid
+                        this.rtcVideoOff = false; this.viewingVoice = true; 
                     } catch(e) { this.showToast("Camera access denied.", true); }
                 } else {
                     const vidTrack = this.localStream.getVideoTracks()[0];
@@ -1373,41 +1489,46 @@
 
             async rtcToggleScreenShare() {
                 if (!this.localStream) return;
-
                 if (!this.isScreenSharing) {
                     try {
                         this.screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-                        const screenTrack = this.screenStream.getVideoTracks()[0];
-                        const oldTrack = this.localStream.getVideoTracks()[0];
+                        
+                        // Add as a secondary stream to all peers
+                        Object.values(this.simplePeers).forEach(p => p.addStream(this.screenStream));
+                        this.isScreenSharing = true; this.viewingVoice = true;
+                        this.updatePresence();
 
-                        this.localStream.removeTrack(oldTrack);
-                        this.localStream.addTrack(screenTrack);
-                        Object.values(this.simplePeers).forEach(p => p.replaceTrack(oldTrack, screenTrack, this.localStream));
+                        // Render local screen share
+                        const grid = document.getElementById('fullscreen-video-grid');
+                        let wrapper = document.createElement('div');
+                        wrapper.id = `vid_wrap_local_screen`; wrapper.className = "video-wrapper";
+                        
+                        const v = document.createElement('video');
+                        v.autoplay = true; v.playsInline = true; v.muted = true;
+                        v.srcObject = this.screenStream;
+                        
+                        const overlay = document.createElement('div');
+                        overlay.className = "absolute bottom-3 left-3 bg-black/60 px-2.5 py-1.5 rounded text-[13px] text-white font-bold backdrop-blur-sm flex items-center gap-2";
+                        overlay.innerHTML = `<i class="ph-fill ph-screencast text-[#5865F2]"></i> <span>${this.currentUserProfile.displayName} (Screen)</span>`;
+                        
+                        wrapper.appendChild(v); wrapper.appendChild(overlay); grid.appendChild(wrapper);
 
-                        this.isScreenSharing = true;
-                        this.rtcVideoOff = true; // Visually disable camera button
-                        this.viewingVoice = true;
-
-                        screenTrack.onended = () => { this.rtcToggleScreenShare(); };
-                        const localVid = document.getElementById('local-video');
-                        if (localVid) localVid.srcObject = this.screenStream;
-
+                        this.screenStream.getVideoTracks()[0].onended = () => { this.stopScreenShare(); };
                     } catch(e) { this.showToast("Screen share cancelled.", true); }
                 } else {
-                    if (this.screenStream) this.screenStream.getTracks().forEach(t => t.stop());
-                    this.screenStream = null;
-                    this.isScreenSharing = false;
-                    
-                    const oldTrack = this.localStream.getVideoTracks()[0];
-                    const canvas = document.createElement('canvas'); canvas.width = 1; canvas.height = 1;
-                    const dummyVideo = canvas.captureStream().getVideoTracks()[0];
-                    this.localStream.removeTrack(oldTrack);
-                    this.localStream.addTrack(dummyVideo);
-                    Object.values(this.simplePeers).forEach(p => p.replaceTrack(oldTrack, dummyVideo, this.localStream));
-                    
-                    const localVid = document.getElementById('local-video');
-                    if (localVid) localVid.srcObject = this.localStream;
+                    this.stopScreenShare();
                 }
+            },
+            
+            stopScreenShare() {
+                if (this.screenStream) {
+                    this.screenStream.getTracks().forEach(t => t.stop());
+                    Object.values(this.simplePeers).forEach(p => { try { p.removeStream(this.screenStream); } catch(e){} });
+                    this.screenStream = null;
+                }
+                this.isScreenSharing = false;
+                this.updatePresence();
+                const w = document.getElementById('vid_wrap_local_screen'); if(w) w.remove();
             },
 
             createPeer(targetUid, initiator) {
@@ -1421,6 +1542,11 @@
                         ]
                     }
                 });
+                
+                // If we are currently screensharing, add it to the new peer immediately
+                if(this.isScreenSharing && this.screenStream) {
+                    peer.addStream(this.screenStream);
+                }
 
                 peer.on('signal', data => {
                     addDoc(collection(this.db, `${this.publicDataPath}/signaling`), {
@@ -1434,16 +1560,19 @@
                 peer.on('stream', stream => {
                     this.voicePeers[targetUid] = true;
                     setTimeout(() => {
-                        const grid = document.getElementById('fullscreen-video-grid');
-                        if(!grid) return;
-                        let wrapper = document.getElementById(`vid_wrap_${targetUid}`);
+                        const grid = document.getElementById('fullscreen-video-grid'); if(!grid) return;
+                        
+                        // ID includes stream.id to handle multiple streams (camera + screen) per user seamlessly
+                        const wrapperId = `vid_wrap_${targetUid}_${stream.id}`;
+                        let wrapper = document.getElementById(wrapperId);
+                        
                         if (!wrapper) {
                             wrapper = document.createElement('div');
-                            wrapper.id = `vid_wrap_${targetUid}`;
-                            wrapper.className = "relative rounded-lg overflow-hidden bg-[#1e1f22] flex items-center justify-center border border-[#2b2d31]";
+                            wrapper.id = wrapperId; wrapper.className = "video-wrapper";
                             
                             const v = document.createElement('video');
-                            v.id = `vid_${targetUid}`; v.autoplay = true; v.playsInline = true; v.className = "w-full h-full object-cover";
+                            v.id = `vid_${targetUid}_${stream.id}`; v.autoplay = true; v.playsInline = true; 
+                            v.className = "remote-vid"; v.muted = this.isDeafened;
                             
                             const overlay = document.createElement('div');
                             overlay.className = "absolute bottom-3 left-3 bg-black/60 px-2.5 py-1.5 rounded text-[13px] text-white font-bold backdrop-blur-sm";
@@ -1451,7 +1580,7 @@
                             
                             wrapper.appendChild(v); wrapper.appendChild(overlay); grid.appendChild(wrapper);
                         }
-                        document.getElementById(`vid_${targetUid}`).srcObject = stream;
+                        document.getElementById(`vid_${targetUid}_${stream.id}`).srcObject = stream;
                     }, 200);
                 });
 
@@ -1467,7 +1596,9 @@
 
             removePeer(uid) {
                 if (this.simplePeers[uid]) { this.simplePeers[uid].destroy(); delete this.simplePeers[uid]; }
-                const v = document.getElementById(`vid_wrap_${uid}`); if (v) v.remove();
+                document.querySelectorAll('.video-wrapper').forEach(w => {
+                    if (w.id.startsWith(`vid_wrap_${uid}_`)) w.remove();
+                });
             }
         });
 
