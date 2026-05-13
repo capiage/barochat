@@ -948,7 +948,7 @@ window.nexusApp = () => ({
         fallback.appendChild(img);
         const v = document.createElement('video');
         v.id = id; v.autoplay = true; v.playsInline = true; v.srcObject = stream;
-        v.className = "w-full h-full object-contain";
+        v.className = "w-full h-full object-cover";
         v.onplaying = () => { fallback.style.opacity = '0'; };
         const label = document.createElement('div');
         label.className = "absolute bottom-3 left-3 bg-black/60 px-2.5 py-1.5 rounded text-[13px] text-white font-bold z-10";
