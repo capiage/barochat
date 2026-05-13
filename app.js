@@ -322,17 +322,12 @@ window.nexusApp = () => ({
                 window.history.replaceState({}, document.title, window.location.pathname);
                 this._pendingJoinId = joinId;
             }
+
+            // Request Notification Permission
+            if (Notification.permission === 'default') Notification.requestPermission();
         } catch(e) {
             console.error("Init Error:", e);
             this.showToast("Connection failed.", true);
-        }
-    },
-            // Request Notification Permission
-            if (Notification.permission === 'default') Notification.requestPermission();
-
-        } catch (e) { 
-            console.error("Init Error:", e); 
-            this.showToast("Failed to connect.", true);
         }
     },
 
