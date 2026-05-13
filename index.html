@@ -103,10 +103,10 @@
             <div class="w-full max-w-sm hidden md:block">
                 <div class="text-xs font-bold text-gray-500 uppercase mb-3 text-center">Live Preview</div>
                 <div class="bg-[#313338] rounded-xl shadow-2xl w-full overflow-hidden border border-[#2b2d31]">
-                    <div class="h-24 bg-blue-600 relative w-full"></div>
-                    <div class="px-5 pb-6 relative">
-                        <img :src="setupProfile.avatar" class="w-24 h-24 rounded-full border-[6px] border-[#313338] absolute -top-12 left-5 bg-[#1e1f22] object-cover transition-all duration-300">
-                        <div class="mt-14">
+                    <div class="h-24 bg-blue-600 w-full"></div>
+                    <div class="px-5 pb-6">
+                        <img :src="setupProfile.avatar" class="w-24 h-24 rounded-full border-[6px] border-[#313338] -mt-12 relative z-10 bg-[#1e1f22] object-cover transition-all duration-300">
+                        <div class="mt-3">
                             <h3 class="text-2xl font-extrabold text-gray-100 leading-tight truncate" x-text="setupProfile.displayName || 'Your Name'"></h3>
                             <p class="text-sm text-gray-400 font-medium mb-4" x-text="(setupProfile.displayName || 'YourName') + '#1234'"></p>
                             
@@ -662,16 +662,16 @@
     <!-- Profile Popout -->
     <div x-show="showProfilePopout" style="display: none;" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
         <div class="bg-[#313338] rounded-xl shadow-2xl w-full max-w-xs overflow-hidden border border-[#2b2d31]" @click.away="showProfilePopout = false">
-            <div class="h-24 bg-blue-600 relative"></div>
-            <div class="px-4 pb-5 relative">
-                <img :src="popoutUser?.avatar" class="w-20 h-20 rounded-full border-[6px] border-[#313338] absolute -top-10 left-4 bg-[#1e1f22] object-cover">
-                <div class="mt-12">
-                    <h3 class="text-xl font-extrabold text-gray-100 leading-tight" x-text="popoutUser?.displayName"></h3>
-                    <p class="text-sm text-gray-400 font-medium mb-4" x-text="popoutUser?.displayName + '#' + popoutUser?.tag"></p>
+            <div class="h-24 bg-blue-600"></div>
+            <div class="px-4 pb-5">
+                <img :src="popoutUser?.avatar" class="w-20 h-20 rounded-full border-[6px] border-[#313338] -mt-10 relative z-10 bg-[#1e1f22] object-cover">
+                <div class="mt-3">
+                    <h3 class="text-xl font-extrabold text-gray-100 leading-tight truncate" x-text="popoutUser?.displayName"></h3>
+                    <p class="text-sm text-gray-400 font-medium mb-4" x-text="(popoutUser?.displayName || 'User') + '#' + (popoutUser?.tag || '0000')"></p>
                     
                     <div class="bg-[#2b2d31] rounded-lg p-3 mb-4 border border-[#1e1f22]">
                         <h4 class="text-xs font-bold text-gray-400 uppercase mb-1.5">About Me</h4>
-                        <p class="text-sm text-gray-300 whitespace-pre-wrap" x-text="popoutUser?.bio || 'No bio provided.'"></p>
+                        <p class="text-sm text-gray-300 whitespace-pre-wrap break-words" x-text="popoutUser?.bio || 'No bio provided.'"></p>
                     </div>
 
                     <template x-if="popoutUser?.uid !== currentUser?.uid">
