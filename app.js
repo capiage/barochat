@@ -349,11 +349,11 @@ window.nexusApp = () => ({
                 localStorage.setItem('lebarochat_session_v4', this.logicalUid);
 
                 // Ensure user profile exists
-                const { data: profile } = await this.supabase.from('users').select('*').eq('uid', this.logicalUid).single();
+                const { data: profile } = await this.supabase.from('users').select('*').eq('uid', this.logicalUid).maybeSingle();
                 if (!profile) {
                     await this.supabase.from('users').insert([{
                         uid: this.logicalUid, username, displayName: username,
-                        avatar: null, bio: "Ready to chat!", banner: null, bannerColor: '#5865F2',
+                        avatar: null, bio: "Ready to chat!", banner: null,
                         joinedServers: [], friends: [], lastRead: {}
                     }]);
                 }
@@ -368,7 +368,7 @@ window.nexusApp = () => ({
                 
                 const profile = {
                     uid: pid, username, displayName: this.authDisplayName.trim() || username,
-                    avatar: this.authAvatar, bio: "Ready to chat!", banner: null, bannerColor: '#5865F2',
+                    avatar: this.authAvatar, bio: "Ready to chat!", banner: null,
                     joinedServers: [], friends: [], lastRead: {}
                 };
                 await this.supabase.from('users').insert([profile]);
@@ -381,7 +381,7 @@ window.nexusApp = () => ({
 
     async loadLogicalProfile() {
         if(!this.logicalUid) return;
-        const { data } = await this.supabase.from('users').select('*').eq('uid', this.logicalUid).single();
+        const { data } = await this.supabase.from('users').select('*').eq('uid', this.logicalUid).maybeSingle();
         if (data) {
             this.currentUserProfile = data;
             this.cacheUser(this.currentUserProfile);
