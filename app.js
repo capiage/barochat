@@ -25,6 +25,7 @@ window.nexusApp = () => ({
     showCreateServerModal: false, newServerName: '', newServerIcon: null,
     showServerSettingsModal: false, serverSettingsTab: 'overview', editServer: {}, newChannelName: '', newChannelType: 'text',
     showCallOverlay: false, incomingCall: null,
+    showMobileSidebar: false,
     
     // Navigation & UI
     activeView: 'home', 
@@ -157,15 +158,18 @@ window.nexusApp = () => ({
         // URL detection and embedding
         const urlRegex = /(https?:\/\/[^\s]+)/g;
         safe = safe.replace(urlRegex, (url) => {
-            if (url.match(/\.(jpeg|jpg|gif|png|webp|svg)$/i)) {
-                return `<a href="${url}" target="_blank" class="text-[#00A8FC] hover:underline">${url}</a><div class="mt-2"><img src="${url}" class="max-w-md w-full rounded-md cursor-pointer block" onclick="window.nexusAction('openImage', '${url}')"></div>`;
+            const cleanUrl = url.replace(/[.,!?;:]+$/, '');
+            const suffix = url.slice(cleanUrl.length);
+            
+            if (cleanUrl.match(/\.(jpeg|jpg|gif|png|webp|svg)$/i)) {
+                return `<a href="${cleanUrl}" target="_blank" class="text-[#00A8FC] hover:underline">${cleanUrl}</a>${suffix}<div class="mt-2"><img src="${cleanUrl}" class="max-w-md w-full rounded-md cursor-pointer block" onclick="window.nexusAction('openImage', '${cleanUrl}')"></div>`;
             }
-            const ytMatch = url.match(/(?:https?:\/\/)?(?:www\.)?(?:youtube\.com|youtu\.be)\/(?:watch\?v=)?(.+)/);
+            const ytMatch = cleanUrl.match(/(?:https?:\/\/)?(?:www\.)?(?:youtube\.com|youtu\.be)\/(?:watch\?v=)?(.+)/);
             if (ytMatch && ytMatch[1]) {
                 const vid = ytMatch[1].split(/[?&]/)[0];
-                return `<a href="${url}" target="_blank" class="text-[#00A8FC] hover:underline">${url}</a><div class="mt-2 aspect-video w-full max-w-md"><iframe class="w-full h-full rounded-md" src="https://www.youtube.com/embed/${vid}" frameborder="0" allowfullscreen></iframe></div>`;
+                return `<a href="${cleanUrl}" target="_blank" class="text-[#00A8FC] hover:underline">${cleanUrl}</a>${suffix}<div class="mt-2 aspect-video w-full max-w-md"><iframe class="w-full h-full rounded-md" src="https://www.youtube.com/embed/${vid}" frameborder="0" allowfullscreen></iframe></div>`;
             }
-            return `<a href="${url}" target="_blank" class="text-[#00A8FC] hover:underline">${url}</a>`;
+            return `<a href="${cleanUrl}" target="_blank" class="text-[#00A8FC] hover:underline">${cleanUrl}</a>${suffix}`;
         });
 
         return safe;
@@ -319,7 +323,7 @@ window.nexusApp = () => ({
                 const profile = {
                     uid: pid, username, displayName: this.authDisplayName.trim() || username,
                     avatar: this.authAvatar, bio: "Ready to chat!", banner: null, bannerColor: '#5865F2',
-                    joinedServers: [], friends: [], lastRead: {}
+                    joinedServers: [], friends: [], lastRead: {}, joinedAt: Date.now()
                 };
                 await setDoc(doc(this.usersRef, pid), profile);
                 this.logicalUid = pid;
@@ -522,6 +526,15 @@ window.nexusApp = () => ({
         return members.filter(m => status === 'online' ? this.isUserOnline(m.uid) : !this.isUserOnline(m.uid));
     },
     getVoiceUsers(channelId) { return this.globalPresence.filter(p => p.currentVoice === channelId); },
+    getMemberData(uid, sid) {
+        const s = this.servers.find(srv => srv.id === (sid || this.activeTarget));
+        return s?.memberData?.[uid] || { joinedAt: 0, roles: [] };
+    },
+    getMemberRoles(uid, sid) {
+        const s = this.servers.find(srv => srv.id === (sid || this.activeTarget));
+        if (!s || !s.memberData?.[uid]) return [];
+        return (s.roles || []).filter(r => s.memberData[uid].roles.includes(r.id));
+    },
 
     openHome() { this.activeView = 'home'; this.activeTarget = null; this.activeChannelId = null; this.updatePresence(); },
     openDiscovery() { this.activeView = 'discovery'; this.activeTarget = null; this.activeChannelId = null; this.viewingVoice = false; },
@@ -643,18 +656,34 @@ window.nexusApp = () => ({
     async createServer() {
         const iconUrl = await this.uploadImage(this.newServerIcon);
         const ref = doc(collection(this.db, `${this.publicDataPath}/servers`));
+        const sid = ref.id;
+        const now = Date.now();
         await setDoc(ref, {
             name: this.newServerName.trim(), icon: iconUrl, owner: this.logicalUid, isPublic: false, banner: null, bannerColor: '#5865F2', bio: "A new community.",
-            channels: [{ id: 'c1_' + Date.now(), name: 'general', type: 'text' }, { id: 'c2_' + Date.now(), name: 'Voice', type: 'voice' }]
+            channels: [{ id: 'c1_' + now, name: 'general', type: 'text' }, { id: 'c2_' + now, name: 'Voice', type: 'voice' }],
+            roles: [{ id: 'admin', name: 'Admin', color: '#ED4245' }, { id: 'mod', name: 'Moderator', color: '#5865F2' }],
+            memberData: { [this.logicalUid]: { joinedAt: now, roles: ['admin'] } }
         });
-        const joined = [...(this.currentUserProfile.joinedServers || []), ref.id];
+        const joined = [...(this.currentUserProfile.joinedServers || []), sid];
         await updateDoc(doc(this.usersRef, this.logicalUid), { joinedServers: joined });
-        this.showCreateServerModal = false; this.openServer(ref.id);
+        this.showCreateServerModal = false; this.openServer(sid);
     },
 
     async joinServer(id) {
         const joined = [...new Set([...(this.currentUserProfile.joinedServers || []), id])];
         await updateDoc(doc(this.usersRef, this.logicalUid), { joinedServers: joined });
+        
+        // Update server member data
+        const sRef = doc(this.db, `${this.publicDataPath}/servers`, id);
+        const sSnap = await getDoc(sRef);
+        if (sSnap.exists()) {
+            const data = sSnap.data();
+            const memberData = data.memberData || {};
+            if (!memberData[this.logicalUid]) {
+                memberData[this.logicalUid] = { joinedAt: Date.now(), roles: [] };
+                await updateDoc(sRef, { memberData });
+            }
+        }
         this.openServer(id);
     },
 

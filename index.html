@@ -11,6 +11,7 @@
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     
     <!-- CRITICAL POLYFILLS FOR SIMPLE-PEER IN BROWSER -->
     <script>
@@ -125,10 +126,10 @@
 
     <!-- Main Application Interface -->
     <template x-if="isReady && currentUserProfile">
-        <div class="flex h-full w-full">
+        <div class="flex h-full w-full main-app-container overflow-hidden">
             
-            <!-- Server List -->
-            <div class="w-[72px] h-full bg-[#1e1f22] flex flex-col items-center py-3 space-y-2 flex-shrink-0 z-30 overflow-y-auto no-scrollbar">
+            <!-- Server List (Mobile Hidden by default, shown via overlay) -->
+            <div class="w-[72px] h-full bg-[#1e1f22] flex flex-col items-center py-3 space-y-2 flex-shrink-0 z-50 overflow-y-auto no-scrollbar lg:flex sidebar-mobile-hidden" :class="showMobileSidebar ? '!flex fixed inset-y-0 left-0 transition-sidebar' : 'hidden'">
                 <button @click="openHome()" class="w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-[#313338] text-gray-100 flex items-center justify-center transition-all duration-200 relative group" :class="{'rounded-[16px] bg-[#5865F2] text-white': activeView === 'home'}">
                     <i class="ph-fill ph-house text-2xl"></i>
                     <div class="absolute -left-3 w-1 bg-white rounded-r-md transition-all duration-200" :class="activeView === 'home' ? 'h-10' : 'h-0 group-hover:h-5'"></div>
@@ -159,7 +160,8 @@
             </div>
 
             <!-- Sidebar -->
-            <div class="w-60 h-full bg-[#2b2d31] flex flex-col flex-shrink-0 z-20 relative">
+            <div class="w-60 h-full bg-[#2b2d31] flex flex-col flex-shrink-0 z-40 relative lg:flex sidebar-mobile-hidden shadow-2xl" :class="showMobileSidebar ? '!flex fixed inset-y-0 left-[72px] transition-sidebar' : 'hidden'">
+                <div x-show="showMobileSidebar" class="sidebar-mobile-overlay lg:hidden" @click="showMobileSidebar = false"></div>
                 <template x-if="activeView === 'home' || activeView === 'discovery' || activeView === 'friends'">
                     <div class="flex flex-col h-full">
                         <div class="h-12 border-b border-[#1e1f22] shadow-sm flex items-center px-4">
@@ -306,6 +308,11 @@
             <div class="flex-1 flex flex-col bg-[#313338] min-w-0 relative z-10 overflow-hidden">
                 <div class="h-12 border-b border-[#1e1f22] shadow-sm flex items-center px-4 flex-shrink-0 justify-between bg-[#313338]">
                     <div class="flex items-center text-gray-100 font-bold text-[15px] truncate">
+                        <!-- Mobile Menu Button -->
+                        <button @click="showMobileSidebar = !showMobileSidebar" class="lg:hidden mr-3 text-gray-400 hover:text-white transition">
+                            <i class="ph-bold ph-list text-2xl"></i>
+                        </button>
+                        
                         <template x-if="activeView === 'server'">
                             <i class="ph ph-hash mr-2 text-gray-400 text-xl"></i>
                         </template>
@@ -558,9 +565,16 @@
                                                 <img :src="p.avatar" class="w-8 h-8 rounded-full object-cover">
                                                 <div class="absolute bottom-0 right-0 w-3.5 h-3.5 bg-[#23A559] border-2 border-[#2b2d31] rounded-full"></div>
                                             </div>
-                                            <div class="ml-3 truncate flex-1 flex justify-between items-center">
-                                                <div class="text-[15px] font-medium text-gray-300 group-hover:text-gray-100 truncate" x-text="p.displayName"></div>
-                                                <i x-show="getServer()?.owner === p.uid" class="ph-fill ph-crown text-[#F1C40F] ml-1"></i>
+                                            <div class="ml-3 truncate flex-1">
+                                                <div class="flex items-center justify-between">
+                                                    <div class="text-[15px] font-medium text-gray-300 group-hover:text-gray-100 truncate" x-text="p.displayName"></div>
+                                                    <i x-show="getServer()?.owner === p.uid" class="ph-fill ph-crown text-[#F1C40F] ml-1"></i>
+                                                </div>
+                                                <div class="flex flex-wrap gap-1 mt-0.5">
+                                                    <template x-for="role in getMemberRoles(p.uid)" :key="role.id">
+                                                        <span class="text-[9px] px-1 rounded-sm text-white font-bold uppercase tracking-tighter" :style="'background-color: ' + role.color" x-text="role.name"></span>
+                                                    </template>
+                                                </div>
                                             </div>
                                         </div>
                                     </template>
@@ -573,9 +587,16 @@
                                                 <img :src="p.avatar" class="w-8 h-8 rounded-full grayscale object-cover">
                                                 <div class="absolute bottom-0 right-0 w-3.5 h-3.5 bg-gray-500 border-2 border-[#2b2d31] rounded-full"></div>
                                             </div>
-                                            <div class="ml-3 truncate flex-1 flex justify-between items-center">
-                                                <div class="text-[15px] font-medium text-gray-300 group-hover:text-gray-100 truncate" x-text="p.displayName"></div>
-                                                <i x-show="getServer()?.owner === p.uid" class="ph-fill ph-crown text-gray-500 ml-1"></i>
+                                            <div class="ml-3 truncate flex-1">
+                                                <div class="flex items-center justify-between">
+                                                    <div class="text-[15px] font-medium text-gray-400 group-hover:text-gray-100 truncate" x-text="p.displayName"></div>
+                                                    <i x-show="getServer()?.owner === p.uid" class="ph-fill ph-crown text-gray-500 ml-1"></i>
+                                                </div>
+                                                <div class="flex flex-wrap gap-1 mt-0.5 opacity-50">
+                                                    <template x-for="role in getMemberRoles(p.uid)" :key="role.id">
+                                                        <span class="text-[9px] px-1 rounded-sm text-white font-bold uppercase tracking-tighter" :style="'background-color: ' + role.color" x-text="role.name"></span>
+                                                    </template>
+                                                </div>
                                             </div>
                                         </div>
                                     </template>
@@ -605,10 +626,41 @@
                 </div>
                 <div>
                     <h3 class="text-2xl font-extrabold text-gray-100 truncate" x-text="popoutUser?.displayName"></h3>
-                    <p class="text-sm text-gray-400 font-medium mb-4" x-text="'@' + popoutUser?.username"></p>
+                    <div class="flex items-center gap-2 mb-4">
+                        <p class="text-sm text-gray-400 font-medium" x-text="'@' + popoutUser?.username"></p>
+                        <template x-if="popoutUser?.joinedAt">
+                            <span class="text-[10px] bg-[#1e1f22] text-gray-400 px-1.5 py-0.5 rounded font-bold uppercase" x-text="'Joined ' + new Date(popoutUser.joinedAt).toLocaleDateString()"></span>
+                        </template>
+                    </div>
+                    
                     <div class="w-full h-[1px] bg-[#313338] mb-4"></div>
+                    
+                    <template x-if="activeView === 'server' && activeTarget">
+                        <div class="mb-4">
+                            <h4 class="text-[11px] font-bold text-gray-400 uppercase mb-2">Roles</h4>
+                            <div class="flex flex-wrap gap-1.5">
+                                <template x-for="role in getMemberRoles(popoutUser?.uid)" :key="role.id">
+                                    <div class="flex items-center gap-1.5 px-2 py-1 rounded-md bg-[#2b2d31] border border-[#1e1f22]">
+                                        <div class="w-3 h-3 rounded-full" :style="'background-color: ' + role.color"></div>
+                                        <span class="text-xs font-bold text-white" x-text="role.name"></span>
+                                    </div>
+                                </template>
+                                <template x-if="getMemberRoles(popoutUser?.uid).length === 0">
+                                    <span class="text-xs text-gray-500 italic">No roles.</span>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+
                     <h4 class="text-[11px] font-bold text-gray-400 uppercase mb-2">About Me</h4>
                     <p class="text-sm text-gray-300" x-text="popoutUser?.bio || 'No bio.'"></p>
+                    
+                    <template x-if="activeView === 'server' && getMemberData(popoutUser?.uid).joinedAt">
+                        <div class="mt-4 pt-4 border-t border-[#313338]">
+                            <h4 class="text-[11px] font-bold text-gray-400 uppercase mb-1">Server Member Since</h4>
+                            <p class="text-xs text-gray-400" x-text="new Date(getMemberData(popoutUser?.uid).joinedAt).toLocaleDateString()"></p>
+                        </div>
+                    </template>
                 </div>
             </div>
         </div>
@@ -769,6 +821,26 @@
                 </button>
             </div>
         </div>
+    </div>
+
+    <!-- Mobile Bottom Navigation -->
+    <div class="mobile-bottom-nav lg:hidden flex items-center justify-around px-2">
+        <button @click="openHome()" class="flex flex-col items-center gap-1" :class="activeView === 'home' ? 'text-white' : 'text-gray-400'">
+            <i class="ph-fill ph-house text-2xl"></i>
+            <span class="text-[10px] font-bold">Home</span>
+        </button>
+        <button @click="openDiscovery()" class="flex flex-col items-center gap-1" :class="activeView === 'discovery' ? 'text-white' : 'text-gray-400'">
+            <i class="ph-fill ph-compass text-2xl"></i>
+            <span class="text-[10px] font-bold">Discover</span>
+        </button>
+        <button @click="showMobileSidebar = true" class="flex flex-col items-center gap-1 text-gray-400">
+            <i class="ph-fill ph-rows text-2xl"></i>
+            <span class="text-[10px] font-bold">Servers</span>
+        </button>
+        <button @click="openSettings()" class="flex flex-col items-center gap-1 text-gray-400">
+            <img :src="currentUserProfile?.avatar" class="w-6 h-6 rounded-full object-cover">
+            <span class="text-[10px] font-bold">Profile</span>
+        </button>
     </div>
 </body>
 </html>
