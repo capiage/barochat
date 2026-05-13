@@ -1,0 +1,28 @@
+{
+  "name": "Gemini CLI Development Environment",
+  "image": "microsoft.com",
+  
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {}
+  },
+
+  // Automatically installs Gemini CLI when the Codespace builds
+  "postCreateCommand": "npm install -g @google/gemini-cli",
+
+  // Customizes individual VS Code workspace settings inside the container
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-vsliveshare.vsliveshare"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  },
+
+  // Keeps the container active even if you step away briefly
+  "updateContentCommand": "",
+  
+  "remoteUser": "node"
+}
