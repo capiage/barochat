@@ -945,7 +945,7 @@
 
             <div class="text-left mb-6">
                 <label class="block text-[11px] font-bold text-gray-400 uppercase mb-2">Server Name</label>
-                <input type="text" x-model="newServerName" class="discord-input" :placeholder="myProfile.displayName + '''s server'">
+                <input type="text" x-model="newServerName" class="discord-input" :placeholder="`${myProfile.displayName}'s server`">
             </div>
 
             <button @click="createServer()" class="discord-btn w-full text-[15px]" :disabled="!newServerName.trim()">Create</button>
