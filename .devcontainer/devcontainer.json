@@ -1,6 +1,6 @@
 {
   "name": "Gemini CLI Development Environment",
-  "image": "microsoft.com",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:20",
   
   "features": {
     "ghcr.io/devcontainers/features/git:1": {}
@@ -9,7 +9,7 @@
   // Automatically installs Gemini CLI when the Codespace builds
   "postCreateCommand": "npm install -g @google/gemini-cli",
 
-  // Auto-installs extensions when you or your friend open the codespace
+  // Auto-installs Live Share and Live HTML Preview extensions
   "customizations": {
     "vscode": {
       "extensions": [
