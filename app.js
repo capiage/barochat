@@ -4,7 +4,18 @@ import { SVGS, FAVICONS } from './constants.js';
 
 const supabaseUrl = 'https://tzdwxrdkqcntskwdvkfl.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6ZHd4cmRrcWNudHNrd2R2a2ZsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2ODUzNjksImV4cCI6MjA5NDI2MTM2OX0.MpMEqeXXgAGuOwu9fCgSYMmWsP4JHze2s2DerNrUBu4';
-const supabase = createClient(supabaseUrl, supabaseKey);
+
+// BRUTE FORCE: Intercept every fetch call and manually inject headers
+const customFetch = async (url, options = {}) => {
+  const headers = new Headers(options.headers || {});
+  headers.set('apikey', supabaseKey);
+  headers.set('Authorization', `Bearer ${supabaseKey}`);
+  return fetch(url, { ...options, headers });
+};
+
+const supabase = createClient(supabaseUrl, supabaseKey, {
+  global: { fetch: customFetch }
+});
 
 window.nexusApp = () => ({
     supabase,
