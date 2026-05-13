@@ -1066,8 +1066,18 @@
         import { getFirestore, doc, getDoc, setDoc, onSnapshot, updateDoc, deleteDoc, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'le-barochat';
-        // Mock config for init to pass locally if system variables missing
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : { apiKey: "mock", projectId: "mock", authDomain: "mock", databaseURL: "mock" };
+        
+        // Hardcoded Firebase Config to ensure it works on GitHub Pages
+        const firebaseConfig = {
+            apiKey: "AIzaSyDUoYS6MwDIVe8coZOM9A0ZCYaZTeDSloo",
+            authDomain: "babjeu-85d3e.firebaseapp.com",
+            databaseURL: "https://babjeu-85d3e-default-rtdb.firebaseio.com",
+            projectId: "babjeu-85d3e",
+            storageBucket: "babjeu-85d3e.firebasestorage.app",
+            messagingSenderId: "306959176803",
+            appId: "1:306959176803:web:2be00da38dbb37e777d456",
+            measurementId: "G-T38G7Y7MJ7"
+        };
         
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
