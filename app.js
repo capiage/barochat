@@ -3,6 +3,7 @@ import Alpine from 'https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/module.esm
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, addDoc, deleteDoc, getDocs, query, where, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { getStorage, ref, uploadString, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
 import { SVGS, FAVICONS } from './constants.js';
 
 window.nexusApp = () => ({
@@ -23,6 +24,7 @@ window.nexusApp = () => ({
     showProfilePopout: false, popoutUser: null,
     showCreateServerModal: false, newServerName: '', newServerIcon: null,
     showServerSettingsModal: false, serverSettingsTab: 'overview', editServer: {}, newChannelName: '', newChannelType: 'text',
+    showCallOverlay: false, incomingCall: null,
     
     // Navigation & UI
     activeView: 'home', 
@@ -36,7 +38,7 @@ window.nexusApp = () => ({
     // Message Input
     newMessage: '', pendingImage: null, editingMessageId: null,
     showMentions: false, mentionQuery: '', filteredMentionUsers: [], mentionIndex: 0,
-    directFriendRequestUsername: '',
+    sidebarSearch: '',
     
     // Data
     servers: [], dms: [], messages: [], filteredMessages: [], users: {}, globalPresence: [],
@@ -46,6 +48,13 @@ window.nexusApp = () => ({
     get currentChatId() { return this.activeView === 'server' ? this.activeChannelId : this.activeTarget; },
     
     // Friend Logic
+    get filteredFriends() {
+        const myFriends = this.currentUserProfile?.friends || [];
+        const list = Object.values(this.users).filter(u => myFriends.includes(u.uid) && u.friends?.includes(this.logicalUid));
+        if (!this.sidebarSearch.trim()) return list;
+        const q = this.sidebarSearch.toLowerCase();
+        return list.filter(u => u.username.toLowerCase().includes(q) || u.displayName.toLowerCase().includes(q));
+    },
     get myFriendsList() {
         const myFriends = this.currentUserProfile?.friends || [];
         return Object.values(this.users).filter(u => myFriends.includes(u.uid) && u.friends?.includes(this.logicalUid));
@@ -72,7 +81,17 @@ window.nexusApp = () => ({
         return msgs.length === 0 ? 0 : msgs[msgs.length - 1].timestamp;
     },
     get totalUnreadDms() {
-        return this.dms.filter(dm => this.hasUnread(dm.id) && this.activeTarget !== dm.id).length;
+        let count = 0;
+        this.dms.forEach(dm => {
+            if (this.hasUnread(dm.id) && this.activeTarget !== dm.id) {
+                const msgs = this.messages.filter(m => m.roomId === dm.id);
+                if (msgs.length > 0) {
+                    const lastRead = this.currentUserProfile?.lastRead?.[dm.id] || 0;
+                    count += msgs.filter(m => m.senderId !== this.logicalUid && m.timestamp > lastRead).length;
+                }
+            }
+        });
+        return count;
     },
     hasUnread(roomId) {
         if (!roomId || !this.messages) return false;
@@ -93,7 +112,7 @@ window.nexusApp = () => ({
     updateFavicon() {
         const link = document.getElementById('dynamic-favicon');
         if (link) {
-            link.href = this.totalUnreadDms > 0 ? FAVICONS.ALERT : FAVICONS.ANIMATED;
+            link.href = FAVICONS.NORMAL;
         }
     },
 
@@ -125,6 +144,7 @@ window.nexusApp = () => ({
         let safe = text.replace(/[&<>'"]/g, tag => ({
             '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
         }[tag]));
+        
         // Highlight mentions and make them clickable
         safe = safe.replace(/@([a-zA-Z0-9_]+)/g, (match, username) => {
             const user = Object.values(this.users).find(u => u.username === username.toLowerCase());
@@ -133,6 +153,21 @@ window.nexusApp = () => ({
             }
             return match;
         });
+
+        // URL detection and embedding
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
+        safe = safe.replace(urlRegex, (url) => {
+            if (url.match(/\.(jpeg|jpg|gif|png|webp|svg)$/i)) {
+                return `<a href="${url}" target="_blank" class="text-[#00A8FC] hover:underline">${url}</a><div class="mt-2"><img src="${url}" class="max-w-md w-full rounded-md cursor-pointer block" onclick="window.nexusAction('openImage', '${url}')"></div>`;
+            }
+            const ytMatch = url.match(/(?:https?:\/\/)?(?:www\.)?(?:youtube\.com|youtu\.be)\/(?:watch\?v=)?(.+)/);
+            if (ytMatch && ytMatch[1]) {
+                const vid = ytMatch[1].split(/[?&]/)[0];
+                return `<a href="${url}" target="_blank" class="text-[#00A8FC] hover:underline">${url}</a><div class="mt-2 aspect-video w-full max-w-md"><iframe class="w-full h-full rounded-md" src="https://www.youtube.com/embed/${vid}" frameborder="0" allowfullscreen></iframe></div>`;
+            }
+            return `<a href="${url}" target="_blank" class="text-[#00A8FC] hover:underline">${url}</a>`;
+        });
+
         return safe;
     },
     isMentioned(text) {
@@ -180,21 +215,24 @@ window.nexusApp = () => ({
 
     getAvatarColor(avatar) {
         if (!avatar) return '#5865F2';
-        // Better color selection based on avatar content if possible, or fallback to hash-based color
+        if (avatar.startsWith('data:image/svg+xml')) {
+            const match = avatar.match(/fill=['"]%23([a-fA-F0-9]{6})['"]/);
+            if (match) return '#' + match[1];
+        }
         let hash = 0;
         for (let i = 0; i < avatar.length; i++) {
             hash = avatar.charCodeAt(i) + ((hash << 5) - hash);
         }
-        const colors = ['#5865F2', '#57F287', '#FEE75C', '#EB459E', '#ED4245', '#1ABC9C', '#3498DB', '#9B59B6'];
+        const colors = ['#5865F2', '#57F287', '#FEE75C', '#EB459E', '#ED4245', '#1ABC9C', '#3498DB', '#9B59B6', '#E91E63', '#9C27B0', '#673AB7', '#3F51B5', '#00BCD4', '#009688', '#4CAF50', '#8BC34A', '#CDDC39', '#FFEB3B', '#FFC107', '#FF9800', '#FF5722', '#795548', '#607D8B'];
         return colors[Math.abs(hash) % colors.length];
     },
 
     // WebRTC State
     inVoiceRoom: null, voicePeers: {}, 
-    rtcVideoOff: true, isMuted: false, isDeafened: false, isScreenSharing: false,
+    rtcVideoOff: false, isMuted: false, isDeafened: false, isScreenSharing: false,
     localStream: null, screenStream: null, simplePeers: {},
 
-    db: null, auth: null, publicDataPath: '', usersRef: null, accountsRef: null, heartbeatInterval: null,
+    db: null, auth: null, storage: null, publicDataPath: '', usersRef: null, accountsRef: null, heartbeatInterval: null,
 
     async init() {
         try {
@@ -202,6 +240,7 @@ window.nexusApp = () => ({
             const app = initializeApp(config);
             this.db = getFirestore(app);
             this.auth = getAuth(app);
+            this.storage = getStorage(app);
             
             this.publicDataPath = `artifacts/le-barochat/public/data_v4`;
             this.usersRef = collection(this.db, `${this.publicDataPath}/users`);
@@ -360,13 +399,56 @@ window.nexusApp = () => ({
             snap.docChanges().forEach(change => {
                 if (change.type === 'added') {
                     const data = change.doc.data();
-                    if (data.to === this.logicalUid && data.room === this.inVoiceRoom) {
-                        this.handleIncomingSignal(data.from, data.signal);
+                    if (data.to === this.logicalUid) {
+                        if (data.type === 'call-invite' && data.room === 'global') {
+                            this.incomingCall = { from: data.from, room: data.callRoom };
+                            this.showCallOverlay = true;
+                            // Auto decline after 30s
+                            this._callTimeout = setTimeout(() => this.declineCall(), 30000);
+                        } else if (data.type === 'call-response' && data.room === 'global') {
+                            if (data.response === 'accepted') {
+                                this.joinVoiceRoom(data.callRoom);
+                            } else {
+                                this.showToast("Call declined.");
+                            }
+                        } else if (data.room === this.inVoiceRoom) {
+                            this.handleIncomingSignal(data.from, data.signal);
+                        }
                         deleteDoc(change.doc.ref); 
                     }
                 }
             });
         });
+    },
+
+    async startCall(uid) {
+        const callRoom = 'call_' + Math.random().toString(36).substr(2, 9);
+        await addDoc(collection(this.db, `${this.publicDataPath}/signaling`), {
+            to: uid, from: this.logicalUid, type: 'call-invite', room: 'global', callRoom
+        });
+        this.showToast("Calling...");
+        // If we don't get a response, we might need a timeout
+    },
+    async acceptCall() {
+        if (!this.incomingCall) return;
+        clearTimeout(this._callTimeout);
+        const { from, room } = this.incomingCall;
+        await addDoc(collection(this.db, `${this.publicDataPath}/signaling`), {
+            to: from, from: this.logicalUid, type: 'call-response', room: 'global', response: 'accepted', callRoom: room
+        });
+        this.showCallOverlay = false;
+        this.joinVoiceRoom(room);
+        this.incomingCall = null;
+    },
+    async declineCall() {
+        if (!this.incomingCall) return;
+        clearTimeout(this._callTimeout);
+        const { from, room } = this.incomingCall;
+        await addDoc(collection(this.db, `${this.publicDataPath}/signaling`), {
+            to: from, from: this.logicalUid, type: 'call-response', room: 'global', response: 'declined', callRoom: room
+        });
+        this.showCallOverlay = false;
+        this.incomingCall = null;
     },
 
     triggerNotification(msg) {
@@ -550,7 +632,8 @@ window.nexusApp = () => ({
             await updateDoc(doc(this.db, `${this.publicDataPath}/messages`, this.editingMessageId), { text: this.newMessage.trim(), edited: true });
             this.editingMessageId = null; this.newMessage = '';
         } else {
-            const p = { roomId: this.currentChatId, senderId: this.logicalUid, text: this.newMessage.trim(), image: this.pendingImage, timestamp: Date.now() };
+            const imgUrl = await this.uploadImage(this.pendingImage);
+            const p = { roomId: this.currentChatId, senderId: this.logicalUid, text: this.newMessage.trim(), image: imgUrl, timestamp: Date.now() };
             this.newMessage = ''; this.pendingImage = null; this.showMentions = false;
             await addDoc(collection(this.db, `${this.publicDataPath}/messages`), p);
             this.markRead(this.currentChatId); 
@@ -558,9 +641,10 @@ window.nexusApp = () => ({
     },
 
     async createServer() {
+        const iconUrl = await this.uploadImage(this.newServerIcon);
         const ref = doc(collection(this.db, `${this.publicDataPath}/servers`));
         await setDoc(ref, {
-            name: this.newServerName.trim(), icon: this.newServerIcon, owner: this.logicalUid, isPublic: false, banner: null, bannerColor: '#5865F2', bio: "A new community.",
+            name: this.newServerName.trim(), icon: iconUrl, owner: this.logicalUid, isPublic: false, banner: null, bannerColor: '#5865F2', bio: "A new community.",
             channels: [{ id: 'c1_' + Date.now(), name: 'general', type: 'text' }, { id: 'c2_' + Date.now(), name: 'Voice', type: 'voice' }]
         });
         const joined = [...(this.currentUserProfile.joinedServers || []), ref.id];
@@ -576,7 +660,14 @@ window.nexusApp = () => ({
 
     openSettings() { this.editProfile = JSON.parse(JSON.stringify(this.currentUserProfile)); this.showSettingsModal = true; },
     async saveProfileSettings() {
-        await updateDoc(doc(this.usersRef, this.logicalUid), { displayName: this.editProfile.displayName, bio: this.editProfile.bio, avatar: this.editProfile.avatar, banner: this.editProfile.banner });
+        const avatarUrl = await this.uploadImage(this.editProfile.avatar);
+        const bannerUrl = await this.uploadImage(this.editProfile.banner);
+        await updateDoc(doc(this.usersRef, this.logicalUid), { 
+            displayName: this.editProfile.displayName, 
+            bio: this.editProfile.bio, 
+            avatar: avatarUrl, 
+            banner: bannerUrl 
+        });
         this.showSettingsModal = false;
     },
 
@@ -588,9 +679,16 @@ window.nexusApp = () => ({
     },
 
     async saveServerSettings() {
+        const iconUrl = await this.uploadImage(this.editServer.icon);
+        const bannerUrl = await this.uploadImage(this.editServer.banner);
         await updateDoc(doc(this.db, `${this.publicDataPath}/servers`, this.editServer.id), {
-            name: this.editServer.name, icon: this.editServer.icon, isPublic: this.editServer.isPublic, channels: this.editServer.channels,
-            banner: this.editServer.banner, bannerColor: this.editServer.bannerColor || '#5865F2', bio: this.editServer.bio
+            name: this.editServer.name, 
+            icon: iconUrl, 
+            isPublic: this.editServer.isPublic, 
+            channels: this.editServer.channels,
+            banner: bannerUrl, 
+            bannerColor: this.editServer.bannerColor || '#5865F2', 
+            bio: this.editServer.bio
         });
         this.showToast("Server updated.");
     },
@@ -599,26 +697,38 @@ window.nexusApp = () => ({
         const i = document.createElement('input'); i.type = 'file'; i.accept = 'image/*';
         i.onchange = (e) => this.processImage(e.target.files[0], context); i.click();
     },
+    async uploadImage(dataUrl, path) {
+        if (!dataUrl || !dataUrl.startsWith('data:')) return dataUrl;
+        const sRef = ref(this.storage, `${this.publicDataPath}/uploads/${Date.now()}_${Math.random().toString(36).substr(2, 5)}.jpg`);
+        await uploadString(sRef, dataUrl, 'data_url');
+        return await getDownloadURL(sRef);
+    },
+
     processImage(file, context) {
         if (!file) return; const r = new FileReader();
         r.onload = (e) => {
             const img = new Image();
-            img.onload = () => {
+            img.onload = async () => {
                 const c = document.createElement('canvas');
                 let mw = 256, mh = 256;
-                if (context === 'chat') { mw = 800; mh = 800; }
-                else if (context.includes('Banner')) { mw = 600; mh = 300; }
+                if (context === 'chat') { mw = 1200; mh = 1200; }
+                else if (context.includes('Banner')) { mw = 800; mh = 400; }
                 let w = img.width, h = img.height;
                 if (w > h) { if (w > mw) { h *= mw / w; w = mw; } } else { if (h > mh) { w *= mh / h; h = mh; } }
                 c.width = w; c.height = h; c.getContext('2d').drawImage(img, 0, 0, w, h);
-                const data = c.toDataURL('image/jpeg', 0.8);
+                const data = c.toDataURL('image/jpeg', 0.7);
+                
                 if (context === 'chat') this.pendingImage = data;
                 else if (context === 'setup') this.authAvatar = data;
-                else if (context === 'edit') this.editProfile.avatar = data;
-                else if (context === 'banner') this.editProfile.banner = data;
-                else if (context === 'server') this.newServerIcon = data;
-                else if (context === 'serverEdit') this.editServer.icon = data;
-                else if (context === 'serverBannerEdit') this.editServer.banner = data;
+                else {
+                    // For settings, we might want to upload immediately or wait for save
+                    // To keep it simple, we'll keep the dataUrl and upload on save
+                    if (context === 'edit') this.editProfile.avatar = data;
+                    else if (context === 'banner') this.editProfile.banner = data;
+                    else if (context === 'server') this.newServerIcon = data;
+                    else if (context === 'serverEdit') this.editServer.icon = data;
+                    else if (context === 'serverBannerEdit') this.editServer.banner = data;
+                }
             };
             img.src = e.target.result;
         };
@@ -629,18 +739,34 @@ window.nexusApp = () => ({
     async joinVoiceRoom(id) {
         if (this.inVoiceRoom) this.leaveVoiceRoom();
         try {
-            this.inVoiceRoom = id; this.rtcVideoOff = true; this.isScreenSharing = false; this.viewingVoice = true; 
-            const stream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+            this.inVoiceRoom = id; this.rtcVideoOff = false; this.isScreenSharing = false; this.viewingVoice = true; 
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
             this.localStream = stream;
-            const canvas = document.createElement('canvas'); canvas.width = 1; canvas.height = 1;
-            const dummyVideo = canvas.captureStream().getVideoTracks()[0];
-            this.localStream.addTrack(dummyVideo);
+            this.isMuted = false;
             this.updatePresence();
             setTimeout(() => { 
                 const lv = document.getElementById('local-video');
                 if(lv) lv.srcObject = this.localStream; 
             }, 500);
-        } catch(e) { this.showToast("Mic failed to start.", true); }
+        } catch(e) { 
+            console.error("Join Voice Error:", e);
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+                this.localStream = stream;
+                this.rtcVideoOff = true;
+                const canvas = document.createElement('canvas'); canvas.width = 1; canvas.height = 1;
+                const dummyVideo = canvas.captureStream().getVideoTracks()[0];
+                this.localStream.addTrack(dummyVideo);
+                this.isMuted = false;
+                this.updatePresence();
+                setTimeout(() => { 
+                    const lv = document.getElementById('local-video');
+                    if(lv) lv.srcObject = this.localStream; 
+                }, 500);
+            } catch(e2) {
+                this.showToast("Mic failed to start.", true); 
+            }
+        }
     },
 
     leaveVoiceRoom() {
@@ -667,7 +793,7 @@ window.nexusApp = () => ({
             } catch(e) { this.showToast("Camera failed.", true); }
         } else {
             const track = this.localStream.getVideoTracks()[0];
-            track.stop();
+            if (track) track.stop();
             const dummy = document.createElement('canvas').captureStream().getVideoTracks()[0];
             this.localStream.removeTrack(track); this.localStream.addTrack(dummy);
             Object.values(this.simplePeers).forEach(p => p.replaceTrack(track, dummy, this.localStream));
@@ -679,10 +805,11 @@ window.nexusApp = () => ({
         if (!this.localStream) return;
         if (!this.isScreenSharing) {
             try {
-                this.screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                this.screenStream = await navigator.mediaDevices.getDisplayMedia({ video: { cursor: "always" }, audio: true });
                 Object.values(this.simplePeers).forEach(p => p.addStream(this.screenStream));
                 this.isScreenSharing = true; this.updatePresence();
                 this.screenStream.getVideoTracks()[0].onended = () => this.stopScreenShare();
+                this.addRemoteVideo('local_screen', this.screenStream);
             } catch(e) { this.showToast("Cancelled."); }
         } else this.stopScreenShare();
     },
@@ -695,6 +822,18 @@ window.nexusApp = () => ({
         }
         this.isScreenSharing = false; this.updatePresence();
         document.querySelectorAll('[id^="wrap_vid_local_screen"]').forEach(e => e.remove());
+    },
+
+    async deleteServer() {
+        if (!confirm("Are you sure you want to delete this server? This action cannot be undone.")) return;
+        const sid = this.activeTarget;
+        await deleteDoc(doc(this.db, `${this.publicDataPath}/servers`, sid));
+        // Remove from all users' joinedServers (expensive, but necessary for clean state)
+        // In a real app, this would be a cloud function. For now, we'll just handle it for the current user.
+        const joined = (this.currentUserProfile.joinedServers || []).filter(id => id !== sid);
+        await updateDoc(doc(this.usersRef, this.logicalUid), { joinedServers: joined });
+        this.showServerSettingsModal = false;
+        this.openHome();
     },
 
     createPeer(uid, initiator) {

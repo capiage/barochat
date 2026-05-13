@@ -43,8 +43,8 @@ body {
 #fullscreen-video-grid .video-wrapper {
     position: relative;
     width: 100%;
-    height: 100%;
-    aspect-ratio: 16 / 9;
+    height: 0;
+    padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
     border-radius: 0.5rem;
     background-color: #1e1f22;
     overflow: hidden;
@@ -52,20 +52,38 @@ body {
     box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.5);
     cursor: pointer;
     transition: all 0.2s ease-in-out;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+}
+
+#fullscreen-video-grid .video-wrapper video,
+#fullscreen-video-grid .video-wrapper .absolute {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
 
 #fullscreen-video-grid .video-wrapper:hover {
     border-color: #5865F2;
+    transform: scale(1.02);
+    z-index: 10;
 }
 
-#fullscreen-video-grid video {
-    width: 100%;
-    height: 100%;
-    background-color: #000;
-    object-fit: contain; 
+/* Image alignment and size in chat */
+.message-item img {
+    border-radius: 0.5rem;
+    max-width: 450px;
+    max-height: 350px;
+    object-fit: contain;
+    margin-top: 0.5rem;
+    border: 1px solid #1e1f22;
+}
+
+.message-item .bg-[#5865F2]\/10 {
+    width: calc(100% + 1rem);
+    margin-left: -1rem;
+    padding-left: 1rem;
 }
 
 /* Fixed Fullscreen Mode - Absolute Top Z-Index */
