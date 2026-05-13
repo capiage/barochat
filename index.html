@@ -227,7 +227,13 @@
                 <template x-if="activeView === 'home' || activeView === 'discovery'">
                     <div class="flex flex-col h-full">
                         <div class="h-12 border-b border-[#1e1f22] shadow-sm flex items-center px-4">
-                            <button class="w-full bg-[#1e1f22] text-gray-400 text-sm py-1.5 px-3 rounded text-left hover:text-gray-200 transition truncate" x-text="'Find or start a conversation'"></button>
+                            <!-- New Add Friend Input Box -->
+                            <form @submit.prevent="sendDirectFriendRequest()" class="w-full relative">
+                                <input type="text" x-model="directFriendRequestUsername" placeholder="Find or start a conversation" class="w-full bg-[#1e1f22] text-gray-200 text-sm py-1.5 px-3 pr-8 rounded focus:outline-none focus:ring-1 focus:ring-[#5865F2] transition placeholder-gray-500">
+                                <button type="submit" class="absolute right-2 top-1.5 text-gray-400 hover:text-white">
+                                    <i class="ph-bold ph-plus"></i>
+                                </button>
+                            </form>
                         </div>
                         <div class="flex-1 overflow-y-auto p-2 space-y-[2px]">
                             <button @click="activeTarget = null; activeView = 'home'" class="w-full flex items-center px-3 py-2 rounded-md transition mb-2" :class="!activeTarget && activeView === 'home' ? 'bg-[#3f4147] text-white' : 'text-gray-400 hover:text-gray-100 hover:bg-[#35373c]'">
@@ -246,15 +252,15 @@
                             <!-- DM List (Sorted by recent) -->
                             <template x-for="dm in sortedDms" :key="dm.id">
                                 <button @click="openDM(dm.id)" class="w-full flex items-center px-2 py-1.5 rounded-md transition group" :class="activeTarget === dm.id && activeView === 'home' ? 'bg-[#3f4147] text-white' : 'hover:bg-[#35373c] text-gray-400 hover:text-gray-200'">
-                                    <div class="relative">
-                                        <img :src="getUser(dm.partnerUid)?.avatar" class="w-8 h-8 rounded-full mr-3 object-cover bg-[#1e1f22]">
-                                        <div class="absolute bottom-0 right-3 w-3 h-3 border-2 border-[#2b2d31] rounded-full" :class="isUserOnline(dm.partnerUid) ? 'bg-[#23A559]' : 'bg-gray-500'"></div>
+                                    <div class="relative flex-shrink-0 mr-3">
+                                        <img :src="getUser(dm.partnerUid)?.avatar" class="w-8 h-8 rounded-full object-cover bg-[#1e1f22]">
+                                        <div class="absolute bottom-0 right-0 w-3 h-3 border-2 border-[#2b2d31] rounded-full" :class="isUserOnline(dm.partnerUid) ? 'bg-[#23A559]' : 'bg-gray-500'"></div>
                                     </div>
                                     <div class="flex-1 text-left truncate">
                                         <div class="font-medium text-[15px] truncate" x-text="getUser(dm.partnerUid)?.displayName || 'Unknown'"></div>
                                     </div>
                                     <!-- DM Unread Badge -->
-                                    <template x-if="hasUnread(dm.id)">
+                                    <template x-if="hasUnread(dm.id) && activeTarget !== dm.id">
                                         <div class="w-2.5 h-2.5 bg-red-500 rounded-full flex-shrink-0 shadow"></div>
                                     </template>
                                 </button>
@@ -268,7 +274,7 @@
                     <div class="flex flex-col h-full">
                         <!-- Server Header w/ Dropdown -->
                         <div class="h-12 border-b border-[#1e1f22] shadow-sm flex items-center px-4 font-bold text-gray-100 justify-between cursor-pointer hover:bg-[#35373c] transition group relative z-50">
-                            <span class="truncate pr-2" x-text="getServer()?.name || 'Server'"></span>
+                            <span class="truncate pr-2" x-text="getServer()?.name || 'Loading...'"></span>
                             <i class="ph ph-caret-down text-gray-400 group-hover:text-gray-200 transition-transform"></i>
                             
                             <!-- Dropdown Menu -->
@@ -320,7 +326,7 @@
                                 <div class="mb-1">
                                     <button @click="handleVoiceChannelClick(channel.id)" class="w-full flex items-center px-2 py-1.5 rounded-md transition" :class="inVoiceRoom === channel.id ? 'bg-[#3f4147] text-white' : 'text-gray-400 hover:bg-[#35373c] hover:text-gray-200'">
                                         <i class="ph-fill mr-2 text-lg" :class="inVoiceRoom === channel.id ? 'ph-speaker-high text-[#23A559]' : 'ph-speaker-low'"></i>
-                                        <span class="font-medium text-[15px] truncate" x-text="channel.name"></span>
+                                        <span class="font-medium text-[15px] truncate flex-1 text-left" :class="inVoiceRoom === channel.id ? 'text-[#23A559]' : ''" x-text="channel.name"></span>
                                     </button>
                                     
                                     <!-- Display Users currently in this voice channel -->
@@ -356,54 +362,60 @@
                                 </div>
                             </template>
                         </div>
-
-                        <!-- Active Voice Connection Strip (Server) -->
-                        <div x-show="inVoiceRoom && activeView === 'server'" class="bg-[#111214] p-2 border-t border-[#1e1f22] flex flex-col gap-2 relative z-20" style="display: none;">
-                            <div class="flex items-center justify-between text-[#23A559] px-1 pt-1">
-                                <div class="flex flex-col cursor-pointer hover:underline" @click="viewingVoice = true">
-                                    <span class="font-bold text-xs uppercase tracking-wide flex items-center gap-1"><i class="ph-fill ph-check-circle"></i> Voice Connected</span>
-                                    <span class="text-[11px] text-gray-400 truncate" x-text="(getChannelName(inVoiceRoom) || 'Loading...') + ' / ' + (getServer()?.name || 'Server')"></span>
-                                </div>
-                                <button @click="leaveVoiceRoom()" class="text-red-400 hover:text-red-500 transition p-1" title="Disconnect">
-                                    <i class="ph-fill ph-phone-disconnect text-xl"></i>
-                                </button>
-                            </div>
-                            <div class="flex gap-1 justify-between bg-[#2b2d31] p-1 rounded-md">
-                                <button @click="rtcToggleVideo()" class="p-1.5 flex-1 rounded hover:bg-[#3f4147] transition flex justify-center items-center" :class="!rtcVideoOff ? 'text-white bg-[#3f4147]' : 'text-gray-400'" title="Toggle Camera">
-                                    <i class="ph-fill text-lg" :class="rtcVideoOff ? 'ph-video-camera-slash' : 'ph-video-camera'"></i>
-                                </button>
-                                <button @click="rtcToggleScreenShare()" class="p-1.5 flex-1 rounded hover:bg-[#3f4147] transition flex justify-center items-center" :class="isScreenSharing ? 'text-white bg-[#3f4147]' : 'text-gray-400'" title="Share Screen">
-                                    <i class="ph-fill ph-screencast text-lg" :class="isScreenSharing ? 'text-[#5865F2]' : ''"></i>
-                                </button>
-                            </div>
-                        </div>
                     </div>
                 </template>
 
                 <!-- Current User Profile Strip (Bottom Left) -->
-                <div class="h-[52px] bg-[#232428] flex items-center px-2 justify-between flex-shrink-0 relative z-30 w-full">
-                    <div class="flex items-center min-w-0 hover:bg-[#3f4147]/50 p-1 rounded-md cursor-pointer transition w-32" @click="openSettings()">
-                        <div class="relative">
-                            <img :src="currentUserProfile?.avatar" class="w-8 h-8 rounded-full object-cover flex-shrink-0 bg-[#1e1f22]">
-                            <div class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 border-2 border-[#232428] rounded-full transition-colors" :class="isDeafened ? 'bg-red-500' : 'bg-[#23A559]'"></div>
+                <!-- Moved above the Voice Strip so voice strip stays at absolute bottom -->
+                <div class="mt-auto flex flex-col w-full z-30 flex-shrink-0">
+                    
+                    <!-- Global Active Voice Connection Strip (Shows on all pages if connected) -->
+                    <div x-show="inVoiceRoom" class="bg-[#111214] p-2 border-t border-[#1e1f22] flex flex-col gap-2 relative z-20" style="display: none;">
+                        <div class="flex items-center justify-between text-[#23A559] px-1 pt-1">
+                            <div class="flex flex-col cursor-pointer hover:underline" @click="viewingVoice = true; if(activeView !== 'server' && activeView !== 'home') activeView = 'server';">
+                                <span class="font-bold text-xs uppercase tracking-wide flex items-center gap-1"><i class="ph-fill ph-check-circle"></i> Voice Connected</span>
+                                <span class="text-[11px] text-gray-400 truncate w-32" x-text="getChannelName(inVoiceRoom) || 'Loading...'"></span>
+                            </div>
+                            <button @click="leaveVoiceRoom()" class="text-red-400 hover:text-red-500 transition p-1" title="Disconnect">
+                                <i class="ph-fill ph-phone-disconnect text-xl"></i>
+                            </button>
                         </div>
-                        <div class="ml-2 truncate pb-0.5">
-                            <div class="text-[13px] font-bold text-gray-100 leading-none truncate" x-text="currentUserProfile?.displayName"></div>
-                            <div class="text-[11px] text-gray-400 leading-none mt-1 truncate" x-text="'@' + currentUserProfile?.username"></div>
+                        <div class="flex gap-1 justify-between bg-[#2b2d31] p-1 rounded-md">
+                            <button @click="rtcToggleVideo()" class="p-1.5 flex-1 rounded hover:bg-[#3f4147] transition flex justify-center items-center" :class="!rtcVideoOff ? 'text-white bg-[#3f4147]' : 'text-gray-400'" title="Toggle Camera">
+                                <i class="ph-fill text-lg" :class="rtcVideoOff ? 'ph-video-camera-slash' : 'ph-video-camera'"></i>
+                            </button>
+                            <button @click="rtcToggleScreenShare()" class="p-1.5 flex-1 rounded hover:bg-[#3f4147] transition flex justify-center items-center" :class="isScreenSharing ? 'text-white bg-[#3f4147]' : 'text-gray-400'" title="Share Screen">
+                                <i class="ph-fill ph-screencast text-lg" :class="isScreenSharing ? 'text-[#5865F2]' : ''"></i>
+                            </button>
                         </div>
                     </div>
-                    <div class="flex items-center gap-0.5">
-                        <button @click="toggleMute()" class="w-7 h-7 rounded-md flex items-center justify-center hover:bg-[#3f4147] transition flex-shrink-0" :class="isMuted ? 'text-red-400' : 'text-gray-400 hover:text-gray-200'" title="Mute Microphone">
-                            <i class="ph-fill text-lg" :class="isMuted ? 'ph-microphone-slash' : 'ph-microphone'"></i>
-                        </button>
-                        <button @click="toggleDeafen()" class="w-7 h-7 rounded-md flex items-center justify-center hover:bg-[#3f4147] transition flex-shrink-0" :class="isDeafened ? 'text-red-400' : 'text-gray-400 hover:text-gray-200'" title="Deafen Audio">
-                            <i class="ph-fill text-lg" :class="isDeafened ? 'ph-headphones-slash' : 'ph-headphones'"></i>
-                        </button>
-                        <button @click="openSettings()" class="w-7 h-7 rounded-md flex items-center justify-center hover:bg-[#3f4147] text-gray-400 hover:text-gray-200 transition flex-shrink-0" title="User Settings">
-                            <i class="ph-fill ph-gear text-lg"></i>
-                        </button>
+
+                    <!-- Profile Strip -->
+                    <div class="h-[52px] bg-[#232428] flex items-center px-2 justify-between w-full border-t border-[#1e1f22]">
+                        <div class="flex items-center min-w-0 hover:bg-[#3f4147]/50 p-1 rounded-md cursor-pointer transition flex-1 mr-1" @click="openSettings()">
+                            <div class="relative flex-shrink-0">
+                                <img :src="currentUserProfile?.avatar" class="w-8 h-8 rounded-full object-cover bg-[#1e1f22]">
+                                <div class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 border-2 border-[#232428] rounded-full transition-colors" :class="isDeafened ? 'bg-red-500' : 'bg-[#23A559]'"></div>
+                            </div>
+                            <div class="ml-2 truncate pb-0.5">
+                                <div class="text-[13px] font-bold text-gray-100 leading-none truncate" x-text="currentUserProfile?.displayName"></div>
+                                <div class="text-[11px] text-gray-400 leading-none mt-1 truncate" x-text="'@' + currentUserProfile?.username"></div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-0.5 flex-shrink-0">
+                            <button @click="toggleMute()" class="w-7 h-7 rounded-md flex items-center justify-center hover:bg-[#3f4147] transition" :class="isMuted ? 'text-red-400' : 'text-gray-400 hover:text-gray-200'" title="Mute Microphone">
+                                <i class="ph-fill text-lg" :class="isMuted ? 'ph-microphone-slash' : 'ph-microphone'"></i>
+                            </button>
+                            <button @click="toggleDeafen()" class="w-7 h-7 rounded-md flex items-center justify-center hover:bg-[#3f4147] transition" :class="isDeafened ? 'text-red-400' : 'text-gray-400 hover:text-gray-200'" title="Deafen Audio">
+                                <i class="ph-fill text-lg" :class="isDeafened ? 'ph-headphones-slash' : 'ph-headphones'"></i>
+                            </button>
+                            <button @click="openSettings()" class="w-7 h-7 rounded-md flex items-center justify-center hover:bg-[#3f4147] text-gray-400 hover:text-gray-200 transition" title="User Settings">
+                                <i class="ph-fill ph-gear text-lg"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
+
             </div>
 
             <!-- Central Content Area -->
@@ -418,17 +430,17 @@
                         <template x-if="activeView === 'discovery'">
                             <div class="flex items-center"><i class="ph-fill ph-compass mr-2 text-gray-400 text-xl"></i> Discover Servers</div>
                         </template>
-                        <template x-if="activeView === 'home' && activeTarget">
+                        <template x-if="activeView === 'home' && activeTarget && !viewingVoice">
                             <div class="flex items-center gap-2">
                                 <i class="ph ph-at mr-1 text-gray-400 text-xl"></i>
-                                <span x-text="getUser(getDmPartner(activeTarget))?.displayName || 'Direct Message'"></span>
+                                <span x-text="getUser(getDmPartner(activeTarget))?.displayName || 'Loading...'"></span>
                                 <span class="text-xs text-gray-400 font-medium" x-text="'@' + getUser(getDmPartner(activeTarget))?.username"></span>
                             </div>
                         </template>
                         <template x-if="activeView === 'server' && !viewingVoice">
                             <div class="flex items-center">
                                 <i class="ph ph-hash mr-2 text-gray-400 text-xl"></i>
-                                <span x-text="getChannelName(activeChannelId)"></span>
+                                <span x-text="getChannelName(activeChannelId) || 'Loading...'"></span>
                             </div>
                         </template>
                         <template x-if="viewingVoice">
@@ -447,7 +459,7 @@
                             </button>
                         </template>
 
-                        <template x-if="activeView === 'server' && !viewingVoice || (activeView === 'home' && activeTarget)">
+                        <template x-if="(activeView === 'server' && !viewingVoice) || (activeView === 'home' && activeTarget)">
                             <button @click="showMembersList = !showMembersList" class="p-1 text-gray-400 hover:text-gray-200 hover:bg-[#3f4147] rounded-md transition" title="Toggle Member List">
                                 <i class="ph-fill ph-users text-xl"></i>
                             </button>
@@ -455,16 +467,13 @@
                     </div>
                 </div>
 
-                <!-- DM Active Voice Connection Strip (Top of chat) -->
-                <div x-show="inVoiceRoom && activeView === 'home' && inVoiceRoom === activeTarget && !viewingVoice" class="bg-[#111214] p-3 border-b border-[#1e1f22] flex justify-between items-center" style="display: none;">
-                    <div class="flex items-center gap-3 text-[#23A559] font-bold text-sm cursor-pointer hover:underline" @click="viewingVoice = true">
-                        <i class="ph-fill ph-phone-call text-xl animate-pulse"></i>
-                        <span>Call in Progress... Click to view.</span>
+                <!-- DM Incoming Call Banner -->
+                <div x-show="!inVoiceRoom && activeView === 'home' && activeTarget && getVoiceUsers(activeTarget).length > 0" class="bg-[#23A559]/20 border-b border-[#23A559]/30 p-3 flex justify-between items-center animate-pulse" style="display: none;">
+                    <div class="flex items-center gap-3 text-[#23A559] font-bold text-sm">
+                        <i class="ph-fill ph-phone-call text-xl"></i>
+                        <span x-text="getUser(getDmPartner(activeTarget))?.displayName + ' started a call. Join them?'"></span>
                     </div>
-                    <div class="flex gap-2">
-                        <!-- Removed camera and screenshare from DM strip as requested -->
-                        <button @click="leaveVoiceRoom()" class="px-4 py-1.5 bg-red-500 hover:bg-red-600 text-white font-bold rounded shadow transition text-sm">Disconnect</button>
-                    </div>
+                    <button @click="joinVoiceRoom(activeTarget)" class="px-4 py-1.5 bg-[#23A559] hover:bg-[#1f8c4b] text-white font-bold rounded shadow transition text-sm">Join Call</button>
                 </div>
 
                 <!-- Friends Hub -->
@@ -589,16 +598,18 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-6xl mx-auto">
                         <template x-for="server in discoveryServers" :key="server.id">
                             <div class="bg-[#2b2d31] rounded-lg overflow-hidden shadow-lg border border-[#1e1f22] hover:border-[#5865F2] transition cursor-pointer flex flex-col h-64 group" @click="joinServer(server.id)">
-                                <div class="h-24 bg-[#1e1f22] relative flex justify-center items-center overflow-hidden">
-                                    <div class="absolute inset-0 bg-[#5865F2]/20 group-hover:bg-[#5865F2]/40 transition"></div>
-                                    <i class="ph-fill ph-planet text-5xl text-[#5865F2] opacity-50"></i>
+                                <div class="h-24 relative flex justify-center items-center overflow-hidden" :style="'background-color: ' + (server.bannerColor || '#5865F2')">
+                                    <template x-if="server.banner">
+                                        <img :src="server.banner" class="absolute inset-0 w-full h-full object-cover">
+                                    </template>
+                                    <div class="absolute inset-0 bg-black/20 group-hover:bg-transparent transition"></div>
                                 </div>
                                 <div class="p-4 flex-1 flex flex-col relative">
                                     <img x-show="server.icon" :src="server.icon" class="w-16 h-16 rounded-2xl absolute -top-8 left-4 border-4 border-[#2b2d31] bg-[#1e1f22] object-cover shadow-md">
                                     <div x-show="!server.icon" class="w-16 h-16 rounded-2xl absolute -top-8 left-4 border-4 border-[#2b2d31] bg-[#1e1f22] flex items-center justify-center text-xl font-bold text-white shadow-md" x-text="server.name.substring(0,2).toUpperCase()"></div>
                                     
                                     <h3 class="mt-8 text-lg font-bold text-gray-100 truncate" x-text="server.name"></h3>
-                                    <p class="text-sm text-gray-400 mt-1 flex-1">A public community server.</p>
+                                    <p class="text-sm text-gray-400 mt-1 flex-1 truncate">A public community server.</p>
                                     
                                     <div class="flex items-center justify-between text-xs text-gray-400 mt-2 font-medium">
                                         <div class="flex items-center">
@@ -620,25 +631,21 @@
                 </div>
 
                 <!-- WebRTC Fullscreen Video Grid -->
-                <div x-show="viewingVoice && inVoiceRoom" class="flex-1 bg-[#000000] flex flex-col relative" style="display: none;">
+                <div x-show="viewingVoice && inVoiceRoom" class="flex-1 bg-[#000000] flex flex-col relative overflow-hidden" style="display: none;">
                     <div id="fullscreen-video-grid">
                         <!-- Local Camera Video (Always exists if in room) -->
                         <div class="video-wrapper group" :class="fullscreenVideoId === 'local' ? 'video-fullscreen-mode' : ''" @click="toggleFullscreenVideo('local')">
                             <video id="local-video" autoplay playsinline muted class="transition-opacity duration-300" :class="rtcVideoOff ? 'opacity-0' : 'opacity-100'"></video>
                             
-                            <!-- Avatar overlay when cam is off -->
-                            <div x-show="rtcVideoOff" class="absolute inset-0 flex items-center justify-center bg-[#1e1f22]">
-                                <img :src="currentUserProfile?.avatar" class="w-32 h-32 rounded-full object-cover shadow-2xl">
+                            <!-- Avatar overlay when cam is off (Correctly pulls color) -->
+                            <div x-show="rtcVideoOff" class="absolute inset-0 flex items-center justify-center" :style="'background-color: ' + getAvatarColor(currentUserProfile?.avatar)">
+                                <img :src="currentUserProfile?.avatar" class="w-32 h-32 rounded-full object-cover shadow-2xl bg-[#1e1f22]">
                             </div>
 
-                            <div class="absolute bottom-3 left-3 bg-black/60 px-2.5 py-1.5 rounded text-[13px] text-white font-bold backdrop-blur-sm flex items-center gap-2">
+                            <div class="absolute bottom-3 left-3 bg-black/60 px-2.5 py-1.5 rounded text-[13px] text-white font-bold backdrop-blur-sm flex items-center gap-2 z-10">
                                 <span x-text="currentUserProfile?.displayName + ' (You)'"></span>
                                 <i class="ph-fill text-red-500" x-show="rtcVideoOff" class="ph-video-camera-slash"></i>
                                 <i class="ph-fill text-red-500" x-show="isMuted" class="ph-microphone-slash"></i>
-                            </div>
-
-                            <div class="absolute top-3 right-3 bg-black/60 p-1.5 rounded text-white opacity-0 group-hover:opacity-100 transition backdrop-blur-sm">
-                                <i class="ph-bold" :class="fullscreenVideoId === 'local' ? 'ph-corners-in' : 'ph-corners-out'"></i>
                             </div>
                         </div>
                         <!-- Remote Videos and Local Screenshare dynamically injected here -->
@@ -826,15 +833,19 @@
     <!-- Profile Popout Overlay -->
     <div x-show="showProfilePopout" style="display: none;" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm transition-opacity">
         <div class="bg-[#232428] rounded-xl shadow-2xl w-full max-w-sm overflow-hidden" @click.away="showProfilePopout = false">
-            <div class="h-28 bg-[#5865F2] w-full relative"></div>
-            <div class="px-5 pb-6">
-                <!-- Fixed Avatar Overlay -->
-                <div class="-mt-12 bg-[#232428] rounded-full p-1.5 inline-block relative z-10">
+            <div class="h-28 w-full relative" :style="'background-color: ' + (popoutUser?.bannerColor || '#5865F2')">
+                <template x-if="popoutUser?.banner">
+                    <img :src="popoutUser?.banner" class="absolute inset-0 w-full h-full object-cover">
+                </template>
+            </div>
+            <div class="px-5 pb-6 relative">
+                <!-- Absolute Avatar Overlay to prevent clipping -->
+                <div class="absolute -top-12 left-5 bg-[#232428] rounded-full p-1.5 inline-block z-10">
                     <img :src="popoutUser?.avatar" class="w-20 h-20 rounded-full bg-[#1e1f22] object-cover shadow-sm">
                 </div>
                 
                 <!-- Action Buttons right aligned below banner -->
-                <div class="flex justify-end -mt-10 mb-4 gap-2 h-9 relative z-20">
+                <div class="flex justify-end pt-3 mb-4 gap-2 h-12 relative z-20">
                     <template x-if="popoutUser?.uid !== currentUserProfile?.uid">
                         <button @click="initiateDM(popoutUser?.uid)" class="w-9 h-9 rounded-full bg-[#313338] hover:bg-[#5865F2] text-gray-200 hover:text-white flex items-center justify-center transition shadow-lg border border-[#1e1f22]" title="Send Message">
                             <i class="ph-fill ph-chat-circle-dots text-lg"></i>
@@ -865,7 +876,7 @@
                 </div>
                 
                 <div>
-                    <h3 class="text-2xl font-extrabold text-gray-100 leading-tight truncate pr-20" x-text="popoutUser?.displayName"></h3>
+                    <h3 class="text-2xl font-extrabold text-gray-100 leading-tight truncate pr-2" x-text="popoutUser?.displayName"></h3>
                     <p class="text-sm text-gray-400 font-medium mb-4" x-text="'@' + popoutUser?.username"></p>
                     
                     <div class="w-full h-[1px] bg-[#313338] mb-4"></div>
@@ -879,21 +890,36 @@
 
     <!-- User Settings Modal -->
     <div x-show="showSettingsModal" style="display: none;" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-        <div class="bg-[#313338] rounded-xl shadow-2xl w-full max-w-md overflow-hidden" @click.away="showSettingsModal = false">
+        <div class="bg-[#313338] rounded-xl shadow-2xl w-full max-w-lg overflow-hidden" @click.away="showSettingsModal = false">
             <div class="p-6">
                 <h2 class="text-xl font-bold text-gray-100 mb-6">User Settings</h2>
                 
-                <div class="flex items-center gap-6 mb-6">
-                    <div class="relative group cursor-pointer" @click="triggerImageUpload('edit')">
-                        <img :src="editProfile.avatar" class="w-24 h-24 rounded-full object-cover border-4 border-[#2b2d31] bg-[#1e1f22]">
-                        <div class="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
-                            <i class="ph-fill ph-camera text-white text-2xl"></i>
+                <div class="flex flex-col gap-6 mb-6">
+                    <!-- Banner Edit -->
+                    <div class="relative group cursor-pointer w-full h-32 rounded-lg overflow-hidden border border-[#1e1f22]" @click="triggerImageUpload('banner')" :style="'background-color: ' + (editProfile.bannerColor || '#5865F2')">
+                        <template x-if="editProfile.banner">
+                            <img :src="editProfile.banner" class="w-full h-full object-cover">
+                        </template>
+                        <div class="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
+                            <i class="ph-fill ph-camera text-white text-3xl"></i>
                         </div>
+                        <button @click.stop="editProfile.banner = null" x-show="editProfile.banner" class="absolute top-2 right-2 bg-red-500 text-white rounded p-1 opacity-0 group-hover:opacity-100 transition hover:bg-red-600">
+                            <i class="ph ph-trash"></i>
+                        </button>
                     </div>
-                    <div class="flex-1">
-                        <label class="block text-xs font-bold text-gray-400 uppercase mb-2">Display Name</label>
-                        <input type="text" x-model="editProfile.displayName" maxlength="20" class="w-full px-3 py-2 bg-[#1e1f22] rounded-md text-gray-100 focus:outline-none focus:ring-1 focus:ring-[#5865F2] text-sm">
-                        <div class="mt-2 text-xs text-gray-400">Username: <span class="font-bold text-gray-200" x-text="'@' + editProfile.username"></span></div>
+
+                    <div class="flex items-center gap-6">
+                        <div class="relative group cursor-pointer -mt-12 ml-4 z-10" @click="triggerImageUpload('edit')">
+                            <img :src="editProfile.avatar" class="w-24 h-24 rounded-full object-cover border-4 border-[#313338] bg-[#1e1f22]">
+                            <div class="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
+                                <i class="ph-fill ph-camera text-white text-2xl"></i>
+                            </div>
+                        </div>
+                        <div class="flex-1">
+                            <label class="block text-xs font-bold text-gray-400 uppercase mb-2">Display Name</label>
+                            <input type="text" x-model="editProfile.displayName" maxlength="20" class="w-full px-3 py-2 bg-[#1e1f22] rounded-md text-gray-100 focus:outline-none focus:ring-1 focus:ring-[#5865F2] text-sm">
+                            <div class="mt-2 text-xs text-gray-400">Username: <span class="font-bold text-gray-200" x-text="'@' + editProfile.username"></span></div>
+                        </div>
                     </div>
                 </div>
 
@@ -951,11 +977,29 @@
                 <button @click="serverSettingsTab = 'channels'" class="text-left px-2 py-1.5 rounded-md text-sm font-medium transition" :class="serverSettingsTab === 'channels' ? 'bg-[#3f4147] text-white' : 'text-gray-400 hover:bg-[#35373c] hover:text-gray-200'">Channels</button>
             </div>
             
-            <div class="flex-1 p-6 overflow-y-auto">
+            <div class="flex-1 p-6 overflow-y-auto relative">
                 <div x-show="serverSettingsTab === 'overview'">
                     <h2 class="text-xl font-bold text-gray-100 mb-6">Server Overview</h2>
+                    
+                    <!-- Server Banner Edit -->
+                    <div class="mb-6">
+                        <label class="block text-xs font-bold text-gray-400 uppercase mb-2">Server Banner</label>
+                        <div class="relative group cursor-pointer w-full h-32 rounded-lg overflow-hidden border border-[#1e1f22]" @click="triggerImageUpload('serverBannerEdit')" :style="'background-color: ' + (editServer.bannerColor || '#5865F2')">
+                            <template x-if="editServer.banner">
+                                <img :src="editServer.banner" class="w-full h-full object-cover">
+                            </template>
+                            <div class="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
+                                <i class="ph-fill ph-camera text-white text-3xl"></i>
+                            </div>
+                            <button @click.stop="editServer.banner = null" x-show="editServer.banner" class="absolute top-2 right-2 bg-red-500 text-white rounded p-1 opacity-0 group-hover:opacity-100 transition hover:bg-red-600">
+                                <i class="ph ph-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+
                     <div class="flex gap-6 mb-6">
                         <div class="w-32 flex flex-col items-center">
+                            <label class="block text-xs font-bold text-gray-400 uppercase mb-2">Icon</label>
                             <div class="relative group cursor-pointer w-24 h-24 mb-3" @click="triggerImageUpload('serverEdit')">
                                 <template x-if="editServer.icon">
                                     <img :src="editServer.icon" class="w-full h-full rounded-2xl object-cover border-2 border-dashed border-[#5865F2]">
@@ -1019,7 +1063,7 @@
                 </div>
             </div>
             
-            <button @click="showServerSettingsModal = false" class="absolute top-4 right-4 text-gray-400 hover:text-white transition bg-[#1e1f22] p-1.5 rounded-full shadow-lg">
+            <button @click="showServerSettingsModal = false" class="absolute top-4 right-4 text-gray-400 hover:text-white transition bg-[#1e1f22] p-1.5 rounded-full shadow-lg z-50">
                 <i class="ph ph-x text-xl"></i>
             </button>
         </div>
@@ -1032,7 +1076,7 @@
         import Alpine from 'https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/module.esm.js';
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, addDoc, deleteDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, addDoc, deleteDoc, getDocs, query, where, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Meticulously Handcrafted Modern SVGs
         const svgC = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%235865F2"/><stop offset="100%" stop-color="%234752C4"/></linearGradient><filter id="s"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.3"/></filter></defs><rect width="100" height="100" fill="url(%23g)"/><text x="50" y="72" font-family="Arial, sans-serif" font-size="65" font-weight="900" fill="white" text-anchor="middle" filter="url(%23s)">C</text></svg>`;
@@ -1042,7 +1086,6 @@
 
         // Dynamic Favicons
         const faviconNormal = 'favicon.ico';
-        // Base64 generic red dot favicon to replace missing icons in isolated environment
         const faviconAlert = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="20" fill="%235865F2"/><circle cx="80" cy="20" r="18" fill="red"/></svg>`;
 
         window.nexusApp = () => ({
@@ -1075,6 +1118,7 @@
             // Message Input
             newMessage: '', pendingImage: null, editingMessageId: null,
             showMentions: false, mentionQuery: '', filteredMentionUsers: [],
+            directFriendRequestUsername: '',
             
             // Data
             servers: [], dms: [], messages: [], filteredMessages: [], users: {}, globalPresence: [],
@@ -1112,7 +1156,7 @@
                 return msgs[msgs.length - 1].timestamp;
             },
             get totalUnreadDms() {
-                return this.dms.filter(dm => this.hasUnread(dm.id)).length;
+                return this.dms.filter(dm => this.hasUnread(dm.id) && this.activeTarget !== dm.id).length;
             },
             hasUnread(roomId) {
                 if (!roomId || !this.messages) return false;
@@ -1169,7 +1213,7 @@
             },
             formatMessage(text) {
                 let safe = this.escapeHTML(text);
-                // Highlight @mentions dynamically based on usernames
+                // Highlight @mentions dynamically
                 safe = safe.replace(/@([a-zA-Z0-9_]+)/g, '<span class="text-[#5865F2] bg-[#5865F2]/20 px-1 rounded font-medium cursor-pointer hover:underline">@$1</span>');
                 return safe;
             },
@@ -1184,7 +1228,6 @@
                     this.showMentions = true;
                     this.mentionQuery = match[1].toLowerCase();
                     
-                    // Get available users to ping
                     let availableUsers = [];
                     if (this.activeView === 'server') {
                         availableUsers = this.getServerMembers('all');
@@ -1205,6 +1248,13 @@
                 this.$refs.chatInput.focus();
             },
 
+            // Canvas Fallback Color Extractor
+            getAvatarColor(base64str) {
+                if (!base64str || !base64str.startsWith('data:image')) return '#5865F2';
+                // Very crude approximation: if it contains a lot of 'f', it's bright. We just return a nice Discord blurple to be safe and fast.
+                return '#5865F2'; 
+            },
+
             // WebRTC State & Hardware
             inVoiceRoom: null, voicePeers: {}, 
             rtcVideoOff: true, isMuted: false, isDeafened: false, isScreenSharing: false,
@@ -1221,14 +1271,14 @@
                     this.auth = getAuth(app);
                     
                     const appId = typeof __app_id !== 'undefined' ? __app_id : 'le-barochat';
-                    // NEW ISOLATION PREFIX to guarantee clean database execution
-                    this.publicDataPath = `artifacts/${appId}/public/data_v3`;
+                    // FRESH ISOLATION V4 to wipe buggy legacy data
+                    this.publicDataPath = `artifacts/${appId}/public/data_v4`;
                     this.usersRef = collection(this.db, `${this.publicDataPath}/users`);
                     this.accountsRef = collection(this.db, `${this.publicDataPath}/accounts`);
 
                     await signInAnonymously(this.auth);
 
-                    const savedSession = localStorage.getItem('lebarochat_session_v3');
+                    const savedSession = localStorage.getItem('lebarochat_session_v4');
                     if (savedSession) {
                         this.logicalUid = savedSession;
                         await this.loadLogicalProfile();
@@ -1255,6 +1305,7 @@
                     });
                     
                     this.$watch('dms', () => this.updateFavicon());
+                    this.$watch('messages', () => this.updateFavicon());
                     
                     window.addEventListener('beforeunload', () => {
                         if(this.logicalUid) setDoc(doc(this.db, `${this.publicDataPath}/presence`, this.logicalUid), { status: 'offline' }, { merge: true });
@@ -1278,13 +1329,14 @@
                 this.authLoading = true;
                 try {
                     const usernameNormalized = this.authUsername.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
-                    if(!usernameNormalized) throw new Error("Please enter a valid username.");
+                    if(!usernameNormalized) throw new Error("Please enter a valid @username.");
 
                     if (this.authMode === 'login') {
                         const snap = await getDocs(this.accountsRef);
                         let foundAccount = null;
                         snap.forEach(doc => {
                             const data = doc.data();
+                            // Allow login by exact username OR legacy email mapping
                             if((data.username === usernameNormalized || data.email === usernameNormalized) && data.password === this.authPassword) {
                                 foundAccount = data;
                             }
@@ -1292,7 +1344,7 @@
 
                         if (foundAccount) {
                             this.logicalUid = foundAccount.profileId;
-                            localStorage.setItem('lebarochat_session_v3', this.logicalUid);
+                            localStorage.setItem('lebarochat_session_v4', this.logicalUid);
                             await this.loadLogicalProfile();
                         } else {
                             throw new Error("Invalid username or password.");
@@ -1302,7 +1354,7 @@
                         const snap = await getDocs(this.accountsRef);
                         let usernameTaken = false;
                         snap.forEach(d => { if(d.data().username === usernameNormalized) usernameTaken = true; });
-                        if(usernameTaken) throw new Error("Username already taken.");
+                        if(usernameTaken) throw new Error("That @username is already taken.");
 
                         const newProfileId = "user_" + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
                         
@@ -1318,6 +1370,8 @@
                             displayName: this.authDisplayName.trim() || usernameNormalized,
                             avatar: this.authAvatar,
                             bio: "Ready to chat on Le BaroChat™!",
+                            banner: null,
+                            bannerColor: '#5865F2',
                             joinedServers: [],
                             friends: [],
                             lastRead: {}
@@ -1325,7 +1379,7 @@
                         await setDoc(doc(this.usersRef, newProfileId), profile);
 
                         this.logicalUid = newProfileId;
-                        localStorage.setItem('lebarochat_session_v3', this.logicalUid);
+                        localStorage.setItem('lebarochat_session_v4', this.logicalUid);
                         await this.loadLogicalProfile();
                     }
                 } catch(e) {
@@ -1361,7 +1415,7 @@
                             this.heartbeatInterval = setInterval(() => this.updatePresence(), 15000);
                         }
                     } else {
-                        localStorage.removeItem('lebarochat_session_v3');
+                        localStorage.removeItem('lebarochat_session_v4');
                         this.logicalUid = null;
                         this.authMode = 'login';
                         this.authLoading = false;
@@ -1371,7 +1425,7 @@
             },
 
             logout() {
-                localStorage.removeItem('lebarochat_session_v3');
+                localStorage.removeItem('lebarochat_session_v4');
                 window.location.reload();
             },
 
@@ -1482,7 +1536,8 @@
                     const partner = this.getDmPartner(cid);
                     return this.getUser(partner)?.displayName || 'Direct Message';
                 }
-                const s = this.getServer(); if(!s || !s.channels) return '';
+                const s = this.servers.find(srv => srv.channels?.some(c => c.id === cid));
+                if (!s) return '';
                 const c = s.channels.find(ch => ch.id === cid); return c ? c.name : '';
             },
 
@@ -1507,7 +1562,10 @@
 
             openHome() {
                 this.activeView = 'home'; this.activeTarget = null; this.activeChannelId = null;
-                this.viewingVoice = false; this.updatePresence();
+                if (this.inVoiceRoom && !this.inVoiceRoom.includes('_')) {
+                    this.viewingVoice = false;
+                }
+                this.updatePresence();
             },
             openDiscovery() {
                 this.activeView = 'discovery'; this.activeTarget = null; this.activeChannelId = null;
@@ -1559,6 +1617,17 @@
                 const newFriends = (this.currentUserProfile.friends || []).filter(id => id !== uid);
                 await updateDoc(doc(this.usersRef, this.logicalUid), { friends: newFriends });
             },
+            
+            sendDirectFriendRequest() {
+                const targetUname = this.directFriendRequestUsername.replace('@', '').toLowerCase();
+                const targetUser = Object.values(this.users).find(u => u.username === targetUname);
+                if (targetUser) {
+                    this.addFriend(targetUser.uid);
+                    this.directFriendRequestUsername = '';
+                } else {
+                    this.showToast("User not found.", true);
+                }
+            },
 
             openProfilePopout(uid) {
                 this.popoutUser = this.getUser(uid);
@@ -1605,6 +1674,7 @@
                 const newServerRef = doc(collection(this.db, `${this.publicDataPath}/servers`));
                 const payload = {
                     name: this.newServerName.trim(), icon: this.newServerIcon, owner: this.logicalUid, isPublic: false,
+                    banner: null, bannerColor: '#5865F2',
                     channels: [ { id: 'c1_' + Date.now(), name: 'general', type: 'text' }, { id: 'c2_' + Date.now(), name: 'General Voice', type: 'voice' } ]
                 };
                 await setDoc(newServerRef, payload);
@@ -1645,7 +1715,8 @@
 
             async saveServerSettings() {
                 await updateDoc(doc(this.db, `${this.publicDataPath}/servers`, this.editServer.id), {
-                    name: this.editServer.name, icon: this.editServer.icon, isPublic: this.editServer.isPublic, channels: this.editServer.channels
+                    name: this.editServer.name, icon: this.editServer.icon, isPublic: this.editServer.isPublic, channels: this.editServer.channels,
+                    banner: this.editServer.banner, bannerColor: this.editServer.bannerColor || '#5865F2'
                 });
                 this.showToast("Server updated.");
             },
@@ -1663,7 +1734,7 @@
             },
 
             async saveProfileSettings() {
-                await updateDoc(doc(this.usersRef, this.logicalUid), { displayName: this.editProfile.displayName, bio: this.editProfile.bio, avatar: this.editProfile.avatar });
+                await updateDoc(doc(this.usersRef, this.logicalUid), { displayName: this.editProfile.displayName, bio: this.editProfile.bio, avatar: this.editProfile.avatar, banner: this.editProfile.banner });
                 this.showSettingsModal = false; this.showToast("Profile updated.");
             },
 
@@ -1677,9 +1748,13 @@
                     const img = new Image();
                     img.onload = () => {
                         const canvas = document.createElement('canvas');
-                        const MAX_W = context === 'chat' ? 800 : 256;
+                        let MAX_W = 256; let MAX_H = 256;
+                        
+                        if (context === 'chat') { MAX_W = 800; MAX_H = 800; }
+                        else if (context === 'banner' || context === 'serverBannerEdit') { MAX_W = 600; MAX_H = 300; }
+
                         let w = img.width, h = img.height;
-                        if (w > h) { if (w > MAX_W) { h *= MAX_W / w; w = MAX_W; } } else { if (h > MAX_W) { w *= MAX_W / h; h = MAX_W; } }
+                        if (w > h) { if (w > MAX_W) { h *= MAX_W / w; w = MAX_W; } } else { if (h > MAX_H) { w *= MAX_H / h; h = MAX_H; } }
                         canvas.width = w; canvas.height = h;
                         canvas.getContext('2d').drawImage(img, 0, 0, w, h);
                         const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
@@ -1687,8 +1762,10 @@
                         if (context === 'chat') this.pendingImage = dataUrl;
                         else if (context === 'setup') this.authAvatar = dataUrl;
                         else if (context === 'edit') this.editProfile.avatar = dataUrl;
+                        else if (context === 'banner') this.editProfile.banner = dataUrl;
                         else if (context === 'server') this.newServerIcon = dataUrl;
                         else if (context === 'serverEdit') this.editServer.icon = dataUrl;
+                        else if (context === 'serverBannerEdit') this.editServer.banner = dataUrl;
                     };
                     img.src = e.target.result;
                 };
@@ -1901,11 +1978,26 @@
                             v.className = "remote-vid w-full h-full bg-black object-contain"; v.muted = this.isDeafened;
                             
                             const overlay = document.createElement('div');
-                            overlay.className = "absolute bottom-3 left-3 bg-black/60 px-2.5 py-1.5 rounded text-[13px] text-white font-bold backdrop-blur-sm";
+                            overlay.className = "absolute bottom-3 left-3 bg-black/60 px-2.5 py-1.5 rounded text-[13px] text-white font-bold backdrop-blur-sm z-10";
                             const isScreen = stream.getAudioTracks().length === 0;
                             overlay.innerText = this.getUser(targetUid).displayName + (isScreen ? " (Screen)" : "");
 
-                            wrapper.appendChild(v); wrapper.appendChild(overlay); grid.appendChild(wrapper);
+                            // Avatar fallback block
+                            const fallback = document.createElement('div');
+                            fallback.className = "absolute inset-0 flex items-center justify-center transition-opacity duration-300";
+                            fallback.style.backgroundColor = this.getAvatarColor(this.getUser(targetUid).avatar);
+                            const img = document.createElement('img');
+                            img.src = this.getUser(targetUid).avatar;
+                            img.className = "w-32 h-32 rounded-full object-cover shadow-2xl bg-[#1e1f22]";
+                            fallback.appendChild(img);
+
+                            // Hide fallback if video is actively sending frames
+                            v.addEventListener('playing', () => { fallback.style.opacity = '0'; });
+
+                            wrapper.appendChild(fallback);
+                            wrapper.appendChild(v); 
+                            wrapper.appendChild(overlay); 
+                            grid.appendChild(wrapper);
                         }
                         document.getElementById(`vid_${vId}`).srcObject = stream;
                     }, 200);
