@@ -1,10 +1,15 @@
-
 import Alpine from 'https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/module.esm.js';
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm';
 import { SVGS, FAVICONS } from './constants.js';
 
+const supabaseUrl = 'https://tzdwxrdkqcntskwdvkfl.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6ZHd4cmRrcWNudHNrd2R2a2ZsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2ODUzNjksImV4cCI6MjA5NDI2MTM2OX0.MpMEqeXXgAGuOwu9fCgSYMmWsP4JHze2s2DerNrUBu4';
+const supabase = createClient(supabaseUrl, supabaseKey);
+
 window.nexusApp = () => ({
+    supabase,
     isReady: false,
+...
     authLoading: true,
     authMode: 'login', 
     authUsername: '', authPassword: '', authDisplayName: '', authAvatar: SVGS.C,
@@ -269,23 +274,7 @@ window.nexusApp = () => ({
 
     async init() {
         try {
-            const supabaseUrl = 'https://tzdwxrdkqcntskwdvkfl.supabase.co';
-            const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6ZHd4cmRrcWNudHNrd2R2a2ZsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2ODUzNjksImV4cCI6MjA5NDI2MTM2OX0.MpMEqeXXgAGuOwu9fCgSYMmWsP4JHze2s2DerNrUBu4';
-            
-            console.log("Initializing Supabase with URL:", supabaseUrl);
-            
-            this.supabase = createClient(supabaseUrl, supabaseKey, {
-                global: {
-                    headers: { 
-                        'apikey': supabaseKey,
-                        'Authorization': `Bearer ${supabaseKey}`
-                    }
-                },
-                auth: {
-                    persistSession: true,
-                    autoRefreshToken: true
-                }
-            });
+            console.log("Supabase initialized globally:", !!this.supabase);
 
             const savedSession = localStorage.getItem('lebarochat_session_v4');
             if (savedSession) {
@@ -322,7 +311,11 @@ window.nexusApp = () => ({
                 window.history.replaceState({}, document.title, window.location.pathname);
                 this._pendingJoinId = joinId;
             }
-
+        } catch(e) {
+            console.error("Init Error:", e);
+            this.showToast("Connection failed.", true);
+        }
+    },
             // Request Notification Permission
             if (Notification.permission === 'default') Notification.requestPermission();
 
