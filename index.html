@@ -19,30 +19,32 @@
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
         body { font-family: 'Inter', sans-serif; background-color: #1e1f22; color: #dbdee1; }
         
-        /* Custom Scrollbar for a modern dark feel */
         ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #1a1b1e; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #2b2d31; }
         
-        /* Utility for hiding scrollbars on specific elements */
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-        /* Video Grid Styling */
-        #video-grid {
+        #fullscreen-video-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
             gap: 1rem;
             width: 100%;
+            height: 100%;
+            align-content: center;
+            justify-content: center;
         }
-        #video-grid video {
+        #fullscreen-video-grid video {
             width: 100%;
+            height: 100%;
+            max-height: 40vh;
             border-radius: 0.5rem;
             background-color: #000;
             object-fit: cover;
-            aspect-ratio: 16/9;
-            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.5);
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.5);
+            border: 1px solid #2b2d31;
         }
 
         [x-cloak] { display: none !important; }
@@ -50,66 +52,85 @@
 </head>
 <body class="h-screen w-screen overflow-hidden flex bg-[#1e1f22]" x-data="nexusApp()" x-cloak>
 
-    <!-- Global Toast Notification -->
+    <!-- Global Toast -->
     <div x-show="toast.show" x-transition.opacity class="fixed top-5 left-1/2 transform -translate-x-1/2 z-[100] px-4 py-3 rounded-md shadow-2xl text-sm font-bold text-white transition-all flex items-center gap-3" :class="toast.isError ? 'bg-red-500' : 'bg-blue-600'" style="display: none;">
         <i class="ph-fill text-xl" :class="toast.isError ? 'ph-warning-circle' : 'ph-info'"></i>
         <span x-text="toast.message"></span>
     </div>
 
-    <!-- Loading Screen -->
-    <div x-show="!isReady" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#1e1f22] text-gray-300">
-        <i class="ph ph-spinner-gap animate-spin text-5xl mb-4 text-blue-500"></i>
-        <h1 class="text-xl font-bold tracking-tight">Connecting to Le BaroChat™...</h1>
-    </div>
+    <!-- Auth / Onboarding Screen -->
+    <div x-show="!isReady" class="fixed inset-0 z-50 flex items-center justify-center bg-[#1e1f22] overflow-y-auto py-10" style="display: none;">
+        
+        <!-- Loading State -->
+        <div x-show="authLoading" class="flex flex-col items-center text-gray-300">
+            <i class="ph ph-spinner-gap animate-spin text-5xl mb-4 text-blue-500"></i>
+            <h1 class="text-xl font-bold tracking-tight">Connecting to Le BaroChat™...</h1>
+        </div>
 
-    <!-- Initial Profile Setup & Preview -->
-    <div x-show="isReady && !hasSetupProfile" style="display: none;" class="fixed inset-0 z-40 flex items-center justify-center bg-[#1e1f22] overflow-y-auto py-10">
-        <div class="flex flex-col md:flex-row gap-8 items-center max-w-4xl w-full px-6">
+        <!-- Auth Forms -->
+        <div x-show="!authLoading" class="flex flex-col md:flex-row gap-8 items-center max-w-4xl w-full px-6">
             
-            <!-- Form Section -->
             <div class="bg-[#313338] p-8 rounded-xl shadow-2xl w-full max-w-md border border-[#2b2d31]">
                 <div class="text-center mb-8">
-                    <h2 class="text-2xl font-bold text-gray-100">Welcome to Le BaroChat™</h2>
-                    <p class="text-gray-400 mt-1 text-sm">Customize your profile to get started.</p>
+                    <h2 class="text-2xl font-bold text-gray-100" x-text="authMode === 'login' ? 'Welcome Back!' : 'Create an Account'"></h2>
+                    <p class="text-gray-400 mt-1 text-sm" x-text="authMode === 'login' ? 'We\'re so excited to see you again!' : 'Join Le BaroChat™ today.'"></p>
                 </div>
 
-                <div class="space-y-6">
+                <div class="space-y-4">
                     <div>
-                        <label class="block text-xs font-bold text-gray-400 uppercase mb-2">Display Name</label>
-                        <input type="text" x-model="setupProfile.displayName" placeholder="e.g. SpaceCowboy" class="w-full px-4 py-3 bg-[#1e1f22] border border-transparent rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-gray-100 transition" maxlength="20">
+                        <label class="block text-xs font-bold text-gray-400 uppercase mb-2">Email</label>
+                        <input type="email" x-model="authEmail" class="w-full px-4 py-3 bg-[#1e1f22] border border-transparent rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-gray-100 text-sm">
                     </div>
-                    
                     <div>
-                        <label class="block text-xs font-bold text-gray-400 uppercase mb-2">Choose an Avatar</label>
-                        <div class="grid grid-cols-4 gap-3 mb-3">
-                            <template x-for="(avatarObj, index) in defaultAvatars" :key="index">
-                                <button @click="setupProfile.avatar = avatarObj.data" class="aspect-square rounded-full overflow-hidden border-2 transition hover:opacity-80 bg-[#1e1f22]" :class="setupProfile.avatar === avatarObj.data ? 'border-blue-500 scale-105' : 'border-transparent'">
-                                    <img :src="avatarObj.data" class="w-full h-full object-cover">
-                                </button>
-                            </template>
-                        </div>
-                        <button @click="triggerAvatarUpload('setup')" class="w-full py-2 text-sm text-blue-400 font-medium bg-[#2b2d31] hover:bg-[#1e1f22] rounded-md transition border border-transparent hover:border-[#383a40]">
-                            Or upload custom image...
-                        </button>
+                        <label class="block text-xs font-bold text-gray-400 uppercase mb-2">Password</label>
+                        <input type="password" x-model="authPassword" @keydown.enter="processAuth()" class="w-full px-4 py-3 bg-[#1e1f22] border border-transparent rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-gray-100 text-sm">
                     </div>
 
-                    <button @click="completeSetup()" :disabled="!setupProfile.displayName.trim()" class="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-md shadow transition">
-                        Enter App
+                    <template x-if="authMode === 'register'">
+                        <div class="space-y-4 pt-2">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-400 uppercase mb-2">Display Name</label>
+                                <input type="text" x-model="authDisplayName" maxlength="20" class="w-full px-4 py-3 bg-[#1e1f22] border border-transparent rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-gray-100 text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-400 uppercase mb-2">Choose an Avatar</label>
+                                <div class="grid grid-cols-4 gap-3 mb-3">
+                                    <template x-for="(avatarObj, index) in defaultAvatars" :key="index">
+                                        <button @click="authAvatar = avatarObj.data" class="aspect-square rounded-full overflow-hidden border-2 transition hover:opacity-80 bg-[#1e1f22]" :class="authAvatar === avatarObj.data ? 'border-blue-500 scale-105' : 'border-transparent'">
+                                            <img :src="avatarObj.data" class="w-full h-full object-cover">
+                                        </button>
+                                    </template>
+                                </div>
+                                <button @click="triggerAvatarUpload('setup')" class="w-full py-2 text-sm text-blue-400 font-medium bg-[#2b2d31] hover:bg-[#1e1f22] rounded-md transition border border-transparent hover:border-[#383a40]">
+                                    Or upload custom image...
+                                </button>
+                            </div>
+                        </div>
+                    </template>
+
+                    <button @click="processAuth()" :disabled="!authEmail || !authPassword || (authMode === 'register' && !authDisplayName)" class="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold rounded-md shadow transition mt-4">
+                        <span x-text="authMode === 'login' ? 'Log In' : 'Register'"></span>
                     </button>
+
+                    <div class="text-sm text-gray-400 mt-4">
+                        <span x-text="authMode === 'login' ? 'Need an account?' : 'Already have an account?'"></span>
+                        <button @click="authMode = authMode === 'login' ? 'register' : 'login'" class="text-blue-400 hover:underline ml-1 font-medium">
+                            <span x-text="authMode === 'login' ? 'Register' : 'Log In'"></span>
+                        </button>
+                    </div>
                 </div>
             </div>
 
-            <!-- Live Preview Card -->
-            <div class="w-full max-w-sm hidden md:block">
+            <!-- Live Preview Card (Only on Register) -->
+            <div class="w-full max-w-sm hidden md:block" x-show="authMode === 'register'">
                 <div class="text-xs font-bold text-gray-500 uppercase mb-3 text-center">Live Preview</div>
                 <div class="bg-[#313338] rounded-xl shadow-2xl w-full overflow-hidden border border-[#2b2d31]">
                     <div class="h-24 bg-blue-600 w-full"></div>
-                    <div class="px-5 pb-6">
-                        <img :src="setupProfile.avatar" class="w-24 h-24 rounded-full border-[6px] border-[#313338] -mt-12 relative z-10 bg-[#1e1f22] object-cover transition-all duration-300">
-                        <div class="mt-3">
-                            <h3 class="text-2xl font-extrabold text-gray-100 leading-tight truncate" x-text="setupProfile.displayName || 'Your Name'"></h3>
-                            <p class="text-sm text-gray-400 font-medium mb-4" x-text="(setupProfile.displayName || 'YourName') + '#1234'"></p>
-                            
+                    <div class="px-5 pb-6 relative">
+                        <img :src="authAvatar" class="w-24 h-24 rounded-full border-[6px] border-[#313338] absolute -top-12 left-5 bg-[#1e1f22] object-cover transition-all duration-300">
+                        <div class="pt-14">
+                            <h3 class="text-2xl font-extrabold text-gray-100 leading-tight truncate" x-text="authDisplayName || 'Your Name'"></h3>
+                            <p class="text-sm text-gray-400 font-medium mb-4" x-text="(authDisplayName || 'YourName') + '#1234'"></p>
                             <div class="bg-[#2b2d31] rounded-lg p-3 border border-[#1e1f22]">
                                 <h4 class="text-xs font-bold text-gray-400 uppercase mb-1.5">About Me</h4>
                                 <p class="text-sm text-gray-300">Ready to chat on Le BaroChat™!</p>
@@ -122,40 +143,37 @@
     </div>
 
     <!-- Main App Container -->
-    <template x-if="isReady && hasSetupProfile">
+    <template x-if="isReady && currentUserProfile">
         <div class="flex h-full w-full">
             
             <!-- Server List Sidebar (Far Left) -->
             <div class="w-[72px] h-full bg-[#1e1f22] flex flex-col items-center py-3 space-y-2 flex-shrink-0 z-20">
-                <!-- Home Button -->
-                <button @click="activeView = 'home'; activeTarget = null; activeChannelId = null;" class="w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-[#313338] text-gray-100 flex items-center justify-center transition-all duration-200 relative group" :class="{'rounded-[16px] bg-blue-600 text-white': activeView === 'home'}">
+                <button @click="openHome()" class="w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-[#313338] text-gray-100 flex items-center justify-center transition-all duration-200 relative group" :class="{'rounded-[16px] bg-blue-600 text-white': activeView === 'home'}">
                     <i class="ph-fill ph-house text-2xl"></i>
                     <div class="absolute -left-3 w-1 bg-white rounded-r-md transition-all duration-200" :class="activeView === 'home' ? 'h-10' : 'h-0 group-hover:h-5'"></div>
                 </button>
 
                 <div class="w-8 h-[2px] bg-[#313338] rounded-full my-1"></div>
 
-                <!-- Server List (Only Joined Servers) -->
+                <!-- Server List -->
                 <div class="flex-1 w-full overflow-y-auto no-scrollbar flex flex-col items-center space-y-2">
                     <template x-for="server in myServers" :key="server.id">
-                        <button @click="openServer(server.id)" class="w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-[#313338] text-gray-100 hover:text-white flex items-center justify-center transition-all duration-200 shadow relative group overflow-hidden" :class="{'rounded-[16px] bg-blue-600 text-white': activeTarget === server.id && activeView === 'server'}">
+                        <button @click="openServer(server.id)" class="w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-[#313338] text-gray-100 hover:text-white flex items-center justify-center transition-all duration-200 shadow relative group overflow-hidden" :class="{'rounded-[16px] bg-blue-600 text-white': activeTarget === server.id && activeView !== 'home' && activeView !== 'discovery'}">
                             <template x-if="server.icon">
                                 <img :src="server.icon" class="w-full h-full object-cover">
                             </template>
                             <template x-if="!server.icon">
                                 <span x-text="server.name.substring(0,2).toUpperCase()" class="font-bold text-sm"></span>
                             </template>
-                            <div class="absolute -left-3 w-1 bg-white rounded-r-md transition-all duration-200" :class="activeTarget === server.id && activeView === 'server' ? 'h-10' : 'h-0 group-hover:h-5'"></div>
+                            <div class="absolute -left-3 w-1 bg-white rounded-r-md transition-all duration-200" :class="activeTarget === server.id && activeView !== 'home' && activeView !== 'discovery' ? 'h-10' : 'h-0 group-hover:h-5'"></div>
                         </button>
                     </template>
 
-                    <!-- Add / Create Server Button -->
-                    <button @click="showCreateServerModal = true; newServerName = ''" class="w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-[#313338] hover:bg-green-600 text-green-500 hover:text-white flex items-center justify-center transition-all duration-200 mt-2" title="Create Server">
+                    <!-- Add Server & Discovery -->
+                    <button @click="showCreateServerModal = true; newServerName = ''" class="w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-[#313338] hover:bg-green-600 text-green-500 hover:text-white flex items-center justify-center transition-all duration-200 mt-2">
                         <i class="ph ph-plus text-xl"></i>
                     </button>
-                    
-                    <!-- Discovery Button -->
-                    <button @click="activeView = 'discovery'; activeTarget = null;" class="w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-[#313338] hover:bg-blue-600 text-gray-300 hover:text-white flex items-center justify-center transition-all duration-200 mt-2 relative group" :class="{'rounded-[16px] bg-blue-600 text-white': activeView === 'discovery'}" title="Discover Public Servers">
+                    <button @click="activeView = 'discovery'; activeTarget = null;" class="w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-[#313338] hover:bg-blue-600 text-gray-300 hover:text-white flex items-center justify-center transition-all duration-200 mt-2 relative group" :class="{'rounded-[16px] bg-blue-600 text-white': activeView === 'discovery'}">
                         <i class="ph-fill ph-compass text-2xl"></i>
                         <div class="absolute -left-3 w-1 bg-white rounded-r-md transition-all duration-200" :class="activeView === 'discovery' ? 'h-10' : 'h-0 group-hover:h-5'"></div>
                     </button>
@@ -168,9 +186,7 @@
                 <!-- Home Sidebar (DMs) -->
                 <template x-if="activeView === 'home'">
                     <div class="flex flex-col h-full">
-                        <div class="h-12 border-b border-[#1e1f22] flex items-center px-4 font-bold text-gray-100 shadow-sm bg-[#2b2d31]">
-                            Direct Messages
-                        </div>
+                        <div class="h-12 border-b border-[#1e1f22] flex items-center px-4 font-bold text-gray-100 shadow-sm bg-[#2b2d31]">Direct Messages</div>
                         <div class="flex-1 overflow-y-auto p-2 space-y-[2px]">
                             <button @click="showAddFriendModal = true" class="w-full flex items-center px-3 py-2 text-gray-400 hover:text-gray-100 hover:bg-[#3f4147] rounded-md transition mb-2">
                                 <i class="ph ph-user-plus mr-3 text-lg"></i>
@@ -189,32 +205,16 @@
                     </div>
                 </template>
                 
-                <!-- Discovery Sidebar Placeholder -->
-                <template x-if="activeView === 'discovery'">
-                    <div class="flex flex-col h-full">
-                        <div class="h-12 border-b border-[#1e1f22] flex items-center px-4 font-bold text-gray-100 shadow-sm bg-[#2b2d31]">
-                            Discover
-                        </div>
-                        <div class="p-4 text-sm text-gray-400 text-center mt-10">
-                            <i class="ph-fill ph-compass text-5xl mb-3 text-gray-600 block"></i>
-                            Find and join public communities!
-                        </div>
-                    </div>
-                </template>
-
                 <!-- Server Sidebar (Channels) -->
                 <template x-if="activeView === 'server'">
                     <div class="flex flex-col h-full">
                         <div class="h-12 border-b border-[#1e1f22] flex items-center px-4 font-bold text-gray-100 shadow-sm bg-[#2b2d31] justify-between cursor-pointer hover:bg-[#35373c] transition group relative">
                             <span class="truncate pr-2" x-text="getServer()?.name || 'Server'"></span>
-                            
-                            <!-- Server Dropdown Menu Trigger -->
                             <i class="ph ph-caret-down text-gray-400 group-hover:text-gray-200"></i>
                             
-                            <!-- Dropdown overlay (absolute) -->
                             <div class="absolute top-12 left-2 right-2 bg-[#111214] rounded-md shadow-2xl border border-[#1e1f22] p-2 hidden group-hover:block z-50">
                                 <button @click.stop="copyInviteLink()" class="w-full flex items-center px-2 py-1.5 text-blue-400 hover:bg-blue-600 hover:text-white rounded-md transition text-sm font-medium mb-1">
-                                    <i class="ph ph-user-plus mr-2"></i> Invite People
+                                    <i class="ph ph-user-plus mr-2"></i> Copy Invite Link
                                 </button>
                                 <template x-if="getServer()?.owner === currentUser?.uid">
                                     <button @click.stop="openServerSettings()" class="w-full flex items-center px-2 py-1.5 text-gray-300 hover:bg-[#3f4147] hover:text-white rounded-md transition text-sm font-medium">
@@ -232,12 +232,9 @@
                             <!-- Text Channels -->
                             <div class="text-xs font-bold text-gray-500 uppercase tracking-wider px-3 py-2 mt-2 flex justify-between items-center">
                                 <span>Text Channels</span>
-                                <template x-if="getServer()?.owner === currentUser?.uid">
-                                    <i class="ph ph-plus cursor-pointer hover:text-gray-300" @click="openServerSettings('channels')"></i>
-                                </template>
                             </div>
                             <template x-for="channel in (getServer()?.channels || []).filter(c => c.type === 'text')" :key="channel.id">
-                                <button @click="activeChannelId = channel.id" class="w-full flex items-center px-2 py-1.5 rounded-md transition" :class="activeChannelId === channel.id ? 'bg-[#3f4147] text-white' : 'text-gray-400 hover:bg-[#35373c] hover:text-gray-200'">
+                                <button @click="activeChannelId = channel.id; viewingVoice = false;" class="w-full flex items-center px-2 py-1.5 rounded-md transition" :class="activeChannelId === channel.id && !viewingVoice ? 'bg-[#3f4147] text-white' : 'text-gray-400 hover:bg-[#35373c] hover:text-gray-200'">
                                     <i class="ph ph-hash mr-2 text-lg"></i>
                                     <span class="font-medium text-sm truncate" x-text="channel.name"></span>
                                 </button>
@@ -246,49 +243,42 @@
                             <!-- Voice Channels -->
                             <div class="text-xs font-bold text-gray-500 uppercase tracking-wider px-3 py-2 mt-4 flex justify-between items-center">
                                 <span>Voice Channels</span>
-                                <template x-if="getServer()?.owner === currentUser?.uid">
-                                    <i class="ph ph-plus cursor-pointer hover:text-gray-300" @click="openServerSettings('channels')"></i>
-                                </template>
                             </div>
                             <template x-for="channel in (getServer()?.channels || []).filter(c => c.type === 'voice')" :key="channel.id">
                                 <div>
-                                    <button @click="joinVoiceRoom(channel.id)" class="w-full flex items-center px-2 py-1.5 rounded-md transition" :class="inVoiceRoom === channel.id ? 'bg-[#3f4147] text-white' : 'text-gray-400 hover:bg-[#35373c] hover:text-gray-200'">
-                                        <i class="ph ph-speaker-high mr-2 text-lg"></i>
+                                    <button @click="handleVoiceChannelClick(channel.id)" class="w-full flex items-center px-2 py-1.5 rounded-md transition" :class="inVoiceRoom === channel.id && viewingVoice ? 'bg-[#3f4147] text-white' : 'text-gray-400 hover:bg-[#35373c] hover:text-gray-200'">
+                                        <i class="ph ph-speaker-high mr-2 text-lg" :class="inVoiceRoom === channel.id ? 'text-green-500' : ''"></i>
                                         <span class="font-medium text-sm truncate" x-text="channel.name"></span>
                                     </button>
                                     
-                                    <!-- Active Voice Users & Controls for this channel -->
-                                    <template x-if="inVoiceRoom === channel.id">
-                                        <div class="pl-8 py-2 mt-1 border-l-2 border-green-500 ml-4 space-y-2">
-                                            <!-- Local User -->
-                                            <div class="flex items-center gap-2">
-                                                <img :src="currentUserProfile?.avatar" class="w-6 h-6 rounded-full ring-2 ring-green-500 object-cover bg-[#1e1f22]">
-                                                <span class="text-xs font-medium text-gray-200 truncate" x-text="currentUserProfile?.displayName"></span>
-                                            </div>
-                                            <!-- Remote Users -->
-                                            <template x-for="[uid, stream] in Object.entries(voicePeers)" :key="uid">
-                                                <div class="flex items-center gap-2">
-                                                    <img :src="getUser(uid)?.avatar" class="w-6 h-6 rounded-full object-cover bg-[#1e1f22]" :class="stream ? 'ring-2 ring-blue-500' : ''">
-                                                    <span class="text-xs font-medium text-gray-400 truncate" x-text="getUser(uid)?.displayName || 'User'"></span>
-                                                </div>
-                                            </template>
-                                            
-                                            <!-- Voice Controls -->
-                                            <div class="pt-2 flex items-center gap-1">
-                                                <button @click="rtcToggleVideo()" class="p-1 rounded hover:bg-[#3f4147] transition" :class="rtcVideoOff ? 'text-red-400' : 'text-gray-300'" title="Toggle Camera">
-                                                    <i class="ph-fill text-sm" :class="rtcVideoOff ? 'ph-video-camera-slash' : 'ph-video-camera'"></i>
-                                                </button>
-                                                <button @click="showVideoGrid = !showVideoGrid" class="text-xs bg-[#1e1f22] hover:bg-[#111214] text-gray-300 px-2 py-1 rounded ml-1 transition font-medium border border-[#383a40]">
-                                                    <span x-text="showVideoGrid ? 'Hide Video' : 'Show Video'"></span>
-                                                </button>
-                                                <button @click="leaveVoiceRoom()" class="p-1 rounded hover:bg-red-500/20 text-red-400 transition ml-auto" title="Disconnect">
-                                                    <i class="ph-fill ph-phone-disconnect text-sm"></i>
-                                                </button>
-                                            </div>
+                                    <!-- Display Users currently in this voice channel -->
+                                    <template x-for="p in (globalPresence || []).filter(gp => gp.currentVoice === channel.id)" :key="p.uid">
+                                        <div class="flex items-center gap-2 px-2 py-1 ml-4 mt-0.5 rounded-md hover:bg-[#35373c] cursor-pointer" @click="openProfilePopout(p.uid)">
+                                            <img :src="getUser(p.uid)?.avatar" class="w-6 h-6 rounded-full object-cover bg-[#1e1f22]">
+                                            <span class="text-xs font-medium text-gray-300 truncate" x-text="getUser(p.uid)?.displayName"></span>
                                         </div>
                                     </template>
                                 </div>
                             </template>
+                        </div>
+
+                        <!-- Active Voice Connection Controls (Pinned to bottom of sidebar) -->
+                        <div x-show="inVoiceRoom" class="bg-[#111214] p-3 border-t border-[#1e1f22] flex flex-col gap-2 relative z-20" style="display: none;">
+                            <div class="flex items-center justify-between text-green-500 font-bold text-xs uppercase tracking-wide">
+                                <span>Voice Connected</span>
+                                <i class="ph-fill ph-check-circle"></i>
+                            </div>
+                            <div class="flex gap-1 justify-between">
+                                <button @click="rtcToggleVideo()" class="p-2 flex-1 rounded hover:bg-[#3f4147] transition flex justify-center items-center" :class="rtcVideoOff ? 'text-gray-400' : 'text-white bg-[#3f4147]'" title="Toggle Camera">
+                                    <i class="ph-fill text-lg" :class="rtcVideoOff ? 'ph-video-camera-slash' : 'ph-video-camera'"></i>
+                                </button>
+                                <button @click="rtcToggleScreenShare()" class="p-2 flex-1 rounded hover:bg-[#3f4147] transition flex justify-center items-center" :class="isScreenSharing ? 'text-white bg-[#3f4147]' : 'text-gray-400'" title="Share Screen">
+                                    <i class="ph-fill ph-screencast text-lg"></i>
+                                </button>
+                                <button @click="leaveVoiceRoom()" class="p-2 flex-1 rounded hover:bg-red-500/20 text-red-400 transition flex justify-center items-center" title="Disconnect">
+                                    <i class="ph-fill ph-phone-disconnect text-lg"></i>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </template>
@@ -296,7 +286,10 @@
                 <!-- Current User Profile Bar -->
                 <div class="h-[60px] bg-[#232428] flex items-center px-2 justify-between flex-shrink-0 relative z-20">
                     <div class="flex items-center flex-1 min-w-0 hover:bg-[#3f4147]/50 p-1.5 rounded-md cursor-pointer transition" @click="openSettings()">
-                        <img :src="currentUserProfile?.avatar" class="w-8 h-8 rounded-full object-cover flex-shrink-0 bg-[#1e1f22]">
+                        <div class="relative">
+                            <img :src="currentUserProfile?.avatar" class="w-8 h-8 rounded-full object-cover flex-shrink-0 bg-[#1e1f22]">
+                            <div class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-[#232428] rounded-full"></div>
+                        </div>
                         <div class="ml-2 truncate">
                             <div class="text-sm font-bold text-gray-100 leading-tight truncate" x-text="currentUserProfile?.displayName"></div>
                             <div class="text-[11px] text-gray-400 leading-tight" x-text="'#' + currentUserProfile?.tag"></div>
@@ -308,7 +301,7 @@
                 </div>
             </div>
 
-            <!-- Main Chat Area / Content Area -->
+            <!-- Main Central Area -->
             <div class="flex-1 flex flex-col bg-[#313338] min-w-0 relative z-0">
                 
                 <!-- Header -->
@@ -320,135 +313,71 @@
                                 <span x-text="getUser(getDmPartner(activeTarget))?.displayName || 'Direct Message'"></span>
                             </div>
                         </template>
-                        <template x-if="activeView === 'server' && activeChannelId">
+                        <template x-if="activeView === 'server' && !viewingVoice">
                             <div class="flex items-center">
                                 <i class="ph ph-hash mr-2 text-gray-400 text-xl"></i>
                                 <span x-text="getChannelName(activeChannelId)"></span>
                             </div>
                         </template>
-                        <template x-if="activeView === 'discovery'">
-                            <div class="flex items-center">
-                                <i class="ph ph-compass mr-2 text-gray-400 text-xl"></i>
-                                <span>Discover Public Servers</span>
-                            </div>
-                        </template>
-                        <template x-if="activeView === 'home' && !activeTarget">
-                            <div class="flex items-center text-gray-400">
-                                <i class="ph ph-hand-waving mr-2 text-xl"></i>
-                                <span>Welcome Home</span>
+                        <template x-if="activeView === 'server' && viewingVoice">
+                            <div class="flex items-center text-green-400">
+                                <i class="ph ph-speaker-high mr-2 text-xl"></i>
+                                <span>Voice Connected</span>
                             </div>
                         </template>
                     </div>
                     
-                    <template x-if="activeView === 'server' || (activeView === 'home' && activeTarget)">
+                    <template x-if="activeView === 'server' && !viewingVoice || (activeView === 'home' && activeTarget)">
                         <button @click="showMembersList = !showMembersList" class="p-1 text-gray-400 hover:text-gray-200 hover:bg-[#3f4147] rounded-md transition">
                             <i class="ph-fill ph-users text-xl"></i>
                         </button>
                     </template>
                 </div>
 
-                <!-- Expanding Video Grid (Hidden unless toggled) -->
-                <div x-show="inVoiceRoom && showVideoGrid" class="w-full bg-[#111214] border-b border-[#1e1f22] p-4 max-h-[50vh] overflow-y-auto flex-shrink-0" style="display: none;">
-                    <div class="flex items-center justify-between text-gray-300 mb-3">
-                        <h3 class="font-bold text-sm">Voice Lounge - Video Grid</h3>
-                        <button @click="showVideoGrid = false" class="text-gray-400 hover:text-white text-sm"><i class="ph ph-x text-lg"></i></button>
+                <!-- Fullscreen Voice Grid -->
+                <div x-show="viewingVoice && inVoiceRoom" class="flex-1 bg-[#000000] p-4 flex flex-col relative" style="display: none;">
+                    <div id="fullscreen-video-grid">
+                        <!-- Local Video -->
+                        <div class="relative rounded-lg overflow-hidden bg-[#1e1f22] flex items-center justify-center border border-[#2b2d31]">
+                            <video id="local-video" autoplay playsinline muted class="w-full h-full object-cover"></video>
+                            <div class="absolute bottom-3 left-3 bg-black/60 px-2 py-1 rounded text-xs text-white font-bold backdrop-blur-sm flex items-center gap-2">
+                                <span x-text="currentUserProfile?.displayName + ' (You)'"></span>
+                                <i class="ph-fill text-red-500" x-show="rtcVideoOff && !isScreenSharing" class="ph-video-camera-slash"></i>
+                            </div>
+                            <img x-show="rtcVideoOff && !isScreenSharing" :src="currentUserProfile?.avatar" class="absolute w-24 h-24 rounded-full object-cover shadow-2xl">
+                        </div>
+                        <!-- Remote Videos injected via JS will go here -->
                     </div>
-                    <div id="video-grid"></div>
                 </div>
 
-                <!-- Discovery Content -->
-                <template x-if="activeView === 'discovery'">
-                    <div class="flex-1 overflow-y-auto p-6 bg-[#313338]">
-                        <div class="max-w-5xl mx-auto">
-                            <div class="relative mb-8">
-                                <div class="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl blur opacity-30"></div>
-                                <div class="bg-[#1e1f22] relative rounded-xl p-8 text-center border border-[#2b2d31]">
-                                    <h2 class="text-3xl font-extrabold text-white mb-2">Find your community on Le BaroChat™</h2>
-                                    <p class="text-gray-400 mb-6 max-w-lg mx-auto">From gaming, to music, to learning, there's a place for you.</p>
-                                    <button @click="showJoinServerModal = true" class="px-6 py-2.5 bg-[#3f4147] hover:bg-[#4a4d54] text-white font-bold rounded-md transition shadow">
-                                        Have an Invite ID? Join a Server
-                                    </button>
-                                </div>
-                            </div>
+                <!-- Chat History -->
+                <div x-show="!viewingVoice && activeView !== 'discovery'" class="flex-1 overflow-y-auto flex flex-col p-4 space-y-4" id="chatContainer">
+                    <template x-if="!currentChatId">
+                        <div class="flex flex-col items-center justify-center h-full text-gray-500">
+                            <i class="ph-fill ph-chat-circle-dots text-6xl mb-4 text-[#3f4147]"></i>
+                            <p class="text-gray-400 font-medium">Select a channel or friend to start chatting.</p>
+                        </div>
+                    </template>
 
-                            <h3 class="text-lg font-bold text-gray-200 mb-4">Featured Public Servers</h3>
-                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                <template x-for="server in discoveryServers" :key="server.id">
-                                    <div class="bg-[#2b2d31] rounded-xl overflow-hidden border border-[#1e1f22] hover:border-[#3f4147] transition shadow-lg flex flex-col group">
-                                        <div class="h-24 bg-[#1e1f22] relative overflow-hidden flex justify-center items-center">
-                                            <template x-if="server.icon">
-                                                <img :src="server.icon" class="w-full h-full object-cover opacity-50 group-hover:opacity-80 transition blur-sm scale-110">
-                                            </template>
-                                            <div class="absolute inset-0 bg-gradient-to-t from-[#2b2d31] to-transparent"></div>
-                                        </div>
-                                        <div class="px-4 pb-4 relative flex-1 flex flex-col">
-                                            <div class="w-16 h-16 rounded-2xl bg-[#1e1f22] border-4 border-[#2b2d31] absolute -top-8 flex items-center justify-center overflow-hidden shadow-md">
-                                                <template x-if="server.icon">
-                                                    <img :src="server.icon" class="w-full h-full object-cover">
-                                                </template>
-                                                <template x-if="!server.icon">
-                                                    <span class="font-bold text-xl text-gray-300" x-text="server.name.substring(0,2).toUpperCase()"></span>
-                                                </template>
-                                            </div>
-                                            <div class="mt-10 mb-4 flex-1">
-                                                <h4 class="font-bold text-gray-100 text-lg truncate" x-text="server.name"></h4>
-                                                <p class="text-xs text-gray-400 mt-1">Public Community</p>
-                                            </div>
-                                            <button @click="joinServer(server.id)" class="w-full py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-bold rounded-md transition">Join Server</button>
-                                        </div>
-                                    </div>
-                                </template>
-                                <template x-if="discoveryServers.length === 0">
-                                    <div class="col-span-full text-center py-10 text-gray-500">
-                                        <i class="ph ph-magnifying-glass text-4xl mb-2"></i>
-                                        <p>No public servers available right now.</p>
-                                    </div>
+                    <template x-for="msg in (filteredMessages || [])" :key="msg.id">
+                        <div class="flex group hover:bg-[#2b2d31] p-1 rounded-md transition -mx-2 px-2 mt-4">
+                            <img :src="getUser(msg.senderId)?.avatar" @click="openProfilePopout(msg.senderId)" class="w-10 h-10 rounded-full mt-0.5 object-cover cursor-pointer flex-shrink-0 bg-[#1e1f22]">
+                            <div class="ml-4 flex-1 min-w-0">
+                                <div class="flex items-baseline">
+                                    <span class="font-bold text-gray-100 mr-2 cursor-pointer hover:underline text-[15px]" @click="openProfilePopout(msg.senderId)" x-text="getUser(msg.senderId)?.displayName || 'Unknown'"></span>
+                                    <span class="text-xs text-gray-400 font-medium" x-text="formatTime(msg.timestamp)"></span>
+                                </div>
+                                <div class="text-gray-200 whitespace-pre-wrap break-words mt-0.5 leading-snug text-[15px]" x-text="msg.text"></div>
+                                <template x-if="msg.image">
+                                    <img :src="msg.image" class="mt-2 max-w-md w-full rounded-md object-contain border border-[#1e1f22] bg-[#2b2d31]">
                                 </template>
                             </div>
                         </div>
-                    </div>
-                </template>
-
-                <!-- Chat History (Only if a channel or DM is selected) -->
-                <template x-if="activeView !== 'discovery'">
-                    <div class="flex-1 overflow-y-auto p-4 space-y-5" id="chatContainer">
-                        <template x-if="!currentChatId">
-                            <div class="flex flex-col items-center justify-center h-full text-gray-500">
-                                <i class="ph-fill ph-chat-circle-dots text-6xl mb-4 text-[#3f4147]"></i>
-                                <p class="text-gray-400 font-medium">Select a channel or friend to start chatting.</p>
-                            </div>
-                        </template>
-
-                        <template x-if="currentChatId && filteredMessages.length === 0">
-                            <div class="flex flex-col justify-end h-full text-gray-400 pb-4">
-                                <div class="w-16 h-16 rounded-full bg-[#3f4147] flex items-center justify-center mb-4">
-                                    <i class="ph-fill ph-hash text-3xl text-gray-300"></i>
-                                </div>
-                                <h1 class="text-3xl font-extrabold text-white mb-2">Welcome to the start!</h1>
-                                <p>This is the beginning of your conversation.</p>
-                            </div>
-                        </template>
-
-                        <template x-for="msg in filteredMessages" :key="msg.id">
-                            <div class="flex group hover:bg-[#2b2d31] p-1 rounded-md transition -mx-2 px-2 mt-4">
-                                <img :src="getUser(msg.senderId)?.avatar" @click="openProfilePopout(msg.senderId)" class="w-10 h-10 rounded-full mt-0.5 object-cover cursor-pointer flex-shrink-0 bg-[#1e1f22]">
-                                <div class="ml-4 flex-1 min-w-0">
-                                    <div class="flex items-baseline">
-                                        <span class="font-bold text-gray-100 mr-2 cursor-pointer hover:underline text-[15px]" @click="openProfilePopout(msg.senderId)" x-text="getUser(msg.senderId)?.displayName || 'Unknown'"></span>
-                                        <span class="text-xs text-gray-400 font-medium" x-text="formatTime(msg.timestamp)"></span>
-                                    </div>
-                                    <div class="text-gray-200 whitespace-pre-wrap break-words mt-0.5 leading-snug text-[15px]" x-text="msg.text"></div>
-                                    <template x-if="msg.image">
-                                        <img :src="msg.image" class="mt-2 max-w-md w-full rounded-md object-contain border border-[#1e1f22] bg-[#2b2d31]">
-                                    </template>
-                                </div>
-                            </div>
-                        </template>
-                    </div>
-                </template>
+                    </template>
+                </div>
 
                 <!-- Message Input -->
-                <div class="p-4 pt-0 flex-shrink-0 bg-[#313338]" x-show="currentChatId && activeView !== 'discovery'">
+                <div class="p-4 pt-0 flex-shrink-0 bg-[#313338]" x-show="currentChatId && !viewingVoice && activeView !== 'discovery'" style="display: none;">
                     <div class="bg-[#383a40] rounded-lg flex items-center px-4 py-2.5 transition">
                         <button @click="triggerImageUpload()" class="text-gray-400 hover:text-gray-200 p-1 flex-shrink-0 transition">
                             <i class="ph-fill ph-plus-circle text-2xl"></i>
@@ -458,7 +387,6 @@
                             <i class="ph-fill ph-paper-plane-right"></i>
                         </button>
                     </div>
-                    <!-- Image Preview -->
                     <template x-if="pendingImage">
                         <div class="mt-2 relative inline-block bg-[#2b2d31] p-2 rounded-md border border-[#1e1f22]">
                             <img :src="pendingImage" class="h-32 rounded object-cover">
@@ -471,18 +399,18 @@
             </div>
 
             <!-- Member List Sidebar (Right) -->
-            <div class="bg-[#2b2d31] flex flex-col flex-shrink-0 transition-all duration-300 overflow-hidden" :class="(showMembersList && activeView !== 'discovery') ? 'w-60' : 'w-0'">
+            <div class="bg-[#2b2d31] flex flex-col flex-shrink-0 transition-all duration-300 overflow-hidden" :class="(showMembersList && activeView === 'server' && !viewingVoice) ? 'w-60' : 'w-0'">
                 <div class="p-4 w-60">
-                    <div class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Online - <span x-text="Object.keys(presence).length"></span></div>
+                    <div class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Online Server Members</div>
                     <div class="space-y-[2px]">
-                        <template x-for="uid in Object.keys(presence)" :key="uid">
-                            <div @click="openProfilePopout(uid)" class="flex items-center px-2 py-1.5 rounded-md hover:bg-[#35373c] cursor-pointer transition group">
+                        <template x-for="p in (globalPresence || []).filter(gp => gp.currentServer === activeTarget && gp.status === 'online')" :key="p.uid">
+                            <div @click="openProfilePopout(p.uid)" class="flex items-center px-2 py-1.5 rounded-md hover:bg-[#35373c] cursor-pointer transition group">
                                 <div class="relative">
-                                    <img :src="getUser(uid)?.avatar" class="w-8 h-8 rounded-full object-cover bg-[#1e1f22]">
-                                    <div class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-[#2b2d31] rounded-full group-hover:border-[#35373c] transition"></div>
+                                    <img :src="getUser(p.uid)?.avatar" class="w-8 h-8 rounded-full object-cover bg-[#1e1f22]">
+                                    <div class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-[#2b2d31] rounded-full"></div>
                                 </div>
                                 <div class="ml-3 truncate">
-                                    <div class="text-sm font-medium text-gray-300 group-hover:text-gray-100 truncate transition" x-text="getUser(uid)?.displayName || 'Loading...'"></div>
+                                    <div class="text-sm font-medium text-gray-300 group-hover:text-gray-100 truncate transition" x-text="getUser(p.uid)?.displayName"></div>
                                 </div>
                             </div>
                         </template>
@@ -493,193 +421,23 @@
         </div>
     </template>
 
-    <!-- Create Server Modal -->
-    <div x-show="showCreateServerModal" style="display: none;" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-        <div class="bg-[#313338] rounded-xl shadow-2xl w-full max-w-md overflow-hidden p-6 border border-[#1e1f22]" @click.away="showCreateServerModal = false">
-           <h2 class="text-xl font-extrabold text-gray-100 mb-2 text-center">Create a Server</h2>
-           <p class="text-sm text-gray-400 mb-6 text-center">Your server is where you and your friends hang out. Make yours and start talking.</p>
-           <div>
-               <label class="block text-xs font-bold text-gray-400 uppercase mb-2">Server Name</label>
-               <input type="text" x-model="newServerName" @keydown.enter="confirmCreateServer()" placeholder="My Awesome Server" class="w-full px-3 py-2 bg-[#1e1f22] text-gray-100 border border-transparent rounded-md focus:bg-[#383a40] focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition text-sm mb-4">
-               
-               <div class="flex justify-between items-center mt-6">
-                   <button @click="showCreateServerModal = false" class="text-gray-300 hover:underline text-sm font-medium">Back</button>
-                   <button @click="confirmCreateServer()" class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-md transition shadow disabled:opacity-50" :disabled="!newServerName.trim()">Create</button>
-               </div>
-           </div>
-        </div>
-    </div>
-
-    <!-- Join Server Modal -->
-    <div x-show="showJoinServerModal" style="display: none;" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-        <div class="bg-[#313338] rounded-xl shadow-2xl w-full max-w-md overflow-hidden p-6 border border-[#1e1f22]" @click.away="showJoinServerModal = false">
-           <h2 class="text-xl font-extrabold text-gray-100 mb-2 text-center">Join a Server</h2>
-           <p class="text-sm text-gray-400 mb-6 text-center">Enter an invite ID below to join an existing server.</p>
-           <div>
-               <label class="block text-xs font-bold text-gray-400 uppercase mb-2">Invite ID</label>
-               <input type="text" x-model="joinServerId" @keydown.enter="processJoinServer()" placeholder="e.g. Hr5k9..." class="w-full px-3 py-2 bg-[#1e1f22] text-gray-100 border border-transparent rounded-md focus:bg-[#383a40] focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition text-sm mb-4 font-mono">
-               
-               <div class="flex justify-between items-center mt-6">
-                   <button @click="showJoinServerModal = false" class="text-gray-300 hover:underline text-sm font-medium">Cancel</button>
-                   <button @click="processJoinServer()" class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-md transition shadow disabled:opacity-50" :disabled="!joinServerId.trim()">Join Server</button>
-               </div>
-           </div>
-        </div>
-    </div>
-
-    <!-- Server Settings Modal -->
-    <div x-show="showServerSettingsModal" style="display: none;" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-        <div class="bg-[#313338] rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col border border-[#1e1f22] h-[80vh]" @click.away="showServerSettingsModal = false">
-            <div class="bg-[#2b2d31] px-6 py-4 border-b border-[#1e1f22] flex justify-between items-center">
-                <h2 class="text-lg font-bold text-gray-100">Server Settings</h2>
-                <button @click="showServerSettingsModal = false" class="text-gray-400 hover:text-gray-200"><i class="ph ph-x text-xl"></i></button>
-            </div>
-            
-            <div class="flex flex-1 overflow-hidden">
-                <!-- Settings Sidebar -->
-                <div class="w-48 bg-[#2b2d31] p-4 space-y-1 border-r border-[#1e1f22]">
-                    <button @click="serverSettingsTab = 'overview'" class="w-full text-left px-3 py-2 rounded-md text-sm font-medium transition" :class="serverSettingsTab === 'overview' ? 'bg-[#3f4147] text-white' : 'text-gray-400 hover:bg-[#35373c] hover:text-gray-200'">Overview</button>
-                    <button @click="serverSettingsTab = 'channels'" class="w-full text-left px-3 py-2 rounded-md text-sm font-medium transition" :class="serverSettingsTab === 'channels' ? 'bg-[#3f4147] text-white' : 'text-gray-400 hover:bg-[#35373c] hover:text-gray-200'">Channels</button>
-                </div>
-                
-                <!-- Settings Content -->
-                <div class="flex-1 p-6 overflow-y-auto">
-                    <!-- Overview Tab -->
-                    <template x-if="serverSettingsTab === 'overview'">
-                        <div class="space-y-6">
-                            <div class="flex items-center gap-6">
-                                <div class="relative group cursor-pointer flex-shrink-0" @click="triggerServerIconUpload()">
-                                    <div class="w-24 h-24 rounded-2xl bg-[#1e1f22] border-2 border-dashed border-gray-600 flex items-center justify-center overflow-hidden transition group-hover:border-blue-500">
-                                        <template x-if="editServer.icon">
-                                            <img :src="editServer.icon" class="w-full h-full object-cover">
-                                        </template>
-                                        <template x-if="!editServer.icon">
-                                            <div class="text-center text-gray-400 group-hover:text-blue-500">
-                                                <i class="ph ph-upload-simple text-2xl mb-1"></i>
-                                                <div class="text-xs font-bold uppercase">Upload</div>
-                                            </div>
-                                        </template>
-                                    </div>
-                                </div>
-                                <div class="flex-1">
-                                    <label class="block text-xs font-bold text-gray-400 uppercase mb-2">Server Name</label>
-                                    <input type="text" x-model="editServer.name" class="w-full px-3 py-2 bg-[#1e1f22] text-gray-100 border border-transparent rounded-md focus:bg-[#383a40] focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition text-sm font-medium">
-                                </div>
-                            </div>
-                            
-                            <div class="pt-4 border-t border-[#1e1f22]">
-                                <label class="flex items-center justify-between cursor-pointer group">
-                                    <div>
-                                        <div class="font-bold text-gray-200">Public Server Directory</div>
-                                        <div class="text-sm text-gray-400 mt-1">Allow anyone to find and join this server from the Discovery page.</div>
-                                    </div>
-                                    <div class="relative">
-                                        <input type="checkbox" x-model="editServer.isPublic" class="sr-only">
-                                        <div class="block w-10 h-6 rounded-full transition" :class="editServer.isPublic ? 'bg-green-500' : 'bg-gray-600'"></div>
-                                        <div class="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition transform" :class="editServer.isPublic ? 'translate-x-4' : ''"></div>
-                                    </div>
-                                </label>
-                            </div>
-                        </div>
-                    </template>
-                    
-                    <!-- Channels Tab -->
-                    <template x-if="serverSettingsTab === 'channels'">
-                        <div>
-                            <div class="flex gap-2 mb-6">
-                                <input type="text" x-model="newChannelName" placeholder="New channel name..." class="flex-1 px-3 py-2 bg-[#1e1f22] text-gray-100 border border-transparent rounded-md focus:bg-[#383a40] focus:border-blue-500 transition text-sm font-medium">
-                                <select x-model="newChannelType" class="bg-[#1e1f22] text-gray-200 px-3 py-2 rounded-md text-sm border border-transparent focus:border-blue-500 outline-none">
-                                    <option value="text">Text</option>
-                                    <option value="voice">Voice</option>
-                                </select>
-                                <button @click="addChannel()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-bold transition disabled:opacity-50" :disabled="!newChannelName.trim()">Add</button>
-                            </div>
-                            
-                            <div class="space-y-2">
-                                <template x-for="channel in editServer?.channels || []" :key="channel.id">
-                                    <div class="flex items-center justify-between bg-[#2b2d31] p-3 rounded-md border border-[#1e1f22]">
-                                        <div class="flex items-center text-gray-200">
-                                            <i class="mr-3 text-gray-400 text-lg" :class="channel.type === 'voice' ? 'ph-fill ph-speaker-high' : 'ph-fill ph-hash'"></i>
-                                            <span class="font-medium" x-text="channel.name"></span>
-                                        </div>
-                                        <button @click="removeChannel(channel.id)" class="text-red-400 hover:text-red-500 p-1 bg-[#1e1f22] rounded hover:bg-red-500/20 transition" title="Delete Channel">
-                                            <i class="ph-fill ph-trash"></i>
-                                        </button>
-                                    </div>
-                                </template>
-                            </div>
-                        </div>
-                    </template>
-                </div>
-            </div>
-
-            <div class="bg-[#2b2d31] px-6 py-4 flex justify-end gap-3 border-t border-[#1e1f22]">
-                <button @click="showServerSettingsModal = false" class="px-4 py-2 text-sm font-medium text-gray-300 hover:underline">Cancel</button>
-                <button @click="saveServerSettings()" class="px-5 py-2 text-sm font-bold text-white bg-green-600 hover:bg-green-700 rounded-md transition disabled:opacity-50">Save Changes</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- User Settings Modal -->
-    <div x-show="showSettingsModal" style="display: none;" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-        <div class="bg-[#313338] rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col border border-[#1e1f22]" @click.away="showSettingsModal = false">
-            <div class="bg-[#2b2d31] px-6 py-4 border-b border-[#1e1f22] flex justify-between items-center">
-                <h2 class="text-lg font-bold text-gray-100">User Settings</h2>
-                <button @click="showSettingsModal = false" class="text-gray-400 hover:text-gray-200"><i class="ph ph-x text-xl"></i></button>
-            </div>
-            <div class="p-6 space-y-5">
-                <div class="flex items-center gap-5">
-                    <div class="relative group cursor-pointer flex-shrink-0" @click="triggerAvatarUpload('edit')">
-                        <img :src="editProfile?.avatar" class="w-20 h-20 rounded-full object-cover shadow-sm bg-[#1e1f22]">
-                        <div class="absolute inset-0 bg-black/60 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
-                            <i class="ph ph-camera text-white text-xl"></i>
-                        </div>
-                    </div>
-                    <div class="flex-1">
-                        <label class="block text-xs font-bold text-gray-400 uppercase mb-1.5">Display Name</label>
-                        <input type="text" x-model="editProfile.displayName" class="w-full px-3 py-2 bg-[#1e1f22] text-gray-100 border border-transparent rounded-md focus:bg-[#383a40] focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition text-sm font-medium">
-                    </div>
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-gray-400 uppercase mb-1.5">About Me</label>
-                    <textarea x-model="editProfile.bio" rows="3" placeholder="Tell people about yourself..." class="w-full px-3 py-2 bg-[#1e1f22] text-gray-100 border border-transparent rounded-md focus:bg-[#383a40] focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition text-sm resize-none"></textarea>
-                </div>
-                <div class="pt-2">
-                    <label class="block text-xs font-bold text-gray-400 uppercase mb-1.5">Your Tag (Give to friends)</label>
-                    <div class="flex items-center gap-2">
-                        <code class="flex-1 bg-[#1e1f22] px-3 py-2.5 rounded-md text-sm font-mono text-gray-300 select-all border border-[#2b2d31]" x-text="currentUserProfile?.displayName + '#' + currentUserProfile?.tag"></code>
-                        <button @click="copyToClipboard(currentUserProfile?.displayName + '#' + currentUserProfile?.tag)" class="px-4 py-2.5 bg-[#3f4147] hover:bg-[#4a4d54] rounded-md text-gray-200 transition font-medium text-sm">Copy</button>
-                    </div>
-                </div>
-            </div>
-            <div class="bg-[#2b2d31] px-6 py-4 flex justify-end gap-3 border-t border-[#1e1f22]">
-                <button @click="showSettingsModal = false" class="px-4 py-2 text-sm font-medium text-gray-300 hover:underline">Cancel</button>
-                <button @click="saveSettings()" :disabled="!editProfile?.displayName?.trim()" class="px-5 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-md transition disabled:opacity-50 shadow">Save Changes</button>
-            </div>
-        </div>
-    </div>
-
+    <!-- Modals (Profile Popout, Settings, Create Server, etc) -->
     <!-- Profile Popout -->
     <div x-show="showProfilePopout" style="display: none;" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
         <div class="bg-[#313338] rounded-xl shadow-2xl w-full max-w-xs overflow-hidden border border-[#2b2d31]" @click.away="showProfilePopout = false">
-            <div class="h-24 bg-blue-600"></div>
-            <div class="px-4 pb-5">
-                <img :src="popoutUser?.avatar" class="w-20 h-20 rounded-full border-[6px] border-[#313338] -mt-10 relative z-10 bg-[#1e1f22] object-cover">
-                <div class="mt-3">
-                    <h3 class="text-xl font-extrabold text-gray-100 leading-tight truncate" x-text="popoutUser?.displayName"></h3>
+            <div class="h-24 bg-blue-600 w-full relative"></div>
+            <div class="px-5 pb-6 relative">
+                <img :src="popoutUser?.avatar" class="w-24 h-24 rounded-full border-[6px] border-[#313338] absolute -top-12 left-5 bg-[#1e1f22] object-cover transition-all duration-300">
+                <div class="pt-14">
+                    <h3 class="text-2xl font-extrabold text-gray-100 leading-tight truncate" x-text="popoutUser?.displayName"></h3>
                     <p class="text-sm text-gray-400 font-medium mb-4" x-text="(popoutUser?.displayName || 'User') + '#' + (popoutUser?.tag || '0000')"></p>
-                    
                     <div class="bg-[#2b2d31] rounded-lg p-3 mb-4 border border-[#1e1f22]">
                         <h4 class="text-xs font-bold text-gray-400 uppercase mb-1.5">About Me</h4>
                         <p class="text-sm text-gray-300 whitespace-pre-wrap break-words" x-text="popoutUser?.bio || 'No bio provided.'"></p>
                     </div>
-
                     <template x-if="popoutUser?.uid !== currentUser?.uid">
                         <div class="flex gap-2">
                             <button @click="initiateDM(popoutUser?.uid)" class="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-md transition shadow">Send Message</button>
-                            <button @click="addFriend(popoutUser?.uid)" class="px-3 py-2 bg-[#3f4147] hover:bg-[#4a4d54] text-gray-200 rounded-md transition" title="Add Friend">
-                                <i class="ph-fill ph-user-plus text-lg"></i>
-                            </button>
                         </div>
                     </template>
                 </div>
@@ -687,174 +445,165 @@
         </div>
     </div>
 
-    <!-- Add Friend Modal -->
-    <div x-show="showAddFriendModal" style="display: none;" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-         <div class="bg-[#313338] rounded-xl shadow-2xl w-full max-w-md overflow-hidden p-6 border border-[#1e1f22]" @click.away="showAddFriendModal = false">
-            <h2 class="text-xl font-extrabold text-gray-100 mb-2">Add Friend</h2>
-            <p class="text-sm text-gray-400 mb-4">Enter their Le BaroChat™ tag to add them (e.g. User#1234)</p>
-            <div class="flex gap-2">
-                <input type="text" x-model="friendAddInput" @keydown.enter="processAddFriendInput()" placeholder="Username#0000" class="flex-1 px-3 py-2 bg-[#1e1f22] text-gray-100 border border-transparent rounded-md focus:bg-[#383a40] focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition text-sm">
-                <button @click="processAddFriendInput()" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-md transition shadow">Send Request</button>
-            </div>
-         </div>
-    </div>
-
-    <!-- Hidden Fallback for Copying -->
+    <!-- Hidden Textarea for copying -->
     <textarea id="hiddenCopyTextarea" style="position: absolute; left: -9999px;"></textarea>
 
     <script type="module">
         import Alpine from 'https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/module.esm.js';
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInWithCustomToken, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, addDoc, deleteDoc, query, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Refined High-Quality SVGs
-        const svgC = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%232563eb"/><stop offset="100%" stop-color="%231e3a8a"/></linearGradient><filter id="drop"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.5"/></filter></defs><rect width="100" height="100" fill="url(%23g)"/><text x="50" y="70" font-family="'Inter', sans-serif" font-size="60" font-weight="800" fill="white" text-anchor="middle" filter="url(%23drop)">C</text></svg>`;
-        const svgPerson = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="p" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%2310b981"/><stop offset="100%" stop-color="%23065f46"/></linearGradient></defs><rect width="100" height="100" fill="url(%23p)"/><circle cx="50" cy="40" r="18" fill="white" opacity="0.9"/><path d="M20 90C20 70 35 65 50 65C65 65 80 70 80 90Z" fill="white" opacity="0.9"/></svg>`;
-        const svgPen = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="f" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%23f59e0b"/><stop offset="100%" stop-color="%2378350f"/></linearGradient></defs><rect width="100" height="100" fill="url(%23f)"/><path d="M50 20L65 50L50 85L35 50Z" fill="white" opacity="0.9"/><circle cx="50" cy="55" r="4" fill="url(%23f)"/><path d="M50 55v30" stroke="url(%23f)" stroke-width="2"/></svg>`;
-        const svgHat = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="h" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%238b5cf6"/><stop offset="100%" stop-color="%234c1d95"/></linearGradient></defs><rect width="100" height="100" fill="url(%23h)"/><ellipse cx="50" cy="65" rx="40" ry="15" fill="%231a1a1a"/><path d="M35 60 C35 35, 65 35, 65 60 Z" fill="%23262626"/><rect x="35" y="52" width="30" height="8" fill="%23000"/></svg>`;
+        // Modern UI SVGs
+        const svgC = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%233b82f6"/><stop offset="100%" stop-color="%231d4ed8"/></linearGradient></defs><rect width="100" height="100" fill="white"/><text x="50" y="72" font-family="Arial, sans-serif" font-size="65" font-weight="900" fill="url(%23g)" text-anchor="middle">C</text></svg>`;
+        const svgPerson = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="p" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%2310b981"/><stop offset="100%" stop-color="%23047857"/></linearGradient></defs><rect width="100" height="100" fill="url(%23p)"/><circle cx="50" cy="35" r="20" fill="white"/><path d="M15 95 C15 65, 85 65, 85 95 Z" fill="white"/></svg>`;
+        const svgPen = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="f" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%23f59e0b"/><stop offset="100%" stop-color="%23b45309"/></linearGradient></defs><rect width="100" height="100" fill="url(%23f)"/><path d="M50 15L65 50L50 85L35 50Z" fill="white"/><circle cx="50" cy="55" r="4" fill="url(%23f)"/><path d="M50 55v30" stroke="url(%23f)" stroke-width="2"/></svg>`;
+        const svgHat = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="h" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%238b5cf6"/><stop offset="100%" stop-color="%235b21b6"/></linearGradient></defs><rect width="100" height="100" fill="url(%23h)"/><ellipse cx="50" cy="65" rx="40" ry="12" fill="%23111827"/><path d="M35 60 C35 30, 65 30, 65 60 Z" fill="%231f2937"/><rect x="35" y="52" width="30" height="8" fill="%23000"/></svg>`;
 
         window.nexusApp = () => ({
             isReady: false,
-            hasSetupProfile: false,
+            authLoading: true,
+            authMode: 'login', // login | register
+            authEmail: '',
+            authPassword: '',
+            authDisplayName: '',
+            authAvatar: svgC,
             currentUser: null,
             currentUserProfile: null,
-            
-            // UI & Modals
-            setupProfile: { displayName: '', avatar: svgC },
             defaultAvatars: [{ data: svgC }, { data: svgPerson }, { data: svgPen }, { data: svgHat }],
-            showSettingsModal: false,
-            editProfile: {},
-            showProfilePopout: false,
-            popoutUser: null,
-            showAddFriendModal: false,
-            friendAddInput: '',
             
-            showCreateServerModal: false,
-            newServerName: '',
-            showJoinServerModal: false,
-            joinServerId: '',
-            
-            showServerSettingsModal: false,
-            serverSettingsTab: 'overview',
-            editServer: {},
-            newChannelName: '',
-            newChannelType: 'text',
-
             toast: { show: false, message: '', isError: false, timeout: null },
 
-            // Navigation State
-            activeView: 'home', // 'home', 'server', 'discovery'
-            activeTarget: null, // Server ID or DM ID
-            activeChannelId: null, // Current Text Channel ID
-            showMembersList: true,
+            // Modals
+            showSettingsModal: false, editProfile: {},
+            showProfilePopout: false, popoutUser: null,
+            showAddFriendModal: false, friendAddInput: '',
+            showCreateServerModal: false, newServerName: '',
+            showServerSettingsModal: false, serverSettingsTab: 'overview', editServer: {}, newChannelName: '', newChannelType: 'text',
             
-            // Collections
-            servers: [], 
-            dms: [],
-            messages: [],
-            filteredMessages: [],
-            users: {},
-            presence: {},
-
-            // Derived State
+            // Navigation
+            activeView: 'home', // home, server, discovery
+            activeTarget: null, 
+            activeChannelId: null, 
+            showMembersList: true,
+            viewingVoice: false, // Switches center pane to full screen video grid
+            
+            // Data
+            servers: [], dms: [], messages: [], filteredMessages: [], users: {}, globalPresence: [],
+            
             get myServers() { return this.servers.filter(s => this.currentUserProfile?.joinedServers?.includes(s.id)); },
             get discoveryServers() { return this.servers.filter(s => s.isPublic && !this.currentUserProfile?.joinedServers?.includes(s.id)); },
             get currentChatId() { return this.activeView === 'server' ? this.activeChannelId : this.activeTarget; },
 
-            // Chat Input
-            newMessage: '',
-            pendingImage: null,
+            newMessage: '', pendingImage: null,
 
-            // WebRTC State
-            inVoiceRoom: null, // Voice Channel ID
-            voicePeers: {}, 
-            rtcVideoOff: true,
-            localStream: null,
-            simplePeers: {},
-            showVideoGrid: false,
-            unsubPresence: null,
+            // WebRTC
+            inVoiceRoom: null, voicePeers: {}, rtcVideoOff: true, isScreenSharing: false,
+            localStream: null, screenStream: null, simplePeers: {},
 
-            // Firebase Refs
-            db: null, auth: null, publicDataPath: '', usersRef: null,
+            db: null, auth: null, publicDataPath: '', usersRef: null, heartbeatInterval: null,
 
             async init() {
                 try {
-                    const defaultCfg = { apiKey: "AIzaSyDUoYS6MwDIVe8coZOM9A0ZCYaZTeDSloo", authDomain: "babjeu-85d3e.firebaseapp.com", databaseURL: "https://babjeu-85d3e-default-rtdb.firebaseio.com", projectId: "babjeu-85d3e", storageBucket: "babjeu-85d3e.firebasestorage.app", messagingSenderId: "306959176803", appId: "1:306959176803:web:2be00da38dbb37e777d456", measurementId: "G-T38G7Y7MJ7" };
+                    const defaultCfg = { apiKey: "AIzaSyDUoYS6MwDIVe8coZOM9A0ZCYaZTeDSloo", authDomain: "babjeu-85d3e.firebaseapp.com", databaseURL: "https://babjeu-85d3e-default-rtdb.firebaseio.com", projectId: "babjeu-85d3e", storageBucket: "babjeu-85d3e.firebasestorage.app", messagingSenderId: "306959176803", appId: "1:306959176803:web:2be00da38dbb37e777d456" };
                     const config = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : defaultCfg;
                     const app = initializeApp(config);
                     this.db = getFirestore(app);
                     this.auth = getAuth(app);
-
                     const appId = typeof __app_id !== 'undefined' ? __app_id : 'le-barochat';
                     this.publicDataPath = `artifacts/${appId}/public/data`;
                     this.usersRef = collection(this.db, `${this.publicDataPath}/users`);
 
-                    // Process URL Invites
-                    const urlParams = new URLSearchParams(window.location.search);
-                    const joinId = urlParams.get('join');
-                    if (joinId) {
-                        this.joinServerId = joinId;
-                        window.history.replaceState({}, document.title, window.location.pathname);
-                    }
-
                     const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-                    if (token) { await signInWithCustomToken(this.auth, token); } 
-                    else { await signInAnonymously(this.auth); }
-                    this.currentUser = this.auth.currentUser;
-
-                    const pRef = doc(this.usersRef, this.currentUser.uid);
-                    const pSnap = await getDoc(pRef);
-                    
-                    if (pSnap.exists()) {
-                        this.currentUserProfile = pSnap.data();
-                        if (!this.currentUserProfile.joinedServers) this.currentUserProfile.joinedServers = [];
-                        this.cacheUser(this.currentUserProfile);
-                        this.hasSetupProfile = true;
-                        this.startGlobalListeners();
-                        this.checkPendingInvites();
+                    if (token) { 
+                        await signInWithCustomToken(this.auth, token); 
+                        this.finishInit();
                     } else {
-                        const localProf = localStorage.getItem('nexus_profile');
-                        if (localProf) {
-                            this.currentUserProfile = { ...JSON.parse(localProf), uid: this.currentUser.uid, joinedServers: [] };
-                            await setDoc(pRef, this.currentUserProfile);
-                            this.cacheUser(this.currentUserProfile);
-                            this.hasSetupProfile = true;
-                            this.startGlobalListeners();
-                            this.checkPendingInvites();
-                        } else {
-                            this.hasSetupProfile = false;
-                            this.setupProfile.avatar = this.defaultAvatars[Math.floor(Math.random() * 4)].data;
-                        }
+                        // Hook into persistent auth state
+                        onAuthStateChanged(this.auth, (user) => {
+                            if (user) this.finishInit();
+                            else {
+                                this.authLoading = false;
+                                this.isReady = false;
+                            }
+                        });
                     }
-                    this.isReady = true;
 
-                    // Message Scroll watcher
                     this.$watch('filteredMessages', () => {
                         this.$nextTick(() => {
                             const c = document.getElementById('chatContainer');
                             if(c) c.scrollTop = c.scrollHeight;
                         });
                     });
+                    this.$watch('currentChatId', () => { this.filterMessages(); });
                     
-                    this.$watch('currentChatId', () => { 
-                        this.filterMessages(); 
-                        if(this.activeView !== 'server') this.fetchPresence(); 
+                    window.addEventListener('beforeunload', () => {
+                        if(this.currentUser) setDoc(doc(this.db, `${this.publicDataPath}/presence`, this.currentUser.uid), { status: 'offline' }, { merge: true });
                     });
 
                 } catch (e) { console.error("Init Error:", e); }
             },
 
-            checkPendingInvites() {
-                if (this.joinServerId) {
-                    this.showJoinServerModal = true;
+            async processAuth() {
+                this.authLoading = true;
+                try {
+                    if (this.authMode === 'login') {
+                        await signInWithEmailAndPassword(this.auth, this.authEmail, this.authPassword);
+                    } else {
+                        const res = await createUserWithEmailAndPassword(this.auth, this.authEmail, this.authPassword);
+                        const tag = Math.floor(1000 + Math.random() * 9000).toString();
+                        const profile = {
+                            uid: res.user.uid,
+                            displayName: this.authDisplayName.trim(),
+                            avatar: this.authAvatar,
+                            tag: tag,
+                            bio: "Ready to chat on Le BaroChat™!",
+                            joinedServers: []
+                        };
+                        await setDoc(doc(this.usersRef, res.user.uid), profile);
+                    }
+                    // onAuthStateChanged will catch this and call finishInit
+                } catch(e) {
+                    this.showToast(e.message, true);
+                    this.authLoading = false;
                 }
             },
 
+            async finishInit() {
+                this.currentUser = this.auth.currentUser;
+                const pSnap = await getDoc(doc(this.usersRef, this.currentUser.uid));
+                
+                if (pSnap.exists()) {
+                    this.currentUserProfile = pSnap.data();
+                    if (!this.currentUserProfile.joinedServers) this.currentUserProfile.joinedServers = [];
+                    this.cacheUser(this.currentUserProfile);
+                    this.startGlobalListeners();
+                    this.isReady = true;
+                    this.authLoading = false;
+                    
+                    // Presence Heartbeat
+                    this.updatePresence();
+                    this.heartbeatInterval = setInterval(() => this.updatePresence(), 15000);
+                } else {
+                    // Force register if profile missing for some reason
+                    this.authMode = 'register';
+                    this.authLoading = false;
+                }
+            },
+
+            updatePresence() {
+                if(!this.currentUser) return;
+                setDoc(doc(this.db, `${this.publicDataPath}/presence`, this.currentUser.uid), {
+                    uid: this.currentUser.uid,
+                    status: 'online',
+                    currentServer: this.activeView === 'server' ? this.activeTarget : null,
+                    currentVoice: this.inVoiceRoom,
+                    lastActive: Date.now()
+                }, { merge: true });
+            },
+
             showToast(msg, isError = false) {
-                this.toast.message = msg;
-                this.toast.isError = isError;
-                this.toast.show = true;
+                this.toast.message = msg; this.toast.isError = isError; this.toast.show = true;
                 if(this.toast.timeout) clearTimeout(this.toast.timeout);
                 this.toast.timeout = setTimeout(() => { this.toast.show = false; }, 4000);
             },
@@ -862,13 +611,9 @@
             copyToClipboard(text) {
                 try {
                     const el = document.getElementById('hiddenCopyTextarea');
-                    el.value = text;
-                    el.select();
-                    document.execCommand('copy');
+                    el.value = text; el.select(); document.execCommand('copy');
                     this.showToast("Copied to clipboard!");
-                } catch(e) {
-                    this.showToast("Failed to copy.", true);
-                }
+                } catch(e) { this.showToast("Failed to copy.", true); }
             },
 
             copyInviteLink() {
@@ -877,58 +622,12 @@
                 this.copyToClipboard(url);
             },
 
-            async completeSetup() {
-                const tag = Math.floor(1000 + Math.random() * 9000).toString();
-                this.currentUserProfile = {
-                    uid: this.currentUser.uid,
-                    displayName: this.setupProfile.displayName.trim(),
-                    avatar: this.setupProfile.avatar,
-                    tag: tag,
-                    bio: "Ready to chat on Le BaroChat™!",
-                    joinedServers: []
-                };
-                
-                localStorage.setItem('nexus_profile', JSON.stringify(this.currentUserProfile));
-                await setDoc(doc(this.usersRef, this.currentUser.uid), this.currentUserProfile);
-                this.cacheUser(this.currentUserProfile);
-                
-                this.hasSetupProfile = true;
-                this.startGlobalListeners();
-                this.showToast("Welcome to Le BaroChat™!");
-                this.checkPendingInvites();
-            },
-
-            openSettings() {
-                if(!this.currentUserProfile) return;
-                this.editProfile = JSON.parse(JSON.stringify(this.currentUserProfile));
-                this.showSettingsModal = true;
-            },
-
-            async saveSettings() {
-                if (!this.editProfile.displayName || !this.editProfile.displayName.trim()) return;
-                this.currentUserProfile = { ...this.editProfile };
-                localStorage.setItem('nexus_profile', JSON.stringify(this.currentUserProfile));
-                await setDoc(doc(this.usersRef, this.currentUser.uid), this.currentUserProfile, { merge: true });
-                this.cacheUser(this.currentUserProfile);
-                this.showSettingsModal = false;
-                this.showToast("Profile updated!");
-            },
-
             startGlobalListeners() {
-                if (!this.currentUser) return;
-                
-                // Users
-                onSnapshot(this.usersRef, (snap) => {
-                    snap.forEach(d => this.cacheUser(d.data()));
-                }, (e) => console.error(e));
-
-                // Servers
+                onSnapshot(this.usersRef, (snap) => snap.forEach(d => this.cacheUser(d.data())), (e) => console.error(e));
                 onSnapshot(collection(this.db, `${this.publicDataPath}/servers`), (snap) => {
-                    const s = []; snap.forEach(d => s.push({id: d.id, ...d.data()}));
-                    this.servers = s;
+                    const s = []; snap.forEach(d => s.push({id: d.id, ...d.data()})); this.servers = s;
                 }, (e) => console.error(e));
-
-                // DMs
+                
                 onSnapshot(collection(this.db, `${this.publicDataPath}/dms`), (snap) => {
                     const ds = []; 
                     snap.forEach(d => {
@@ -940,107 +639,68 @@
                     this.dms = ds;
                 }, (e) => console.error(e));
 
-                // Messages
                 onSnapshot(collection(this.db, `${this.publicDataPath}/messages`), (snap) => {
                     const m = []; snap.forEach(d => m.push({id: d.id, ...d.data()}));
-                    this.messages = m;
-                    this.filterMessages();
+                    this.messages = m; this.filterMessages();
                 }, (e) => console.error(e));
 
-                // Signaling
+                // Presence tracking (only users active in last 60s)
+                onSnapshot(collection(this.db, `${this.publicDataPath}/presence`), (snap) => {
+                    const pres = [];
+                    const now = Date.now();
+                    snap.forEach(d => {
+                        const data = d.data();
+                        if (now - data.lastActive < 60000 && data.status === 'online') {
+                            pres.push(data);
+                            // WebRTC discovery
+                            if (this.inVoiceRoom && data.currentVoice === this.inVoiceRoom && data.uid !== this.currentUser.uid && !this.simplePeers[data.uid]) {
+                                this.createPeer(data.uid, this.currentUser.uid < data.uid);
+                            }
+                        }
+                    });
+                    this.globalPresence = pres;
+                    
+                    if(this.inVoiceRoom) {
+                        const currentVoiceUsers = pres.filter(p => p.currentVoice === this.inVoiceRoom).map(p => p.uid);
+                        Object.keys(this.simplePeers).forEach(uid => {
+                            if (!currentVoiceUsers.includes(uid)) this.removePeer(uid);
+                        });
+                    }
+                });
+
                 onSnapshot(collection(this.db, `${this.publicDataPath}/signaling`), (snap) => {
                     snap.docChanges().forEach(change => {
                         if (change.type === 'added') {
                             const data = change.doc.data();
-                            if (data.to === this.currentUser.uid) {
+                            if (data.to === this.currentUser.uid && data.room === this.inVoiceRoom) {
                                 this.handleIncomingSignal(data.from, data.signal);
                                 deleteDoc(change.doc.ref); 
                             }
                         }
                     });
-                }, (e) => console.error(e));
+                });
             },
 
             filterMessages() {
                 if (!this.currentChatId) { this.filteredMessages = []; return; }
-                this.filteredMessages = this.messages
-                    .filter(m => m.roomId === this.currentChatId)
-                    .sort((a, b) => a.timestamp - b.timestamp);
+                this.filteredMessages = this.messages.filter(m => m.roomId === this.currentChatId).sort((a, b) => a.timestamp - b.timestamp);
             },
 
-            cacheUser(data) {
-                if(data && data.uid) { this.users[data.uid] = data; }
-            },
-            
-            getUser(uid) { return this.users[uid] || { displayName: 'User', avatar: svgPerson }; },
-
+            cacheUser(data) { if(data && data.uid) this.users[data.uid] = data; },
+            getUser(uid) { return this.users[uid] || { displayName: 'Loading...', avatar: svgPerson }; },
             getServer() { return this.servers.find(s => s.id === this.activeTarget); },
             getChannelName(cid) {
-                const s = this.getServer();
-                if(!s || !s.channels) return '';
-                const c = s.channels.find(ch => ch.id === cid);
-                return c ? c.name : '';
+                const s = this.getServer(); if(!s || !s.channels) return '';
+                const c = s.channels.find(ch => ch.id === cid); return c ? c.name : '';
             },
 
-            async confirmCreateServer() {
-                const name = this.newServerName.trim();
-                if (!name) return;
-                
-                const defaultChannels = [
-                    { id: 'ch_' + Date.now() + '1', name: 'general', type: 'text' },
-                    { id: 'ch_' + Date.now() + '2', name: 'Lounge', type: 'voice' }
-                ];
-                
-                const newRef = doc(collection(this.db, `${this.publicDataPath}/servers`));
-                await setDoc(newRef, { name, owner: this.currentUser.uid, isPublic: false, channels: defaultChannels, icon: null });
-                
-                // Add to joined
-                this.currentUserProfile.joinedServers.push(newRef.id);
-                await this.saveProfileJoinedServers();
-                
-                this.showCreateServerModal = false;
-                this.newServerName = '';
-                this.openServer(newRef.id);
-                this.showToast("Server created successfully!");
-            },
-
-            async processJoinServer() {
-                const id = this.joinServerId.trim();
-                if(!id) return;
-                
-                // Check if server exists
-                const s = this.servers.find(serv => serv.id === id);
-                if (!s) { this.showToast("Server not found.", true); return; }
-                if (this.currentUserProfile.joinedServers.includes(id)) {
-                    this.showJoinServerModal = false;
-                    this.openServer(id);
-                    return;
-                }
-                
-                this.currentUserProfile.joinedServers.push(id);
-                await this.saveProfileJoinedServers();
-                
-                this.showJoinServerModal = false;
-                this.joinServerId = '';
-                this.openServer(id);
-                this.showToast(`Joined ${s.name}!`);
-            },
-
-            async saveProfileJoinedServers() {
-                await updateDoc(doc(this.usersRef, this.currentUser.uid), { joinedServers: this.currentUserProfile.joinedServers });
-                localStorage.setItem('nexus_profile', JSON.stringify(this.currentUserProfile));
-            },
-
-            async leaveServer() {
-                if(!this.activeTarget) return;
-                this.currentUserProfile.joinedServers = this.currentUserProfile.joinedServers.filter(id => id !== this.activeTarget);
-                await this.saveProfileJoinedServers();
+            openHome() {
                 this.activeView = 'home';
                 this.activeTarget = null;
                 this.activeChannelId = null;
-                this.showToast("Left server.");
+                this.viewingVoice = false;
+                this.updatePresence();
             },
-
             openServer(id) {
                 this.activeView = 'server';
                 this.activeTarget = id;
@@ -1049,72 +709,26 @@
                     const texts = s.channels.filter(c => c.type === 'text');
                     this.activeChannelId = texts.length > 0 ? texts[0].id : null;
                 }
+                this.viewingVoice = false;
+                this.updatePresence();
             },
 
-            // Server Settings Logic
-            openServerSettings(tab = 'overview') {
-                const s = this.getServer();
-                if(!s || s.owner !== this.currentUser.uid) return;
-                this.editServer = JSON.parse(JSON.stringify(s));
-                this.serverSettingsTab = tab;
-                this.showServerSettingsModal = true;
+            // DMs
+            getDmPartner(dmId) { const dm = this.dms.find(d => d.id === dmId); return dm ? dm.partnerUid : null; },
+            openDM(id) {
+                this.activeView = 'home'; this.activeTarget = id; this.activeChannelId = null;
             },
-
-            async saveServerSettings() {
-                if(!this.editServer.name.trim()) return;
-                await updateDoc(doc(this.db, `${this.publicDataPath}/servers`, this.editServer.id), {
-                    name: this.editServer.name,
-                    icon: this.editServer.icon,
-                    isPublic: this.editServer.isPublic,
-                    channels: this.editServer.channels
-                });
-                this.showServerSettingsModal = false;
-                this.showToast("Server settings saved.");
-            },
-            
-            addChannel() {
-                if(!this.newChannelName.trim()) return;
-                const id = 'ch_' + Date.now() + Math.floor(Math.random()*1000);
-                this.editServer.channels.push({ id, name: this.newChannelName.trim().replace(/\s+/g, '-').toLowerCase(), type: this.newChannelType });
-                this.newChannelName = '';
-            },
-            removeChannel(id) {
-                this.editServer.channels = this.editServer.channels.filter(c => c.id !== id);
-            },
-            
-            triggerServerIconUpload() {
-                const input = document.createElement('input');
-                input.type = 'file'; input.accept = 'image/*';
-                input.onchange = (e) => this.processImage(e.target.files[0], 'server');
-                input.click();
-            },
-
-            // DM Logic
-            getDmPartner(dmId) {
-                const dm = this.dms.find(d => d.id === dmId);
-                return dm ? dm.partnerUid : null;
-            },
-
             async initiateDM(targetUid) {
                 if (targetUid === this.currentUser.uid) return;
                 const sorted = [this.currentUser.uid, targetUid].sort();
                 const dmId = sorted.join('_');
-                
-                if (!this.dms.find(d => d.id === dmId)) {
-                    await setDoc(doc(this.db, `${this.publicDataPath}/dms`, dmId), {
-                        participants: sorted
-                    });
+                const dmRef = doc(this.db, `${this.publicDataPath}/dms`, dmId);
+                const dmSnap = await getDoc(dmRef);
+                if (!dmSnap.exists()) {
+                    await setDoc(dmRef, { participants: sorted });
                 }
                 this.showProfilePopout = false;
-                this.activeView = 'home';
-                this.activeTarget = dmId;
-                this.activeChannelId = null;
-            },
-            
-            openDM(id) {
-                this.activeView = 'home';
-                this.activeTarget = id;
-                this.activeChannelId = null;
+                this.openDM(dmId);
             },
 
             openProfilePopout(uid) {
@@ -1122,79 +736,42 @@
                 if(this.popoutUser) this.showProfilePopout = true;
             },
 
-            processAddFriendInput() {
-                const input = this.friendAddInput.trim();
-                if(!input.includes('#')) { this.showToast("Invalid format. Use Name#1234", true); return; }
-                const [name, tag] = input.split('#');
-                const user = Object.values(this.users).find(u => u.displayName.toLowerCase() === name.toLowerCase() && u.tag === tag);
-                if (user) {
-                    this.initiateDM(user.uid);
-                    this.showAddFriendModal = false;
-                    this.friendAddInput = '';
-                    this.showToast(`Started conversation with ${user.displayName}`);
-                } else {
-                    this.showToast("User not found.", true);
-                }
-            },
-
-            addFriend(uid) { this.initiateDM(uid); },
-
             getChatPlaceholder() {
-                if (this.activeView === 'home') {
-                    return `Message @${this.getUser(this.getDmPartner(this.activeTarget))?.displayName || 'User'}`;
-                } else {
-                    return `Message #${this.getChannelName(this.activeChannelId) || 'channel'}`;
-                }
+                if (this.activeView === 'home') return `Message @${this.getUser(this.getDmPartner(this.activeTarget))?.displayName || 'User'}`;
+                return `Message #${this.getChannelName(this.activeChannelId) || 'channel'}`;
             },
 
             async sendMessage() {
                 if (!this.currentChatId || (!this.newMessage.trim() && !this.pendingImage)) return;
-                const payload = {
-                    roomId: this.currentChatId,
-                    senderId: this.currentUser.uid,
-                    text: this.newMessage.trim(),
-                    image: this.pendingImage,
-                    timestamp: Date.now()
-                };
-                this.newMessage = '';
-                this.pendingImage = null;
+                const payload = { roomId: this.currentChatId, senderId: this.currentUser.uid, text: this.newMessage.trim(), image: this.pendingImage, timestamp: Date.now() };
+                this.newMessage = ''; this.pendingImage = null;
                 await addDoc(collection(this.db, `${this.publicDataPath}/messages`), payload);
             },
 
+            // Image processing (Canvas Downsampling to bypass limits)
             triggerImageUpload() {
-                const input = document.createElement('input');
-                input.type = 'file'; input.accept = 'image/*';
-                input.onchange = (e) => this.processImage(e.target.files[0], 'chat');
-                input.click();
+                const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*';
+                input.onchange = (e) => this.processImage(e.target.files[0], 'chat'); input.click();
             },
-
             triggerAvatarUpload(context) {
-                const input = document.createElement('input');
-                input.type = 'file'; input.accept = 'image/*';
-                input.onchange = (e) => this.processImage(e.target.files[0], context);
-                input.click();
+                const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*';
+                input.onchange = (e) => this.processImage(e.target.files[0], context); input.click();
             },
-
             processImage(file, context) {
-                if (!file) return;
-                const reader = new FileReader();
+                if (!file) return; const reader = new FileReader();
                 reader.onload = (e) => {
                     const img = new Image();
                     img.onload = () => {
                         const canvas = document.createElement('canvas');
                         const MAX_W = context === 'chat' ? 800 : 256;
                         let w = img.width, h = img.height;
-                        if (w > h) { if (w > MAX_W) { h *= MAX_W / w; w = MAX_W; } } 
-                        else { if (h > MAX_W) { w *= MAX_W / h; h = MAX_W; } }
-                        
+                        if (w > h) { if (w > MAX_W) { h *= MAX_W / w; w = MAX_W; } } else { if (h > MAX_W) { w *= MAX_W / h; h = MAX_W; } }
                         canvas.width = w; canvas.height = h;
                         canvas.getContext('2d').drawImage(img, 0, 0, w, h);
                         const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-                        
                         if (context === 'chat') this.pendingImage = dataUrl;
-                        else if (context === 'setup') this.setupProfile.avatar = dataUrl;
+                        else if (context === 'setup') this.authAvatar = dataUrl;
                         else if (context === 'edit') this.editProfile.avatar = dataUrl;
-                        else if (context === 'server') this.editServer.icon = dataUrl;
                     };
                     img.src = e.target.result;
                 };
@@ -1203,116 +780,140 @@
 
             formatTime(ts) { return new Date(ts).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}); },
 
-            // WEBRTC LOGIC
+            // WebRTC Fullscreen & Screen Share
+            handleVoiceChannelClick(channelId) {
+                if (this.inVoiceRoom === channelId) {
+                    this.viewingVoice = !this.viewingVoice; // Toggle view
+                } else {
+                    this.joinVoiceRoom(channelId);
+                    this.viewingVoice = true;
+                }
+            },
+
             async joinVoiceRoom(channelId) {
                 if (this.inVoiceRoom) this.leaveVoiceRoom();
                 try {
-                    this.localStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+                    // Try getting dummy stream first to connect immediately
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 1; canvas.height = 1;
+                    const dummyVideo = canvas.captureStream().getVideoTracks()[0];
+                    const dummyAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    const dummyAudio = dummyAudioCtx.createMediaStreamDestination().stream.getAudioTracks()[0];
+                    this.localStream = new MediaStream([dummyVideo, dummyAudio]);
+                    
                     this.inVoiceRoom = channelId;
                     this.rtcVideoOff = true;
-                    this.showVideoGrid = false;
+                    this.isScreenSharing = false;
                     
-                    await setDoc(doc(this.db, `${this.publicDataPath}/presence`, `${channelId}_${this.currentUser.uid}`), {
-                        uid: this.currentUser.uid, roomId: channelId, joinedAt: Date.now()
-                    });
+                    this.updatePresence();
 
-                    this.fetchPresence();
-                    this.addVideoElement(this.currentUser.uid, this.localStream, true);
-                    this.showToast("Joined Voice Channel");
+                    // Actually request Mic
+                    navigator.mediaDevices.getUserMedia({ video: false, audio: true }).then(stream => {
+                        const micTrack = stream.getAudioTracks()[0];
+                        this.localStream.removeTrack(this.localStream.getAudioTracks()[0]);
+                        this.localStream.addTrack(micTrack);
+                        Object.values(this.simplePeers).forEach(p => p.replaceTrack(dummyAudio, micTrack, this.localStream));
+                    }).catch(() => this.showToast("Mic access denied.", true));
 
-                } catch(e) {
-                    this.showToast("Microphone access is required for voice chat.", true);
-                }
+                    setTimeout(() => {
+                        const localVid = document.getElementById('local-video');
+                        if (localVid) localVid.srcObject = this.localStream;
+                    }, 500);
+                    
+                } catch(e) { this.showToast("Failed to initialize voice.", true); }
             },
 
             leaveVoiceRoom() {
-                if (this.unsubPresence) this.unsubPresence();
                 if (this.localStream) this.localStream.getTracks().forEach(t => t.stop());
+                if (this.screenStream) this.screenStream.getTracks().forEach(t => t.stop());
                 
                 Object.values(this.simplePeers).forEach(p => p.destroy());
-                this.simplePeers = {};
-                this.voicePeers = {}; 
+                this.simplePeers = {}; this.voicePeers = {}; 
                 
-                const grid = document.getElementById('video-grid');
-                if(grid) grid.innerHTML = '';
-                
-                if (this.inVoiceRoom) {
-                    deleteDoc(doc(this.db, `${this.publicDataPath}/presence`, `${this.inVoiceRoom}_${this.currentUser.uid}`));
+                // Cleanup remote videos safely
+                const grid = document.getElementById('fullscreen-video-grid');
+                if(grid) {
+                    Array.from(grid.children).forEach(child => {
+                        if(child.id !== 'local-video' && !child.id.includes('local-video')) child.remove();
+                    });
                 }
-
-                this.inVoiceRoom = null;
-                this.localStream = null;
-                this.showVideoGrid = false;
+                
+                this.inVoiceRoom = null; this.localStream = null; this.screenStream = null;
+                this.viewingVoice = false;
+                this.updatePresence();
             },
 
             async rtcToggleVideo() {
-                if (!this.localStream) return;
+                if (!this.localStream || this.isScreenSharing) return;
                 
                 if (this.rtcVideoOff) {
                     try {
                         const vidStream = await navigator.mediaDevices.getUserMedia({ video: true });
                         const vidTrack = vidStream.getVideoTracks()[0];
+                        const oldTrack = this.localStream.getVideoTracks()[0];
+                        
+                        this.localStream.removeTrack(oldTrack);
                         this.localStream.addTrack(vidTrack);
-                        
-                        Object.values(this.simplePeers).forEach(p => p.addTrack(vidTrack, this.localStream));
-                        
-                        const vEl = document.getElementById(`vid_${this.currentUser.uid}`);
-                        if(vEl) vEl.srcObject = this.localStream;
+                        Object.values(this.simplePeers).forEach(p => p.replaceTrack(oldTrack, vidTrack, this.localStream));
                         
                         this.rtcVideoOff = false;
-                        this.showVideoGrid = true;
                     } catch(e) { this.showToast("Camera access denied.", true); }
                 } else {
                     const vidTrack = this.localStream.getVideoTracks()[0];
                     if (vidTrack) {
                         vidTrack.stop();
+                        // Replace with dummy
+                        const canvas = document.createElement('canvas'); canvas.width = 1; canvas.height = 1;
+                        const dummyVideo = canvas.captureStream().getVideoTracks()[0];
                         this.localStream.removeTrack(vidTrack);
-                        Object.values(this.simplePeers).forEach(p => p.removeTrack(vidTrack, this.localStream));
+                        this.localStream.addTrack(dummyVideo);
+                        Object.values(this.simplePeers).forEach(p => p.replaceTrack(vidTrack, dummyVideo, this.localStream));
                         this.rtcVideoOff = true;
                     }
                 }
             },
 
-            fetchPresence() {
-                if (this.unsubPresence) this.unsubPresence();
-                const target = this.inVoiceRoom || (this.activeView === 'home' ? this.activeTarget : null);
-                if (!target) return;
+            async rtcToggleScreenShare() {
+                if (!this.localStream) return;
 
-                const q = query(collection(this.db, `${this.publicDataPath}/presence`), where('roomId', '==', target));
-                
-                this.unsubPresence = onSnapshot(q, (snap) => {
-                    const currentPresence = {};
-                    snap.forEach(d => {
-                        const data = d.data();
-                        currentPresence[data.uid] = true;
-                        
-                        if (this.inVoiceRoom && data.uid !== this.currentUser.uid && !this.simplePeers[data.uid]) {
-                            const isInitiator = this.currentUser.uid < data.uid;
-                            this.createPeer(data.uid, isInitiator);
-                        }
-                    });
-                    this.presence = currentPresence;
+                if (!this.isScreenSharing) {
+                    try {
+                        this.screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                        const screenTrack = this.screenStream.getVideoTracks()[0];
+                        const oldTrack = this.localStream.getVideoTracks()[0];
+
+                        this.localStream.removeTrack(oldTrack);
+                        this.localStream.addTrack(screenTrack);
+                        Object.values(this.simplePeers).forEach(p => p.replaceTrack(oldTrack, screenTrack, this.localStream));
+
+                        this.isScreenSharing = true;
+                        this.rtcVideoOff = true; // Visually disable camera button
+
+                        screenTrack.onended = () => { this.rtcToggleScreenShare(); };
+                        const localVid = document.getElementById('local-video');
+                        if (localVid) localVid.srcObject = this.screenStream;
+
+                    } catch(e) { this.showToast("Screen share cancelled.", true); }
+                } else {
+                    if (this.screenStream) this.screenStream.getTracks().forEach(t => t.stop());
+                    this.screenStream = null;
+                    this.isScreenSharing = false;
                     
-                    if(this.inVoiceRoom) {
-                        Object.keys(this.simplePeers).forEach(uid => {
-                            if (!currentPresence[uid]) {
-                                this.simplePeers[uid].destroy();
-                                delete this.simplePeers[uid];
-                                const newVP = {...this.voicePeers};
-                                delete newVP[uid];
-                                this.voicePeers = newVP;
-                                this.removeVideoElement(uid);
-                            }
-                        });
-                    }
-                }, (e) => console.error(e));
+                    const oldTrack = this.localStream.getVideoTracks()[0];
+                    const canvas = document.createElement('canvas'); canvas.width = 1; canvas.height = 1;
+                    const dummyVideo = canvas.captureStream().getVideoTracks()[0];
+                    this.localStream.removeTrack(oldTrack);
+                    this.localStream.addTrack(dummyVideo);
+                    Object.values(this.simplePeers).forEach(p => p.replaceTrack(oldTrack, dummyVideo, this.localStream));
+                    
+                    const localVid = document.getElementById('local-video');
+                    if (localVid) localVid.srcObject = this.localStream;
+                }
             },
 
             createPeer(targetUid, initiator) {
                 const peer = new SimplePeer({
-                    initiator: initiator,
-                    trickle: true,
-                    stream: this.localStream,
+                    initiator: initiator, trickle: true, stream: this.localStream,
                     config: {
                         iceServers: [
                             { urls: 'stun:openrelay.metered.ca:80' },
@@ -1327,12 +928,32 @@
                         to: targetUid, from: this.currentUser.uid, room: this.inVoiceRoom, signal: JSON.stringify(data)
                     });
                 });
+                
+                peer.on('error', err => { this.removePeer(targetUid); });
+                peer.on('close', () => { this.removePeer(targetUid); });
 
                 peer.on('stream', stream => {
-                    const newVP = {...this.voicePeers};
-                    newVP[targetUid] = true; 
-                    this.voicePeers = newVP;
-                    this.addVideoElement(targetUid, stream, false);
+                    this.voicePeers[targetUid] = true;
+                    setTimeout(() => {
+                        const grid = document.getElementById('fullscreen-video-grid');
+                        if(!grid) return;
+                        let wrapper = document.getElementById(`vid_wrap_${targetUid}`);
+                        if (!wrapper) {
+                            wrapper = document.createElement('div');
+                            wrapper.id = `vid_wrap_${targetUid}`;
+                            wrapper.className = "relative rounded-lg overflow-hidden bg-[#1e1f22] flex items-center justify-center border border-[#2b2d31]";
+                            
+                            const v = document.createElement('video');
+                            v.id = `vid_${targetUid}`; v.autoplay = true; v.playsInline = true; v.className = "w-full h-full object-cover";
+                            
+                            const overlay = document.createElement('div');
+                            overlay.className = "absolute bottom-3 left-3 bg-black/60 px-2 py-1 rounded text-xs text-white font-bold backdrop-blur-sm";
+                            overlay.innerText = this.getUser(targetUid).displayName;
+                            
+                            wrapper.appendChild(v); wrapper.appendChild(overlay); grid.appendChild(wrapper);
+                        }
+                        document.getElementById(`vid_${targetUid}`).srcObject = stream;
+                    }, 200);
                 });
 
                 this.simplePeers[targetUid] = peer;
@@ -1341,33 +962,13 @@
             handleIncomingSignal(fromUid, signalStr) {
                 if (!this.inVoiceRoom) return;
                 let peer = this.simplePeers[fromUid];
-                if (!peer) {
-                    this.createPeer(fromUid, false);
-                    peer = this.simplePeers[fromUid];
-                }
+                if (!peer) { this.createPeer(fromUid, false); peer = this.simplePeers[fromUid]; }
                 peer.signal(JSON.parse(signalStr));
             },
 
-            addVideoElement(uid, stream, muted) {
-                setTimeout(() => {
-                    const grid = document.getElementById('video-grid');
-                    if(!grid) return;
-                    let v = document.getElementById(`vid_${uid}`);
-                    if (!v) {
-                        v = document.createElement('video');
-                        v.id = `vid_${uid}`;
-                        v.autoplay = true;
-                        v.playsInline = true;
-                        if(muted) v.muted = true;
-                        grid.appendChild(v);
-                    }
-                    v.srcObject = stream;
-                }, 100);
-            },
-
-            removeVideoElement(uid) {
-                const v = document.getElementById(`vid_${uid}`);
-                if (v) v.remove();
+            removePeer(uid) {
+                if (this.simplePeers[uid]) { this.simplePeers[uid].destroy(); delete this.simplePeers[uid]; }
+                const v = document.getElementById(`vid_wrap_${uid}`); if (v) v.remove();
             }
         });
 
