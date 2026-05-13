@@ -18,9 +18,8 @@ const supabase = createClient(supabaseUrl, supabaseKey, {
 });
 
 window.nexusApp = () => ({
-    supabase,
+    supabase: null,
     isReady: false,
-...
     authLoading: true,
     authMode: 'login', 
     authUsername: '', authPassword: '', authDisplayName: '', authAvatar: SVGS.C,
@@ -285,7 +284,10 @@ window.nexusApp = () => ({
 
     async init() {
         try {
-            console.log("Supabase initialized globally:", !!this.supabase);
+            this.supabase = createClient(supabaseUrl, supabaseKey, {
+                global: { fetch: customFetch }
+            });
+            console.log("Supabase initialized in init:", !!this.supabase);
 
             const savedSession = localStorage.getItem('lebarochat_session_v4');
             if (savedSession) {
@@ -322,17 +324,11 @@ window.nexusApp = () => ({
                 window.history.replaceState({}, document.title, window.location.pathname);
                 this._pendingJoinId = joinId;
             }
+            // Request Notification Permission
+            if (Notification.permission === 'default') Notification.requestPermission();
         } catch(e) {
             console.error("Init Error:", e);
             this.showToast("Connection failed.", true);
-        }
-    },
-            // Request Notification Permission
-            if (Notification.permission === 'default') Notification.requestPermission();
-
-        } catch (e) { 
-            console.error("Init Error:", e); 
-            this.showToast("Failed to connect.", true);
         }
     },
 
