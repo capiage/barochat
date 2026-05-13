@@ -326,7 +326,7 @@
                         <!-- Video Grid -->
                         <div x-show="viewingVoice && inVoiceRoom" class="flex-1 bg-black relative overflow-hidden">
                             <div id="fullscreen-video-grid">
-                                <div class="video-wrapper group" :class="fullscreenVideoId === 'local' ? 'video-fullscreen-mode' : ''" @click="toggleFullscreenVideo('local')">
+                                <div class="video-wrapper group" :class="fullscreenVideoId === 'local' ? 'video-fullscreen-mode' : ''" @click="toggleFullscreenVideo('local')" :style="'background-color: ' + getAvatarColor(currentUserProfile?.avatar)">
                                     <video id="local-video" autoplay playsinline muted :class="rtcVideoOff ? 'opacity-0' : 'opacity-100'"></video>
                                     <div x-show="rtcVideoOff" class="absolute inset-0 flex items-center justify-center" :style="'background-color: ' + getAvatarColor(currentUserProfile?.avatar)">
                                         <img :src="currentUserProfile?.avatar" class="w-32 h-32 rounded-full object-cover">

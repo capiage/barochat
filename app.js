@@ -216,18 +216,51 @@ window.nexusApp = () => ({
         this.$refs.chatInput.focus();
     },
 
+    avatarColors: {},
     getAvatarColor(avatar) {
         if (!avatar) return '#5865F2';
+        if (this.avatarColors[avatar]) return this.avatarColors[avatar];
         if (avatar.startsWith('data:image/svg+xml')) {
             const match = avatar.match(/fill=['"]%23([a-fA-F0-9]{6})['"]/);
-            if (match) return '#' + match[1];
+            if (match) {
+                this.avatarColors[avatar] = '#' + match[1];
+                return '#' + match[1];
+            }
+            return '#5865F2';
         }
-        let hash = 0;
-        for (let i = 0; i < avatar.length; i++) {
-            hash = avatar.charCodeAt(i) + ((hash << 5) - hash);
-        }
-        const colors = ['#5865F2', '#57F287', '#FEE75C', '#EB459E', '#ED4245', '#1ABC9C', '#3498DB', '#9B59B6', '#E91E63', '#9C27B0', '#673AB7', '#3F51B5', '#00BCD4', '#009688', '#4CAF50', '#8BC34A', '#CDDC39', '#FFEB3B', '#FFC107', '#FF9800', '#FF5722', '#795548', '#607D8B'];
-        return colors[Math.abs(hash) % colors.length];
+        
+        this.avatarColors[avatar] = '#1e1f22'; // fallback while loading
+        const img = new Image();
+        img.crossOrigin = "Anonymous";
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = 50; canvas.height = 50;
+            ctx.drawImage(img, 0, 0, 50, 50);
+            try {
+                const data = ctx.getImageData(0, 0, 50, 50).data;
+                let maxCount = 0;
+                let prominent = [30, 31, 34];
+                const counts = {};
+                for (let i = 0; i < data.length; i += 16) { // step by 16 for performance
+                    const r = Math.round(data[i] / 32) * 32;
+                    const g = Math.round(data[i+1] / 32) * 32;
+                    const b = Math.round(data[i+2] / 32) * 32;
+                    if (r < 40 && g < 40 && b < 40) continue; // ignore dark colors
+                    if (r > 230 && g > 230 && b > 230) continue; // ignore white
+                    const key = `${r},${g},${b}`;
+                    counts[key] = (counts[key] || 0) + 1;
+                    if (counts[key] > maxCount) {
+                        maxCount = counts[key];
+                        prominent = [data[i], data[i+1], data[i+2]];
+                    }
+                }
+                this.avatarColors[avatar] = `rgb(${prominent[0]},${prominent[1]},${prominent[2]})`;
+            } catch(e) {}
+        };
+        img.src = avatar;
+
+        return this.avatarColors[avatar];
     },
 
     // WebRTC State
@@ -901,6 +934,7 @@ window.nexusApp = () => ({
         const grid = document.getElementById('fullscreen-video-grid');
         const wrapper = document.createElement('div');
         wrapper.id = `wrap_${id}`; wrapper.className = "video-wrapper group";
+        wrapper.style.backgroundColor = this.getAvatarColor(user.avatar);
         wrapper.onclick = () => this.toggleFullscreenVideo(id);
         const fallback = document.createElement('div');
         fallback.className = "absolute inset-0 flex items-center justify-center transition-opacity duration-300";
@@ -911,7 +945,7 @@ window.nexusApp = () => ({
         fallback.appendChild(img);
         const v = document.createElement('video');
         v.id = id; v.autoplay = true; v.playsInline = true; v.srcObject = stream;
-        v.className = "w-full h-full bg-black object-contain";
+        v.className = "w-full h-full object-contain";
         v.onplaying = () => { fallback.style.opacity = '0'; };
         const label = document.createElement('div');
         label.className = "absolute bottom-3 left-3 bg-black/60 px-2.5 py-1.5 rounded text-[13px] text-white font-bold z-10";
