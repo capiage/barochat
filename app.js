@@ -330,6 +330,17 @@ window.nexusApp = () => ({
                 if (error || !data) throw new Error("Invalid credentials.");
                 this.logicalUid = data.profileId;
                 localStorage.setItem('lebarochat_session_v4', this.logicalUid);
+
+                // Ensure user profile exists
+                const { data: profile } = await this.supabase.from('users').select('*').eq('uid', this.logicalUid).single();
+                if (!profile) {
+                    await this.supabase.from('users').insert([{
+                        uid: this.logicalUid, username, displayName: username,
+                        avatar: null, bio: "Ready to chat!", banner: null, bannerColor: '#5865F2',
+                        joinedServers: [], friends: [], lastRead: {}
+                    }]);
+                }
+
                 await this.loadLogicalProfile();
             } else {
                 const { data: existing } = await this.supabase.from('accounts').select('*').eq('username', username).single();
