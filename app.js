@@ -1,9 +1,6 @@
 
 import Alpine from 'https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/module.esm.js';
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, addDoc, deleteDoc, getDocs, query, where, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { getStorage, ref, uploadString, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
 import { SVGS, FAVICONS } from './constants.js';
 
 window.nexusApp = () => ({
@@ -106,7 +103,7 @@ window.nexusApp = () => ({
         if (!roomId || !this.logicalUid || !this.currentUserProfile) return;
         const lr = this.currentUserProfile.lastRead || {};
         lr[roomId] = Date.now();
-        updateDoc(doc(this.usersRef, this.logicalUid), { lastRead: lr });
+        this.supabase.from('users').update({ lastRead: lr }).eq('uid', this.logicalUid);
         this.updateFavicon();
     },
     updateFavicon() {
@@ -268,21 +265,14 @@ window.nexusApp = () => ({
     rtcVideoOff: true, isMuted: false, isDeafened: false, isScreenSharing: false,
     localStream: null, screenStream: null, simplePeers: {},
 
-    db: null, auth: null, storage: null, publicDataPath: '', usersRef: null, accountsRef: null, heartbeatInterval: null,
+    supabase: null, heartbeatInterval: null,
 
     async init() {
         try {
-            const config = { apiKey: "AIzaSyDUoYS6MwDIVe8coZOM9A0ZCYaZTeDSloo", authDomain: "babjeu-85d3e.firebaseapp.com", databaseURL: "https://babjeu-85d3e-default-rtdb.firebaseio.com", projectId: "babjeu-85d3e", storageBucket: "babjeu-85d3e.firebasestorage.app", messagingSenderId: "306959176803", appId: "1:306959176803:web:2be00da38dbb37e777d456" };
-            const app = initializeApp(config);
-            this.db = getFirestore(app);
-            this.auth = getAuth(app);
-            this.storage = getStorage(app);
-            
-            this.publicDataPath = `artifacts/le-barochat/public/data_v4`;
-            this.usersRef = collection(this.db, `${this.publicDataPath}/users`);
-            this.accountsRef = collection(this.db, `${this.publicDataPath}/accounts`);
-
-            await signInAnonymously(this.auth);
+            this.supabase = createClient(
+                'https://tzdwxrdkqcntskwdvkfl.supabase.co', 
+                'sb_publishable_eX_AVyk3lqc-7rMEtjj1ow_i4aOLCk4'
+            );
 
             const savedSession = localStorage.getItem('lebarochat_session_v4');
             if (savedSession) {
@@ -311,7 +301,7 @@ window.nexusApp = () => ({
             this.$watch('currentChatId', (val) => { this.filterMessages(); this.markRead(val); });
             
             window.addEventListener('beforeunload', () => {
-                if(this.logicalUid) setDoc(doc(this.db, `${this.publicDataPath}/presence`, this.logicalUid), { status: 'offline' }, { merge: true });
+                if(this.logicalUid) this.supabase.from('presence').upsert([{ uid: this.logicalUid,  status: 'offline'  }]);
             });
 
             const joinId = new URLSearchParams(window.location.search).get('join');
@@ -330,34 +320,30 @@ window.nexusApp = () => ({
     },
 
     async processAuth() {
+        if (this.authMode === 'login' && (!this.authUsername || !this.authPassword)) return;
+        if (this.authMode === 'register' && (!this.authUsername || !this.authPassword || !this.authDisplayName)) return;
         this.authLoading = true;
+        const username = this.authUsername.toLowerCase().trim();
         try {
-            const username = this.authUsername.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
-            if(!username) throw new Error("Invalid username.");
-
             if (this.authMode === 'login') {
-                const snap = await getDocs(this.accountsRef);
-                let found = null;
-                snap.forEach(d => { if(d.data().username === username && d.data().password === this.authPassword) found = d.data(); });
-                if (found) {
-                    this.logicalUid = found.profileId;
-                    localStorage.setItem('lebarochat_session_v4', this.logicalUid);
-                    await this.loadLogicalProfile();
-                } else throw new Error("Invalid credentials.");
+                const { data, error } = await this.supabase.from('accounts').select('*').eq('username', username).eq('password', this.authPassword).single();
+                if (error || !data) throw new Error("Invalid credentials.");
+                this.logicalUid = data.profileId;
+                localStorage.setItem('lebarochat_session_v4', this.logicalUid);
+                await this.loadLogicalProfile();
             } else {
-                const snap = await getDocs(this.accountsRef);
-                let taken = false;
-                snap.forEach(d => { if(d.data().username === username) taken = true; });
-                if(taken) throw new Error("Username taken.");
+                const { data: existing } = await this.supabase.from('accounts').select('*').eq('username', username).single();
+                if(existing) throw new Error("Username taken.");
 
                 const pid = "user_" + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
-                await setDoc(doc(this.accountsRef, pid), { username, password: this.authPassword, profileId: pid });
+                await this.supabase.from('accounts').insert([{ profileId: pid, username, password: this.authPassword }]);
+                
                 const profile = {
                     uid: pid, username, displayName: this.authDisplayName.trim() || username,
                     avatar: this.authAvatar, bio: "Ready to chat!", banner: null, bannerColor: '#5865F2',
-                    joinedServers: [], friends: [], lastRead: {}, joinedAt: Date.now()
+                    joinedServers: [], friends: [], lastRead: {}
                 };
-                await setDoc(doc(this.usersRef, pid), profile);
+                await this.supabase.from('users').insert([profile]);
                 this.logicalUid = pid;
                 localStorage.setItem('lebarochat_session_v4', pid);
                 await this.loadLogicalProfile();
@@ -367,9 +353,10 @@ window.nexusApp = () => ({
 
     async loadLogicalProfile() {
         if(!this.logicalUid) return;
-        onSnapshot(doc(this.usersRef, this.logicalUid), (snap) => {
-            if (snap.exists()) {
-                this.currentUserProfile = snap.data();
+        const fetchProfile = async () => {
+            const { data } = await this.supabase.from('users').select('*').eq('uid', this.logicalUid).single();
+            if (data) {
+                this.currentUserProfile = data;
                 this.cacheUser(this.currentUserProfile);
                 if(!this.isReady) {
                     this.startGlobalListeners();
@@ -382,86 +369,124 @@ window.nexusApp = () => ({
                 localStorage.removeItem('lebarochat_session_v4');
                 this.logicalUid = null; this.isReady = false; this.authLoading = false;
             }
-        });
+        };
+        await fetchProfile();
+        this.supabase.channel('public:users:me').on('postgres_changes', { event: '*', schema: 'public', table: 'users', filter: `uid=eq.${this.logicalUid}` }, payload => {
+            if (payload.new) {
+                this.currentUserProfile = payload.new;
+                this.cacheUser(this.currentUserProfile);
+            }
+        }).subscribe();
     },
 
     startGlobalListeners() {
-        onSnapshot(this.usersRef, (snap) => snap.forEach(d => this.cacheUser(d.data())));
-        onSnapshot(collection(this.db, `${this.publicDataPath}/servers`), (snap) => {
-            const s = []; snap.forEach(d => s.push({id: d.id, ...d.data()})); this.servers = s;
-        });
-        onSnapshot(collection(this.db, `${this.publicDataPath}/dms`), (snap) => {
-            const ds = []; 
-            snap.forEach(d => {
-                if (d.data().participants?.includes(this.logicalUid)) {
-                    const partnerUid = d.data().participants.find(p => p !== this.logicalUid) || this.logicalUid;
-                    ds.push({ id: d.id, partnerUid });
-                }
-            });
-            this.dms = ds;
-        });
-        onSnapshot(collection(this.db, `${this.publicDataPath}/messages`), (snap) => {
-            const m = []; 
-            snap.docChanges().forEach(change => {
-                if (change.type === 'added') {
-                    const data = change.doc.data();
-                    if (data.senderId !== this.logicalUid && (this.isMentioned(data.text) || (data.roomId.includes('_') && this.dms.some(d => d.id === data.roomId)))) {
-                        this.triggerNotification(data);
+        const fetchInitial = async () => {
+            const { data: u } = await this.supabase.from('users').select('*');
+            if (u) u.forEach(d => this.cacheUser(d));
+            const { data: s } = await this.supabase.from('servers').select('*');
+            if (s) this.servers = s;
+            const { data: dms } = await this.supabase.from('dms').select('*');
+            if (dms) {
+                const ds = [];
+                dms.forEach(d => {
+                    if (d.participants?.includes(this.logicalUid)) {
+                        const partnerUid = d.participants.find(p => p !== this.logicalUid) || this.logicalUid;
+                        ds.push({ id: d.id, partnerUid });
                     }
+                });
+                this.dms = ds;
+            }
+            const { data: p } = await this.supabase.from('presence').select('*');
+            if (p) this.globalPresence = p;
+            const { data: m } = await this.supabase.from('messages').select('*').order('timestamp', { ascending: true });
+            if (m) { this.messages = m; this.filterMessages(); }
+        };
+        fetchInitial();
+
+        this.supabase.channel('public:users').on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, payload => {
+            if (payload.new) this.cacheUser(payload.new);
+        }).subscribe();
+
+        this.supabase.channel('public:servers').on('postgres_changes', { event: '*', schema: 'public', table: 'servers' }, payload => {
+            if (payload.eventType === 'DELETE') this.servers = this.servers.filter(s => s.id !== payload.old.id);
+            else {
+                const i = this.servers.findIndex(s => s.id === payload.new.id);
+                if (i >= 0) this.servers[i] = payload.new; else this.servers.push(payload.new);
+            }
+        }).subscribe();
+
+        this.supabase.channel('public:dms').on('postgres_changes', { event: '*', schema: 'public', table: 'dms' }, payload => {
+            if (payload.new && payload.new.participants?.includes(this.logicalUid)) {
+                const partnerUid = payload.new.participants.find(p => p !== this.logicalUid) || this.logicalUid;
+                const d = { id: payload.new.id, partnerUid };
+                if (!this.dms.find(x => x.id === d.id)) this.dms.push(d);
+            }
+        }).subscribe();
+
+        this.supabase.channel('public:messages').on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, payload => {
+            if (payload.eventType === 'INSERT') {
+                const data = payload.new;
+                this.messages.push(data);
+                this.messages.sort((a, b) => a.timestamp - b.timestamp);
+                this.filterMessages();
+                if (data.senderId !== this.logicalUid && (this.isMentioned(data.text) || (data.roomId.includes('_') && this.dms.some(d => d.id === data.roomId)))) {
+                    this.triggerNotification(data);
                 }
-            });
-            snap.forEach(d => m.push({id: d.id, ...d.data()}));
-            m.sort((a, b) => a.timestamp - b.timestamp);
-            this.messages = m; this.filterMessages();
-        });
-        onSnapshot(collection(this.db, `${this.publicDataPath}/presence`), (snap) => {
-            const pres = []; const now = Date.now();
-            snap.forEach(d => {
-                const data = d.data();
+            } else if (payload.eventType === 'UPDATE') {
+                const i = this.messages.findIndex(m => m.id === payload.new.id);
+                if (i >= 0) this.messages[i] = payload.new;
+                this.filterMessages();
+            } else if (payload.eventType === 'DELETE') {
+                this.messages = this.messages.filter(m => m.id !== payload.old.id);
+                this.filterMessages();
+            }
+        }).subscribe();
+
+        this.supabase.channel('public:presence').on('postgres_changes', { event: '*', schema: 'public', table: 'presence' }, payload => {
+            if (payload.eventType === 'DELETE') {
+                this.globalPresence = this.globalPresence.filter(p => p.uid !== payload.old.uid);
+            } else {
+                const i = this.globalPresence.findIndex(p => p.uid === payload.new.uid);
+                if (i >= 0) this.globalPresence[i] = payload.new; else this.globalPresence.push(payload.new);
+                
+                const data = payload.new;
+                const now = Date.now();
                 if (now - data.lastActive < 60000 && data.status === 'online') {
-                    pres.push(data);
                     if (this.inVoiceRoom && data.currentVoice === this.inVoiceRoom && data.uid !== this.logicalUid && !this.simplePeers[data.uid]) {
                         this.createPeer(data.uid, this.logicalUid < data.uid);
                     }
                 }
-            });
-            this.globalPresence = pres;
+            }
             if(this.inVoiceRoom) {
-                const current = pres.filter(p => p.currentVoice === this.inVoiceRoom).map(p => p.uid);
+                const current = this.globalPresence.filter(p => p.currentVoice === this.inVoiceRoom).map(p => p.uid);
                 Object.keys(this.simplePeers).forEach(uid => { if (!current.includes(uid)) this.removePeer(uid); });
             }
-        });
-        onSnapshot(collection(this.db, `${this.publicDataPath}/signaling`), (snap) => {
-            snap.docChanges().forEach(change => {
-                if (change.type === 'added') {
-                    const data = change.doc.data();
-                    if (data.to === this.logicalUid) {
-                        if (data.type === 'call-invite' && data.room === 'global') {
-                            this.incomingCall = { from: data.from, room: data.callRoom };
-                            this.showCallOverlay = true;
-                            // Auto decline after 30s
-                            this._callTimeout = setTimeout(() => this.declineCall(), 30000);
-                        } else if (data.type === 'call-response' && data.room === 'global') {
-                            if (data.response === 'accepted') {
-                                this.joinVoiceRoom(data.callRoom);
-                            } else {
-                                this.showToast("Call declined.");
-                            }
-                        } else if (data.room === this.inVoiceRoom) {
-                            this.handleIncomingSignal(data.from, data.signal);
-                        }
-                        deleteDoc(change.doc.ref); 
-                    }
+        }).subscribe();
+
+        this.supabase.channel('public:signaling').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'signaling', filter: `to=eq.${this.logicalUid}` }, async payload => {
+            const data = payload.new;
+            if (data.type === 'call-invite' && data.room === 'global') {
+                this.incomingCall = { from: data.from, room: data.callRoom };
+                this.showCallOverlay = true;
+                this._callTimeout = setTimeout(() => this.declineCall(), 30000);
+            } else if (data.type === 'call-response' && data.room === 'global') {
+                if (data.response === 'accepted') {
+                    this.joinVoiceRoom(data.callRoom);
+                } else {
+                    this.showToast("Call declined.");
                 }
-            });
-        });
+            } else if (data.room === this.inVoiceRoom) {
+                this.handleIncomingSignal(data.from, data.signal);
+            }
+            await this.supabase.from('signaling').delete().eq('id', data.id);
+        }).subscribe();
     },
 
     async startCall(uid) {
         const callRoom = 'call_' + Math.random().toString(36).substr(2, 9);
-        await addDoc(collection(this.db, `${this.publicDataPath}/signaling`), {
+        await this.supabase.from('signaling').insert([{
             to: uid, from: this.logicalUid, type: 'call-invite', room: 'global', callRoom
-        });
+        }]);
         this.showToast("Calling...");
         // If we don't get a response, we might need a timeout
     },
@@ -469,9 +494,9 @@ window.nexusApp = () => ({
         if (!this.incomingCall) return;
         clearTimeout(this._callTimeout);
         const { from, room } = this.incomingCall;
-        await addDoc(collection(this.db, `${this.publicDataPath}/signaling`), {
+        await this.supabase.from('signaling').insert([{
             to: from, from: this.logicalUid, type: 'call-response', room: 'global', response: 'accepted', callRoom: room
-        });
+        }]);
         this.showCallOverlay = false;
         this.joinVoiceRoom(room);
         this.incomingCall = null;
@@ -480,9 +505,9 @@ window.nexusApp = () => ({
         if (!this.incomingCall) return;
         clearTimeout(this._callTimeout);
         const { from, room } = this.incomingCall;
-        await addDoc(collection(this.db, `${this.publicDataPath}/signaling`), {
+        await this.supabase.from('signaling').insert([{
             to: from, from: this.logicalUid, type: 'call-response', room: 'global', response: 'declined', callRoom: room
-        });
+        }]);
         this.showCallOverlay = false;
         this.incomingCall = null;
     },
@@ -500,11 +525,11 @@ window.nexusApp = () => ({
 
     updatePresence() {
         if(!this.logicalUid) return;
-        setDoc(doc(this.db, `${this.publicDataPath}/presence`, this.logicalUid), {
+        this.supabase.from('presence').upsert([{ uid: this.logicalUid, 
             uid: this.logicalUid, status: 'online', currentVoice: this.inVoiceRoom,
             isScreenSharing: this.isScreenSharing, isCameraOff: this.rtcVideoOff, isMuted: this.isMuted,
             lastActive: Date.now()
-        }, { merge: true });
+         }]);
     },
 
     showToast(msg, isError = false) {
@@ -609,7 +634,7 @@ window.nexusApp = () => ({
     openDM(id) { this.activeView = 'home'; this.activeTarget = id; this.activeChannelId = null; this.viewingVoice = (this.inVoiceRoom === id); this.markRead(id); },
     async initiateDM(uid) {
         const id = [this.logicalUid, uid].sort().join('_');
-        if (!this.dms.some(d => d.id === id)) await setDoc(doc(this.db, `${this.publicDataPath}/dms`, id), { participants: [this.logicalUid, uid].sort() });
+        if (!this.dms.some(d => d.id === id)) await this.supabase.from('dms').insert([{ id, participants: [this.logicalUid, uid].sort() }]);
         this.showProfilePopout = false; this.openDM(id);
     },
     
@@ -624,14 +649,14 @@ window.nexusApp = () => ({
         if (diff < 172800000 && new Date(now - 86400000).getDate() === d.getDate()) return `Yesterday at ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
         return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     },
-    async deleteMessage(id) { await deleteDoc(doc(this.db, `${this.publicDataPath}/messages`, id)); },
+    async deleteMessage(id) { await this.supabase.from('messages').delete().eq('id', id); },
     copyInviteLink() {
         const url = window.location.origin + window.location.pathname + '?join=' + this.activeTarget;
         this.copyToClipboard(url);
     },
     async leaveServer() {
         const joined = (this.currentUserProfile.joinedServers || []).filter(id => id !== this.activeTarget);
-        await updateDoc(doc(this.usersRef, this.logicalUid), { joinedServers: joined });
+        await this.supabase.from('users').update({ joinedServers: joined }).eq('uid', this.logicalUid);
         this.openHome();
     },
     toggleMute() {
@@ -649,13 +674,13 @@ window.nexusApp = () => ({
         if (!this.newChannelName.trim()) return;
         const s = this.getServer();
         const chs = [...(s.channels || []), { id: 'c_' + Date.now(), name: this.newChannelName.trim(), type: this.newChannelType }];
-        await updateDoc(doc(this.db, `${this.publicDataPath}/servers`, s.id), { channels: chs });
+        await this.supabase.from('servers').update({ channels: chs }).eq('id', s.id);
         this.newChannelName = ''; this.editServer.channels = chs;
     },
     async removeChannel(id) {
         const s = this.getServer();
         const chs = s.channels.filter(c => c.id !== id);
-        await updateDoc(doc(this.db, `${this.publicDataPath}/servers`, s.id), { channels: chs });
+        await this.supabase.from('servers').update({ channels: chs }).eq('id', s.id);
         this.editServer.channels = chs;
     },
 
@@ -665,12 +690,12 @@ window.nexusApp = () => ({
     
     async addFriend(uid) {
         const friends = [...(this.currentUserProfile.friends || []), uid];
-        await updateDoc(doc(this.usersRef, this.logicalUid), { friends });
+        await this.supabase.from('users').update({ friends }).eq('uid', this.logicalUid);
         this.showToast("Request processed.");
     },
     async removeFriend(uid) {
         const friends = (this.currentUserProfile.friends || []).filter(id => id !== uid);
-        await updateDoc(doc(this.usersRef, this.logicalUid), { friends });
+        await this.supabase.from('users').update({ friends }).eq('uid', this.logicalUid);
     },
     
     sendDirectFriendRequest() {
@@ -690,46 +715,43 @@ window.nexusApp = () => ({
     async sendMessage() {
         if (!this.currentChatId || (!this.newMessage.trim() && !this.pendingImage)) return;
         if (this.editingMessageId) {
-            await updateDoc(doc(this.db, `${this.publicDataPath}/messages`, this.editingMessageId), { text: this.newMessage.trim(), edited: true });
+            await this.supabase.from('messages').update({ text: this.newMessage.trim(), edited: true }).eq('id', this.editingMessageId);
             this.editingMessageId = null; this.newMessage = '';
         } else {
             const imgUrl = await this.uploadImage(this.pendingImage);
             const p = { roomId: this.currentChatId, senderId: this.logicalUid, text: this.newMessage.trim(), image: imgUrl, timestamp: Date.now() };
             this.newMessage = ''; this.pendingImage = null; this.showMentions = false;
-            await addDoc(collection(this.db, `${this.publicDataPath}/messages`), p);
+            await this.supabase.from('messages').insert([p]);
             this.markRead(this.currentChatId); 
         }
     },
 
     async createServer() {
         const iconUrl = await this.uploadImage(this.newServerIcon);
-        const ref = doc(collection(this.db, `${this.publicDataPath}/servers`));
-        const sid = ref.id;
+        const sid = 'srv_' + Math.random().toString(36).substr(2, 9);
         const now = Date.now();
-        await setDoc(ref, {
+        await this.supabase.from('servers').insert([{ id: sid, 
             name: this.newServerName.trim(), icon: iconUrl, owner: this.logicalUid, isPublic: false, banner: null, bannerColor: '#5865F2', bio: "A new community.",
             channels: [{ id: 'c1_' + now, name: 'general', type: 'text' }, { id: 'c2_' + now, name: 'Voice', type: 'voice' }],
             roles: [{ id: 'admin', name: 'Admin', color: '#ED4245' }, { id: 'mod', name: 'Moderator', color: '#5865F2' }],
             memberData: { [this.logicalUid]: { joinedAt: now, roles: ['admin'] } }
-        });
+         }]);
         const joined = [...(this.currentUserProfile.joinedServers || []), sid];
-        await updateDoc(doc(this.usersRef, this.logicalUid), { joinedServers: joined });
+        await this.supabase.from('users').update({ joinedServers: joined }).eq('uid', this.logicalUid);
         this.showCreateServerModal = false; this.openServer(sid);
     },
 
     async joinServer(id) {
         const joined = [...new Set([...(this.currentUserProfile.joinedServers || []), id])];
-        await updateDoc(doc(this.usersRef, this.logicalUid), { joinedServers: joined });
+        await this.supabase.from('users').update({ joinedServers: joined }).eq('uid', this.logicalUid);
         
         // Update server member data
-        const sRef = doc(this.db, `${this.publicDataPath}/servers`, id);
-        const sSnap = await getDoc(sRef);
-        if (sSnap.exists()) {
-            const data = sSnap.data();
+        const { data } = await this.supabase.from('servers').select('*').eq('id', id).single();
+        if (data) {
             const memberData = data.memberData || {};
             if (!memberData[this.logicalUid]) {
                 memberData[this.logicalUid] = { joinedAt: Date.now(), roles: [] };
-                await updateDoc(sRef, { memberData });
+                await this.supabase.from('servers').update({ memberData }).eq('id', id);
             }
         }
         this.openServer(id);
@@ -740,12 +762,12 @@ window.nexusApp = () => ({
         try {
             const avatarUrl = await this.uploadImage(this.editProfile.avatar);
             const bannerUrl = await this.uploadImage(this.editProfile.banner);
-            await updateDoc(doc(this.usersRef, this.logicalUid), { 
+            await this.supabase.from('users').update({ 
                 displayName: this.editProfile.displayName, 
                 bio: this.editProfile.bio, 
                 avatar: avatarUrl, 
                 banner: bannerUrl 
-            });
+            }).eq('uid', this.logicalUid);
             this.showSettingsModal = false;
             this.showToast("Profile updated!");
         } catch (e) {
@@ -775,7 +797,7 @@ window.nexusApp = () => ({
             if (iconUrl !== undefined) updateData.icon = iconUrl;
             if (bannerUrl !== undefined) updateData.banner = bannerUrl;
 
-            await updateDoc(doc(this.db, `${this.publicDataPath}/servers`, this.editServer.id), updateData);
+            await this.supabase.from('servers').update(updateData).eq('id', this.editServer.id);
             this.showServerSettingsModal = false;
             this.showToast("Server updated.");
         } catch (e) {
@@ -791,9 +813,17 @@ window.nexusApp = () => ({
     async uploadImage(dataUrl) {
         if (!dataUrl || !dataUrl.startsWith('data:')) return dataUrl;
         try {
-            const sRef = ref(this.storage, `${this.publicDataPath}/uploads/${Date.now()}_${Math.random().toString(36).substr(2, 5)}.jpg`);
-            await uploadString(sRef, dataUrl, 'data_url');
-            return await getDownloadURL(sRef);
+            const fileName = `${Date.now()}_${Math.random().toString(36).substr(2, 5)}.jpg`;
+            const base64Data = dataUrl.replace(/^data:image\/\w+;base64,/, "");
+            const binaryString = window.atob(base64Data);
+            const bytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            const { data, error } = await this.supabase.storage.from('uploads').upload(fileName, bytes.buffer, { contentType: 'image/jpeg' });
+            if (error) throw error;
+            const { data: publicUrlData } = this.supabase.storage.from('uploads').getPublicUrl(fileName);
+            return publicUrlData.publicUrl;
         } catch (e) {
             console.error("Upload Error:", e);
             throw e;
@@ -912,11 +942,11 @@ window.nexusApp = () => ({
     async deleteServer() {
         if (!confirm("Are you sure you want to delete this server? This action cannot be undone.")) return;
         const sid = this.activeTarget;
-        await deleteDoc(doc(this.db, `${this.publicDataPath}/servers`, sid));
+        await this.supabase.from('servers').delete().eq('id', sid);
         // Remove from all users' joinedServers (expensive, but necessary for clean state)
         // In a real app, this would be a cloud function. For now, we'll just handle it for the current user.
         const joined = (this.currentUserProfile.joinedServers || []).filter(id => id !== sid);
-        await updateDoc(doc(this.usersRef, this.logicalUid), { joinedServers: joined });
+        await this.supabase.from('users').update({ joinedServers: joined }).eq('uid', this.logicalUid);
         this.showServerSettingsModal = false;
         this.openHome();
     },
@@ -924,7 +954,7 @@ window.nexusApp = () => ({
     createPeer(uid, initiator) {
         const p = new SimplePeer({ initiator, trickle: true, stream: this.localStream });
         if(this.isScreenSharing && this.screenStream) p.addStream(this.screenStream);
-        p.on('signal', data => addDoc(collection(this.db, `${this.publicDataPath}/signaling`), { to: uid, from: this.logicalUid, room: this.inVoiceRoom, signal: JSON.stringify(data) }));
+        p.on('signal', data => this.supabase.from('signaling').insert([{ to: uid, from: this.logicalUid, room: this.inVoiceRoom, signal: JSON.stringify(data) }]));
         p.on('stream', stream => this.addRemoteVideo(uid, stream));
         p.on('close', () => this.removePeer(uid));
         this.simplePeers[uid] = p;
