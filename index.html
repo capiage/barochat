@@ -263,7 +263,7 @@
                                 <span class="text-[11px] text-gray-400 truncate w-32" x-text="getChannelName(inVoiceRoom)"></span>
                             </div>
                             <div class="flex gap-1">
-                                <button @click="viewingVoice = !viewingVoice" class="text-gray-400 hover:text-white transition p-1" title="Toggle Grid View">
+                                <button @click="openVoiceGrid()" class="text-gray-400 hover:text-white transition p-1" title="Toggle Grid View">
                                     <i class="ph-fill ph-grid-four text-xl"></i>
                                 </button>
                                 <button @click="leaveVoiceRoom()" class="text-red-400 hover:text-red-500 transition p-1"><i class="ph-fill ph-phone-disconnect text-xl"></i></button>
@@ -331,7 +331,7 @@
                                     <div x-show="rtcVideoOff" class="absolute inset-0 flex items-center justify-center" :style="'background-color: ' + getAvatarColor(currentUserProfile?.avatar)">
                                         <img :src="currentUserProfile?.avatar" class="w-32 h-32 rounded-full object-cover">
                                     </div>
-                                    <div class="absolute bottom-3 left-3 bg-black/60 px-2.5 py-1.5 rounded text-[13px] text-white font-bold backdrop-blur-sm z-10">
+                                    <div class="absolute bottom-3 left-3 bg-black/60 px-2.5 py-1.5 rounded text-[13px] text-white font-bold z-10">
                                         <span x-text="currentUserProfile?.displayName + ' (You)'"></span>
                                     </div>
                                 </div>
@@ -344,6 +344,7 @@
                                 <i class="ph-fill ph-users text-gray-400 text-xl"></i>
                                 <span class="font-bold text-white">Friends</span>
                                 <div class="h-6 w-[1px] bg-[#3f4147] mx-2"></div>
+                                <button @click="friendsTab = 'online'" class="px-3 py-1 rounded-md text-sm font-medium transition" :class="friendsTab === 'online' ? 'bg-[#3f4147] text-white' : 'text-gray-400 hover:bg-[#35373c] hover:text-gray-100'">Online</button>
                                 <button @click="friendsTab = 'all'" class="px-3 py-1 rounded-md text-sm font-medium transition" :class="friendsTab === 'all' ? 'bg-[#3f4147] text-white' : 'text-gray-400 hover:bg-[#35373c] hover:text-gray-100'">All</button>
                                 <button @click="friendsTab = 'pending'" class="px-3 py-1 rounded-md text-sm font-medium transition relative" :class="friendsTab === 'pending' ? 'bg-[#3f4147] text-white' : 'text-gray-400 hover:bg-[#35373c] hover:text-gray-100'">
                                     Pending
@@ -355,6 +356,30 @@
                             </div>
                             
                             <div class="flex-1 overflow-y-auto p-8">
+                                <template x-if="friendsTab === 'online'">
+                                    <div class="space-y-4">
+                                        <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Online — <span x-text="myFriendsList.filter(f => isUserOnline(f.uid)).length"></span></h3>
+                                        <template x-for="f in myFriendsList.filter(f => isUserOnline(f.uid))" :key="f.uid">
+                                            <div class="flex items-center justify-between p-3 rounded-lg hover:bg-[#35373c] group transition cursor-pointer border-t border-[#3f4147]/30" @click="openProfilePopout(f.uid)">
+                                                <div class="flex items-center gap-3">
+                                                    <div class="relative">
+                                                        <img :src="f.avatar" class="w-10 h-10 rounded-full object-cover">
+                                                        <div class="absolute bottom-0 right-0 w-3.5 h-3.5 border-2 border-[#313338] rounded-full bg-[#23A559]"></div>
+                                                    </div>
+                                                    <div>
+                                                        <div class="font-bold text-white group-hover:text-gray-100" x-text="f.displayName"></div>
+                                                        <div class="text-xs text-gray-400">Online</div>
+                                                    </div>
+                                                </div>
+                                                <div class="flex gap-2">
+                                                    <button @click.stop="initiateDM(f.uid)" class="w-9 h-9 rounded-full bg-[#2b2d31] text-gray-200 hover:text-white flex items-center justify-center hover:bg-black transition"><i class="ph-fill ph-chat-circle-dots text-xl"></i></button>
+                                                    <button @click.stop="startCall(f.uid)" class="w-9 h-9 rounded-full bg-[#2b2d31] text-gray-200 hover:text-white flex items-center justify-center hover:bg-black transition"><i class="ph-fill ph-phone-call text-xl"></i></button>
+                                                </div>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </template>
+
                                 <template x-if="friendsTab === 'all'">
                                     <div class="space-y-4">
                                         <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">All Friends — <span x-text="myFriendsList.length"></span></h3>
@@ -422,14 +447,14 @@
                                         <h2 class="text-lg font-bold text-white mb-2 uppercase text-sm">Add Friend</h2>
                                         <p class="text-gray-400 text-sm mb-4">You can add friends with their Le BaroChat™ username. It's case sensitive!</p>
                                         <div class="bg-[#1e1f22] p-3 rounded-lg flex items-center gap-2 border border-black/20 focus-within:border-[#5865F2] transition">
-                                            <input type="text" x-model="sidebarSearch" placeholder="Enter a username#0000" class="flex-1 bg-transparent text-white focus:outline-none">
-                                            <button @click="sendDirectFriendRequest()" class="bg-[#5865F2] hover:bg-[#4752C4] disabled:opacity-50 text-white px-6 py-2 rounded-md font-bold text-sm transition" :disabled="!sidebarSearch">Send Friend Request</button>
+                                            <input type="text" x-model="directFriendRequestUsername" placeholder="Enter a username" class="flex-1 bg-transparent text-white focus:outline-none">
+                                            <button @click="sendDirectFriendRequest()" class="bg-[#5865F2] hover:bg-[#4752C4] disabled:opacity-50 text-white px-6 py-2 rounded-md font-bold text-sm transition" :disabled="!directFriendRequestUsername">Send Friend Request</button>
                                         </div>
                                         
-                                        <div class="mt-12" x-show="sidebarSearch.length > 1">
+                                        <div class="mt-12" x-show="directFriendRequestUsername.length > 1">
                                             <h3 class="text-xs font-bold text-gray-400 uppercase mb-4">Search Results</h3>
                                             <div class="space-y-2">
-                                                <template x-for="user in Object.values(users).filter(u => u.uid !== logicalUid && (u.username.toLowerCase().includes(sidebarSearch.toLowerCase()) || u.displayName.toLowerCase().includes(sidebarSearch.toLowerCase()))).slice(0, 5)" :key="user.uid">
+                                                <template x-for="user in Object.values(users).filter(u => u.uid !== logicalUid && (u.username.toLowerCase().includes(directFriendRequestUsername.toLowerCase()) || u.displayName.toLowerCase().includes(directFriendRequestUsername.toLowerCase()))).slice(0, 5)" :key="user.uid">
                                                     <div class="flex items-center justify-between p-3 bg-[#2b2d31] rounded-lg border border-[#1e1f22]">
                                                         <div class="flex items-center gap-3">
                                                             <img :src="user.avatar" class="w-10 h-10 rounded-full object-cover">
@@ -549,6 +574,7 @@
                         <div class="p-4 w-60 overflow-y-auto">
                             <template x-if="activeView === 'server'">
                                 <div>
+                                <div>
                                     <div class="text-[11px] font-bold text-gray-400 uppercase mb-3">Online — <span x-text="getServerMembers('online').length"></span></div>
                                     <template x-for="p in getServerMembers('online')" :key="p.uid">
                                         <div @click="openProfilePopout(p.uid)" class="flex items-center px-2 py-1.5 rounded-md hover:bg-[#35373c] cursor-pointer group">
@@ -591,6 +617,7 @@
                                             </div>
                                         </div>
                                     </template>
+                                </div>
                                 </div>
                             </template>
                         </div>

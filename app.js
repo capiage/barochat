@@ -33,8 +33,7 @@ window.nexusApp = () => ({
     activeChannelId: null, 
     showMembersList: true,
     viewingVoice: false,
-    friendsTab: 'all', 
-    fullscreenVideoId: null,
+    friendsTab: 'online', directFriendRequestUsername: '', fullscreenVideoId: null,
     
     // Message Input
     newMessage: '', pendingImage: null, editingMessageId: null,
@@ -558,6 +557,22 @@ window.nexusApp = () => ({
         }
         return null;
     },
+    openVoiceGrid() {
+        if (!this.inVoiceRoom) return;
+        let serverId = null;
+        for (const s of this.servers) {
+            if (s.channels && s.channels.some(c => c.id === this.inVoiceRoom)) {
+                serverId = s.id;
+                break;
+            }
+        }
+        if (serverId) {
+            this.activeView = 'server';
+            this.activeTarget = serverId;
+        }
+        this.viewingVoice = true;
+    },
+
     openDM(id) { this.activeView = 'home'; this.activeTarget = id; this.activeChannelId = null; this.viewingVoice = (this.inVoiceRoom === id); this.markRead(id); },
     async initiateDM(uid) {
         const id = [this.logicalUid, uid].sort().join('_');
@@ -629,7 +644,7 @@ window.nexusApp = () => ({
         const name = this.directFriendRequestUsername.replace('@', '').toLowerCase();
         const u = Object.values(this.users).find(u => u.username === name);
         if (u) { this.addFriend(u.uid); this.directFriendRequestUsername = ''; }
-        else this.showToast("Not found.", true);
+        else this.showToast("User not found.", true);
     },
 
     openProfilePopout(uid) { this.popoutUser = this.getUser(uid); this.showProfilePopout = !!this.popoutUser; },
@@ -718,16 +733,16 @@ window.nexusApp = () => ({
             const iconUrl = await this.uploadImage(this.editServer.icon);
             const bannerUrl = await this.uploadImage(this.editServer.banner);
             await updateDoc(doc(this.db, `${this.publicDataPath}/servers`, this.editServer.id), {
-                name: this.editServer.name, 
-                icon: iconUrl, 
-                isPublic: this.editServer.isPublic, 
+                name: this.editServer.name,
+                icon: iconUrl,
+                isPublic: this.editServer.isPublic,
                 channels: this.editServer.channels,
-                banner: bannerUrl, 
-                bannerColor: this.editServer.bannerColor || '#5865F2', 
+                banner: bannerUrl,
+                bannerColor: this.editServer.bannerColor || '#5865F2',
                 bio: this.editServer.bio
             });
-            this.showToast("Server updated.");
-        } catch (e) {
+            this.showServerSettingsModal = false;
+            this.showToast("Server updated.");        } catch (e) {
             console.error("Save Server Error:", e);
             this.showToast("Failed to save server settings.", true);
         }
@@ -899,7 +914,7 @@ window.nexusApp = () => ({
         v.className = "w-full h-full bg-black object-contain";
         v.onplaying = () => { fallback.style.opacity = '0'; };
         const label = document.createElement('div');
-        label.className = "absolute bottom-3 left-3 bg-black/60 px-2.5 py-1.5 rounded text-[13px] text-white font-bold backdrop-blur-sm z-10";
+        label.className = "absolute bottom-3 left-3 bg-black/60 px-2.5 py-1.5 rounded text-[13px] text-white font-bold z-10";
         label.innerText = user.displayName + (stream.getAudioTracks().length === 0 ? " (Screen)" : "");
         wrapper.appendChild(fallback);
         wrapper.appendChild(v); 
