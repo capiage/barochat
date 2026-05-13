@@ -1,6 +1,6 @@
 
 import Alpine from 'https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/module.esm.js';
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 import { SVGS, FAVICONS } from './constants.js';
 
 window.nexusApp = () => ({
@@ -269,10 +269,14 @@ window.nexusApp = () => ({
 
     async init() {
         try {
-            this.supabase = createClient(
-                'https://tzdwxrdkqcntskwdvkfl.supabase.co', 
-                'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6ZHd4cmRrcWNudHNrd2R2a2ZsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2ODUzNjksImV4cCI6MjA5NDI2MTM2OX0.MpMEqeXXgAGuOwu9fCgSYMmWsP4JHze2s2DerNrUBu4'
-            );
+            const supabaseUrl = 'https://tzdwxrdkqcntskwdvkfl.supabase.co';
+            const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6ZHd4cmRrcWNudHNrd2R2a2ZsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2ODUzNjksImV4cCI6MjA5NDI2MTM2OX0.MpMEqeXXgAGuOwu9fCgSYMmWsP4JHze2s2DerNrUBu4';
+            
+            this.supabase = createClient(supabaseUrl, supabaseKey, {
+                global: {
+                    headers: { 'apikey': supabaseKey }
+                }
+            });
 
             const savedSession = localStorage.getItem('lebarochat_session_v4');
             if (savedSession) {
