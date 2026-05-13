@@ -233,7 +233,7 @@ window.nexusApp = () => ({
 
     // WebRTC State
     inVoiceRoom: null, voicePeers: {}, 
-    rtcVideoOff: false, isMuted: false, isDeafened: false, isScreenSharing: false,
+    rtcVideoOff: true, isMuted: false, isDeafened: false, isScreenSharing: false,
     localStream: null, screenStream: null, simplePeers: {},
 
     db: null, auth: null, storage: null, publicDataPath: '', usersRef: null, accountsRef: null, heartbeatInterval: null,
@@ -689,15 +689,21 @@ window.nexusApp = () => ({
 
     openSettings() { this.editProfile = JSON.parse(JSON.stringify(this.currentUserProfile)); this.showSettingsModal = true; },
     async saveProfileSettings() {
-        const avatarUrl = await this.uploadImage(this.editProfile.avatar);
-        const bannerUrl = await this.uploadImage(this.editProfile.banner);
-        await updateDoc(doc(this.usersRef, this.logicalUid), { 
-            displayName: this.editProfile.displayName, 
-            bio: this.editProfile.bio, 
-            avatar: avatarUrl, 
-            banner: bannerUrl 
-        });
-        this.showSettingsModal = false;
+        try {
+            const avatarUrl = await this.uploadImage(this.editProfile.avatar);
+            const bannerUrl = await this.uploadImage(this.editProfile.banner);
+            await updateDoc(doc(this.usersRef, this.logicalUid), { 
+                displayName: this.editProfile.displayName, 
+                bio: this.editProfile.bio, 
+                avatar: avatarUrl, 
+                banner: bannerUrl 
+            });
+            this.showSettingsModal = false;
+            this.showToast("Profile updated!");
+        } catch (e) {
+            console.error("Save Profile Error:", e);
+            this.showToast("Failed to save profile.", true);
+        }
     },
 
     openServerSettingsModal(tab = 'overview') {
@@ -708,29 +714,39 @@ window.nexusApp = () => ({
     },
 
     async saveServerSettings() {
-        const iconUrl = await this.uploadImage(this.editServer.icon);
-        const bannerUrl = await this.uploadImage(this.editServer.banner);
-        await updateDoc(doc(this.db, `${this.publicDataPath}/servers`, this.editServer.id), {
-            name: this.editServer.name, 
-            icon: iconUrl, 
-            isPublic: this.editServer.isPublic, 
-            channels: this.editServer.channels,
-            banner: bannerUrl, 
-            bannerColor: this.editServer.bannerColor || '#5865F2', 
-            bio: this.editServer.bio
-        });
-        this.showToast("Server updated.");
+        try {
+            const iconUrl = await this.uploadImage(this.editServer.icon);
+            const bannerUrl = await this.uploadImage(this.editServer.banner);
+            await updateDoc(doc(this.db, `${this.publicDataPath}/servers`, this.editServer.id), {
+                name: this.editServer.name, 
+                icon: iconUrl, 
+                isPublic: this.editServer.isPublic, 
+                channels: this.editServer.channels,
+                banner: bannerUrl, 
+                bannerColor: this.editServer.bannerColor || '#5865F2', 
+                bio: this.editServer.bio
+            });
+            this.showToast("Server updated.");
+        } catch (e) {
+            console.error("Save Server Error:", e);
+            this.showToast("Failed to save server settings.", true);
+        }
     },
 
     triggerImageUpload(context) {
         const i = document.createElement('input'); i.type = 'file'; i.accept = 'image/*';
         i.onchange = (e) => this.processImage(e.target.files[0], context); i.click();
     },
-    async uploadImage(dataUrl, path) {
+    async uploadImage(dataUrl) {
         if (!dataUrl || !dataUrl.startsWith('data:')) return dataUrl;
-        const sRef = ref(this.storage, `${this.publicDataPath}/uploads/${Date.now()}_${Math.random().toString(36).substr(2, 5)}.jpg`);
-        await uploadString(sRef, dataUrl, 'data_url');
-        return await getDownloadURL(sRef);
+        try {
+            const sRef = ref(this.storage, `${this.publicDataPath}/uploads/${Date.now()}_${Math.random().toString(36).substr(2, 5)}.jpg`);
+            await uploadString(sRef, dataUrl, 'data_url');
+            return await getDownloadURL(sRef);
+        } catch (e) {
+            console.error("Upload Error:", e);
+            throw e;
+        }
     },
 
     processImage(file, context) {
@@ -750,8 +766,6 @@ window.nexusApp = () => ({
                 if (context === 'chat') this.pendingImage = data;
                 else if (context === 'setup') this.authAvatar = data;
                 else {
-                    // For settings, we might want to upload immediately or wait for save
-                    // To keep it simple, we'll keep the dataUrl and upload on save
                     if (context === 'edit') this.editProfile.avatar = data;
                     else if (context === 'banner') this.editProfile.banner = data;
                     else if (context === 'server') this.newServerIcon = data;
@@ -768,9 +782,15 @@ window.nexusApp = () => ({
     async joinVoiceRoom(id) {
         if (this.inVoiceRoom) this.leaveVoiceRoom();
         try {
-            this.inVoiceRoom = id; this.rtcVideoOff = false; this.isScreenSharing = false; this.viewingVoice = true; 
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            this.inVoiceRoom = id; this.rtcVideoOff = true; this.isScreenSharing = false; this.viewingVoice = true; 
+            const stream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
             this.localStream = stream;
+            
+            // Dummy video for initial peer setup if camera is off
+            const canvas = document.createElement('canvas'); canvas.width = 1; canvas.height = 1;
+            const dummyVideo = canvas.captureStream().getVideoTracks()[0];
+            this.localStream.addTrack(dummyVideo);
+
             this.isMuted = false;
             this.updatePresence();
             setTimeout(() => { 
@@ -779,22 +799,7 @@ window.nexusApp = () => ({
             }, 500);
         } catch(e) { 
             console.error("Join Voice Error:", e);
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
-                this.localStream = stream;
-                this.rtcVideoOff = true;
-                const canvas = document.createElement('canvas'); canvas.width = 1; canvas.height = 1;
-                const dummyVideo = canvas.captureStream().getVideoTracks()[0];
-                this.localStream.addTrack(dummyVideo);
-                this.isMuted = false;
-                this.updatePresence();
-                setTimeout(() => { 
-                    const lv = document.getElementById('local-video');
-                    if(lv) lv.srcObject = this.localStream; 
-                }, 500);
-            } catch(e2) {
-                this.showToast("Mic failed to start.", true); 
-            }
+            this.showToast("Mic failed to start.", true); 
         }
     },
 

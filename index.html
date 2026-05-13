@@ -194,20 +194,6 @@
                                     </template>
                                 </button>
                             </template>
-
-                            <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wider px-3 py-2 mt-4">All Friends</div>
-                            <template x-for="friend in filteredFriends" :key="friend.uid">
-                                <button @click="initiateDM(friend.uid)" class="w-full flex items-center px-2 py-1.5 rounded-md transition group hover:bg-[#35373c] text-gray-400 hover:text-gray-200">
-                                    <div class="relative flex-shrink-0 mr-3">
-                                        <img :src="friend.avatar" class="w-8 h-8 rounded-full object-cover bg-[#1e1f22]" :class="!isUserOnline(friend.uid) ? 'grayscale' : ''">
-                                        <div class="absolute bottom-0 right-0 w-3 h-3 border-2 border-[#2b2d31] rounded-full" :class="isUserOnline(friend.uid) ? 'bg-[#23A559]' : 'bg-gray-500'"></div>
-                                    </div>
-                                    <div class="flex-1 text-left truncate">
-                                        <div class="font-medium text-[15px] truncate" x-text="friend.displayName"></div>
-                                        <div class="text-[11px] truncate" x-text="isUserOnline(friend.uid) ? 'Online' : 'Offline'"></div>
-                                    </div>
-                                </button>
-                            </template>
                         </div>
                     </div>
                 </template>
@@ -276,7 +262,12 @@
                                 <span class="font-bold text-xs uppercase tracking-wide flex items-center gap-1"><i class="ph-fill ph-check-circle"></i> Voice Connected</span>
                                 <span class="text-[11px] text-gray-400 truncate w-32" x-text="getChannelName(inVoiceRoom)"></span>
                             </div>
-                            <button @click="leaveVoiceRoom()" class="text-red-400 hover:text-red-500 transition p-1"><i class="ph-fill ph-phone-disconnect text-xl"></i></button>
+                            <div class="flex gap-1">
+                                <button @click="viewingVoice = !viewingVoice" class="text-gray-400 hover:text-white transition p-1" title="Toggle Grid View">
+                                    <i class="ph-fill ph-grid-four text-xl"></i>
+                                </button>
+                                <button @click="leaveVoiceRoom()" class="text-red-400 hover:text-red-500 transition p-1"><i class="ph-fill ph-phone-disconnect text-xl"></i></button>
+                            </div>
                         </div>
                         <div class="flex gap-1 justify-between bg-[#2b2d31] p-1 rounded-md">
                             <button @click="rtcToggleVideo()" class="p-1.5 flex-1 rounded hover:bg-[#3f4147] transition flex justify-center items-center" :class="!rtcVideoOff ? 'text-white bg-[#3f4147]' : 'text-gray-400'"><i class="ph-fill text-lg" :class="rtcVideoOff ? 'ph-video-camera-slash' : 'ph-video-camera'"></i></button>
