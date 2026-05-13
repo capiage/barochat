@@ -319,7 +319,8 @@ window.nexusApp = () => ({
             const ds = []; 
             snap.forEach(d => {
                 if (d.data().participants?.includes(this.logicalUid)) {
-                    ds.push({ id: d.id, partnerUid: d.data().participants.find(p => p !== this.logicalUid) });
+                    const partnerUid = d.data().participants.find(p => p !== this.logicalUid) || this.logicalUid;
+                    ds.push({ id: d.id, partnerUid });
                 }
             });
             this.dms = ds;
@@ -335,6 +336,7 @@ window.nexusApp = () => ({
                 }
             });
             snap.forEach(d => m.push({id: d.id, ...d.data()}));
+            m.sort((a, b) => a.timestamp - b.timestamp);
             this.messages = m; this.filterMessages();
         });
         onSnapshot(collection(this.db, `${this.publicDataPath}/presence`), (snap) => {
@@ -412,19 +414,19 @@ window.nexusApp = () => ({
     getServer() { return this.servers.find(s => s.id === this.activeTarget); },
     getChannelName(cid) {
         if (!cid) return '';
-        if (cid.includes('_')) return this.getUser(this.getDmPartner(cid))?.displayName || 'DM';
         // Check for channel in any server
         for (const s of this.servers) {
             const c = s.channels?.find(ch => ch.id === cid);
             if (c) return c.name;
         }
-        // Fallback for voice room if it's different
-        if (this.inVoiceRoom && this.inVoiceRoom === cid) {
-            for (const s of this.servers) {
-                const c = s.channels?.find(ch => ch.id === cid);
-                if (c) return c.name;
-            }
-        }
+        // Check for DM
+        const partner = this.getDmPartner(cid);
+        if (partner) return this.getUser(partner)?.displayName || 'DM';
+
+        // Check for Server Name
+        const server = this.servers.find(s => s.id === cid);
+        if (server) return server.name;
+
         return '';
     },
 
@@ -451,7 +453,16 @@ window.nexusApp = () => ({
         this.updatePresence();
     },
 
-    getDmPartner(dmId) { return this.dms.find(d => d.id === dmId)?.partnerUid; },
+    getDmPartner(dmId) { 
+        if (!dmId) return null;
+        const d = this.dms.find(d => d.id === dmId);
+        if (d) return d.partnerUid;
+        if (dmId.includes('_') && !dmId.startsWith('c')) {
+            const parts = dmId.split('_');
+            if (parts.length === 2) return parts.find(p => p !== this.logicalUid);
+        }
+        return null;
+    },
     openDM(id) { this.activeView = 'home'; this.activeTarget = id; this.activeChannelId = null; this.viewingVoice = (this.inVoiceRoom === id); this.markRead(id); },
     async initiateDM(uid) {
         const id = [this.logicalUid, uid].sort().join('_');
@@ -459,6 +470,52 @@ window.nexusApp = () => ({
         this.showProfilePopout = false; this.openDM(id);
     },
     
+    handleVoiceChannelClick(id) {
+        if (this.inVoiceRoom === id) this.leaveVoiceRoom();
+        else this.joinVoiceRoom(id);
+    },
+    formatTime(ts) {
+        if (!ts) return '';
+        const d = new Date(ts), now = new Date(), diff = now - d;
+        if (diff < 86400000 && d.getDate() === now.getDate()) return `Today at ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+        if (diff < 172800000 && new Date(now - 86400000).getDate() === d.getDate()) return `Yesterday at ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+        return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    },
+    async deleteMessage(id) { await deleteDoc(doc(this.db, `${this.publicDataPath}/messages`, id)); },
+    copyInviteLink() {
+        const url = window.location.origin + window.location.pathname + '?join=' + this.activeTarget;
+        this.copyToClipboard(url);
+    },
+    async leaveServer() {
+        const joined = (this.currentUserProfile.joinedServers || []).filter(id => id !== this.activeTarget);
+        await updateDoc(doc(this.usersRef, this.logicalUid), { joinedServers: joined });
+        this.openHome();
+    },
+    toggleMute() {
+        this.isMuted = !this.isMuted;
+        if (this.localStream) this.localStream.getAudioTracks().forEach(t => t.enabled = !this.isMuted);
+        this.updatePresence();
+    },
+    toggleDeafen() {
+        this.isDeafened = !this.isDeafened;
+        if (this.isDeafened) { this.isMuted = true; if (this.localStream) this.localStream.getAudioTracks().forEach(t => t.enabled = false); }
+        this.updatePresence();
+    },
+    logout() { localStorage.removeItem('lebarochat_session_v4'); window.location.reload(); },
+    async addChannel() {
+        if (!this.newChannelName.trim()) return;
+        const s = this.getServer();
+        const chs = [...(s.channels || []), { id: 'c_' + Date.now(), name: this.newChannelName.trim(), type: this.newChannelType }];
+        await updateDoc(doc(this.db, `${this.publicDataPath}/servers`, s.id), { channels: chs });
+        this.newChannelName = ''; this.editServer.channels = chs;
+    },
+    async removeChannel(id) {
+        const s = this.getServer();
+        const chs = s.channels.filter(c => c.id !== id);
+        await updateDoc(doc(this.db, `${this.publicDataPath}/servers`, s.id), { channels: chs });
+        this.editServer.channels = chs;
+    },
+
     isFriend(uid) { return this.currentUserProfile?.friends?.includes(uid) && this.getUser(uid)?.friends?.includes(this.logicalUid); },
     isPendingOutgoing(uid) { return this.currentUserProfile?.friends?.includes(uid) && !this.getUser(uid)?.friends?.includes(this.logicalUid); },
     isPendingIncoming(uid) { return !this.currentUserProfile?.friends?.includes(uid) && this.getUser(uid)?.friends?.includes(this.logicalUid); },
@@ -573,15 +630,11 @@ window.nexusApp = () => ({
         if (this.inVoiceRoom) this.leaveVoiceRoom();
         try {
             this.inVoiceRoom = id; this.rtcVideoOff = true; this.isScreenSharing = false; this.viewingVoice = true; 
-            // Correct Mic Init: Ensure we get a real audio track immediately
             const stream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
             this.localStream = stream;
-            
-            // Dummy video for initial peer setup
             const canvas = document.createElement('canvas'); canvas.width = 1; canvas.height = 1;
             const dummyVideo = canvas.captureStream().getVideoTracks()[0];
             this.localStream.addTrack(dummyVideo);
-
             this.updatePresence();
             setTimeout(() => { 
                 const lv = document.getElementById('local-video');
@@ -596,7 +649,6 @@ window.nexusApp = () => ({
         Object.values(this.simplePeers).forEach(p => p.destroy());
         this.simplePeers = {}; this.inVoiceRoom = null; this.localStream = null; this.viewingVoice = false;
         this.updatePresence();
-        // Cleanup UI
         document.querySelectorAll('#fullscreen-video-grid .video-wrapper').forEach(w => {
             if(!w.innerHTML.includes('local-video')) w.remove();
         });
@@ -642,7 +694,6 @@ window.nexusApp = () => ({
             this.screenStream = null;
         }
         this.isScreenSharing = false; this.updatePresence();
-        // Remove local screen preview from grid if it exists
         document.querySelectorAll('[id^="wrap_vid_local_screen"]').forEach(e => e.remove());
     },
 
@@ -663,8 +714,6 @@ window.nexusApp = () => ({
         const wrapper = document.createElement('div');
         wrapper.id = `wrap_${id}`; wrapper.className = "video-wrapper group";
         wrapper.onclick = () => this.toggleFullscreenVideo(id);
-        
-        // Avatar Fallback
         const fallback = document.createElement('div');
         fallback.className = "absolute inset-0 flex items-center justify-center transition-opacity duration-300";
         fallback.style.backgroundColor = this.getAvatarColor(user.avatar);
@@ -672,16 +721,13 @@ window.nexusApp = () => ({
         img.src = user.avatar;
         img.className = "w-32 h-32 rounded-full object-cover shadow-2xl bg-[#1e1f22]";
         fallback.appendChild(img);
-
         const v = document.createElement('video');
         v.id = id; v.autoplay = true; v.playsInline = true; v.srcObject = stream;
         v.className = "w-full h-full bg-black object-contain";
         v.onplaying = () => { fallback.style.opacity = '0'; };
-
         const label = document.createElement('div');
         label.className = "absolute bottom-3 left-3 bg-black/60 px-2.5 py-1.5 rounded text-[13px] text-white font-bold backdrop-blur-sm z-10";
         label.innerText = user.displayName + (stream.getAudioTracks().length === 0 ? " (Screen)" : "");
-
         wrapper.appendChild(fallback);
         wrapper.appendChild(v); 
         wrapper.appendChild(label);
