@@ -20,7 +20,6 @@ const supabase = createClient(supabaseUrl, supabaseKey, {
 window.nexusApp = () => ({
     supabase,
     isReady: false,
-...
     authLoading: true,
     authMode: 'login', 
     authUsername: '', authPassword: '', authDisplayName: '', authAvatar: SVGS.C,
