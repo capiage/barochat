@@ -740,9 +740,9 @@
 
                     <!-- @ Mention Autocomplete Menu -->
                     <div x-show="showMentions" class="absolute bottom-full left-4 mb-2 bg-[#2b2d31] border border-[#1e1f22] rounded-md shadow-2xl w-64 max-h-48 overflow-y-auto z-50 py-1" style="display:none;">
-                        <div class="px-3 py-1 text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Members (Tab to select)</div>
-                        <template x-for="(user, index) in filteredMentionUsers" :key="user.uid">
-                            <button @click="insertMention(user.username)" class="w-full flex items-center px-3 py-1.5 hover:bg-[#3f4147] transition group text-left" :class="index === 0 ? 'bg-[#3f4147]/50' : ''">
+                        <div class="px-3 py-1 text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Members</div>
+                        <template x-for="user in filteredMentionUsers" :key="user.uid">
+                            <button @click="insertMention(user.username)" class="w-full flex items-center px-3 py-1.5 hover:bg-[#3f4147] transition group text-left">
                                 <img :src="user.avatar" class="w-6 h-6 rounded-full mr-2 object-cover bg-[#1e1f22]">
                                 <span class="text-sm font-medium text-gray-200 group-hover:text-white truncate" x-text="user.displayName"></span>
                                 <span class="text-xs text-gray-500 ml-2 truncate" x-text="'@' + user.username"></span>
@@ -754,7 +754,7 @@
                         <button @click="triggerImageUpload('chat')" x-show="!editingMessageId" class="text-gray-400 hover:text-gray-200 p-1 flex-shrink-0 transition mr-2 bg-[#2b2d31] rounded-full h-7 w-7 flex items-center justify-center hover:bg-[#5865F2] hover:text-white">
                             <i class="ph-fill ph-plus font-bold"></i>
                         </button>
-                        <input type="text" x-model="newMessage" x-ref="chatInput" @input="checkMentions()" @keydown.tab.prevent="if(showMentions && filteredMentionUsers.length > 0) insertMention(filteredMentionUsers[0].username)" @keydown.enter="sendMessage()" :placeholder="editingMessageId ? 'Edit message...' : getChatPlaceholder()" class="flex-1 bg-transparent px-1 focus:outline-none text-gray-100 placeholder-gray-500 text-[15px]">
+                        <input type="text" x-model="newMessage" x-ref="chatInput" @input="checkMentions()" @keydown.enter="sendMessage()" :placeholder="editingMessageId ? 'Edit message...' : getChatPlaceholder()" class="flex-1 bg-transparent px-1 focus:outline-none text-gray-100 placeholder-gray-500 text-[15px]">
                         <button @click="sendMessage()" :disabled="!newMessage.trim() && !pendingImage" class="p-1.5 rounded-md text-gray-400 hover:text-[#5865F2] disabled:opacity-50 disabled:cursor-not-allowed transition flex-shrink-0 ml-2">
                             <i x-show="!editingMessageId" class="ph-fill ph-paper-plane-right text-xl"></i>
                             <i x-show="editingMessageId" class="ph-bold ph-check text-xl text-[#23A559]"></i>
@@ -848,6 +848,7 @@
         </div>
     </template>
 
+    
     <!-- Profile Popout Overlay -->
     <div x-show="showProfilePopout" style="display: none;" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm transition-opacity">
         <div class="bg-[#232428] rounded-xl shadow-2xl w-full max-w-sm overflow-hidden" @click.away="showProfilePopout = false">
