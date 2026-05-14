@@ -630,7 +630,7 @@
                                     <div x-show="!server.icon" class="w-16 h-16 rounded-2xl absolute -top-8 left-4 border-4 border-[#2b2d31] bg-[#1e1f22] flex items-center justify-center text-xl font-bold text-white shadow-md" x-text="server.name.substring(0,2).toUpperCase()"></div>
                                     
                                     <h3 class="mt-8 text-lg font-bold text-gray-100 truncate" x-text="server.name"></h3>
-                                    <p class="text-sm text-gray-400 mt-1 flex-1 truncate" x-text="server.bio || 'A public community server.'"></p>
+                                    <p class="text-sm text-gray-400 mt-1 flex-1 truncate">A public community server.</p>
                                     
                                     <div class="flex items-center justify-between text-xs text-gray-400 mt-2 font-medium">
                                         <div class="flex items-center">
@@ -656,7 +656,7 @@
                     <div id="fullscreen-video-grid">
                         <!-- Local Camera Video (Always exists if in room) -->
                         <div class="video-wrapper group" :class="fullscreenVideoId === 'local' ? 'video-fullscreen-mode' : ''" @click="toggleFullscreenVideo('local')">
-                            <video x-ignore id="local-video" autoplay playsinline muted class="transition-opacity duration-300" :class="rtcVideoOff ? 'opacity-0' : 'opacity-100'"></video>
+                            <video id="local-video" autoplay playsinline muted class="transition-opacity duration-300" :class="rtcVideoOff ? 'opacity-0' : 'opacity-100'"></video>
                             
                             <!-- Avatar overlay when cam is off (Correctly pulls color) -->
                             <div x-show="rtcVideoOff" class="absolute inset-0 flex items-center justify-center z-0" :style="'background-color: ' + getAvatarColor(currentUserProfile?.avatar)">
@@ -1159,7 +1159,7 @@
             // Supabase Active Presence Filtering
             get activePresence() {
                 const now = Date.now();
-                return this.globalPresence.filter(p => (now - p.lastActive < 60000) && p.status === 'online');
+                return this.globalPresence.filter(p => (now - p.lastActive < 300000) && p.status === 'online');
             },
 
             // Friend Request Logic (Mutual Check)
@@ -1905,15 +1905,9 @@
                     const micTrack = stream.getAudioTracks()[0];
                     micTrack.enabled = !this.isMuted;
                     
-                    const canvas = document.createElement('canvas'); canvas.width = 2; canvas.height = 2;
-                    const ctx = canvas.getContext('2d'); ctx.fillStyle = '#000000'; ctx.fillRect(0,0,2,2); 
-                    const dummyStream = canvas.captureStream(15);
-                    const dummyVideo = dummyStream.getVideoTracks()[0];
-                    
-                    if (this.dummyCanvasInterval) clearInterval(this.dummyCanvasInterval);
-                    this.dummyCanvasInterval = setInterval(() => {
-                        if(ctx) { ctx.fillStyle = ctx.fillStyle === '#000000' ? '#000001' : '#000000'; ctx.fillRect(0,0,2,2); }
-                    }, 100);
+                    const canvas = document.createElement('canvas'); canvas.width = 1; canvas.height = 1;
+                    const ctx = canvas.getContext('2d'); ctx.fillStyle = 'black'; ctx.fillRect(0,0,1,1); // Prevent 0-frame hang
+                    const dummyVideo = canvas.captureStream().getVideoTracks()[0];
                     
                     this.localStream = new MediaStream([dummyVideo, micTrack]);
                     
@@ -1932,7 +1926,6 @@
             leaveVoiceRoom() {
                 if (this.localStream) this.localStream.getTracks().forEach(t => t.stop());
                 if (this.screenStream) this.stopScreenShare();
-                if (this.dummyCanvasInterval) { clearInterval(this.dummyCanvasInterval); this.dummyCanvasInterval = null; }
                 
                 Object.values(this.simplePeers).forEach(p => p.destroy());
                 this.simplePeers = {}; this.voicePeers = {}; 
@@ -1973,41 +1966,23 @@
                         
                         this.localStream.removeTrack(oldTrack);
                         this.localStream.addTrack(vidTrack);
-                        
-                        Object.values(this.simplePeers).forEach(p => {
-                            try { p.replaceTrack(oldTrack, vidTrack, this.localStream); } catch(e){}
-                        });
+                        Object.values(this.simplePeers).forEach(p => p.replaceTrack(oldTrack, vidTrack, this.localStream));
                         
                         this.rtcVideoOff = false; this.viewingVoice = true; 
                         this.updatePresence();
-
-                        // Force rebind local video source
-                        const localVid = document.getElementById('local-video');
-                        if (localVid) { localVid.srcObject = null; localVid.srcObject = this.localStream; }
-                        
                     } catch(e) { this.showToast("Camera access denied.", true); }
                 } else {
                     const vidTrack = this.localStream.getVideoTracks()[0];
                     if (vidTrack) {
                         vidTrack.stop();
-                        
-                        const canvas = document.createElement('canvas'); canvas.width = 2; canvas.height = 2;
-                        const ctx = canvas.getContext('2d'); ctx.fillStyle = '#000000'; ctx.fillRect(0,0,2,2);
-                        const dummyStream = canvas.captureStream(15);
-                        const dummyVideo = dummyStream.getVideoTracks()[0];
-                        
+                        const canvas = document.createElement('canvas'); canvas.width = 1; canvas.height = 1;
+                        const ctx = canvas.getContext('2d'); ctx.fillStyle = 'black'; ctx.fillRect(0,0,1,1);
+                        const dummyVideo = canvas.captureStream().getVideoTracks()[0];
                         this.localStream.removeTrack(vidTrack);
                         this.localStream.addTrack(dummyVideo);
-                        
-                        Object.values(this.simplePeers).forEach(p => {
-                            try { p.replaceTrack(vidTrack, dummyVideo, this.localStream); } catch(e){}
-                        });
-                        
+                        Object.values(this.simplePeers).forEach(p => p.replaceTrack(vidTrack, dummyVideo, this.localStream));
                         this.rtcVideoOff = true;
                         this.updatePresence();
-
-                        const localVid = document.getElementById('local-video');
-                        if (localVid) { localVid.srcObject = null; localVid.srcObject = this.localStream; }
                     }
                 }
             },
@@ -2018,7 +1993,7 @@
                     try {
                         this.screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
                         
-                        Object.values(this.simplePeers).forEach(p => { try { p.addStream(this.screenStream); } catch(e){} });
+                        Object.values(this.simplePeers).forEach(p => p.addStream(this.screenStream));
                         this.isScreenSharing = true; this.viewingVoice = true;
                         this.updatePresence();
 
