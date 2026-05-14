@@ -29,7 +29,6 @@
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-        /* Corrected WebRTC Video Grid */
         #fullscreen-video-grid {
             display: flex;
             flex-wrap: wrap;
@@ -38,15 +37,15 @@
             height: 100%;
             align-content: center;
             justify-content: center;
-            align-items: center;
             padding: 1rem;
-            overflow-y: auto;
+            min-h-0; min-w-0;
         }
         #fullscreen-video-grid .video-wrapper {
             position: relative;
-            flex: 1 1 300px;
-            max-width: calc(50% - 0.5rem); /* Caps at 2 per row, prevents 3rd item from stretching */
-            max-height: calc(50vh - 2rem); /* Keep items appropriately sized to prevent off-screen overflow */
+            /* Strict Math bounds to prevent bottom tile stretching */
+            flex: 0 1 calc(50% - 1rem); 
+            max-width: calc(50% - 0.5rem);
+            max-height: calc(50vh - 2rem);
             aspect-ratio: 16 / 9;
             border-radius: 0.5rem;
             background-color: #1e1f22;
@@ -57,7 +56,8 @@
             transition: all 0.2s ease-in-out;
         }
         #fullscreen-video-grid .video-wrapper:only-child {
-            max-width: 80%; /* Allows a solitary user to take up more space cleanly */
+            flex: 0 1 80%;
+            max-width: 80%; 
             max-height: 80vh;
         }
         #fullscreen-video-grid .video-wrapper:hover {
@@ -70,7 +70,6 @@
             object-fit: contain; 
         }
 
-        /* Fixed Fullscreen Mode - Absolute Top Z-Index bounded to the central pane */
         .video-fullscreen-mode {
             position: absolute !important;
             top: 0 !important;
@@ -87,6 +86,14 @@
             max-height: none !important;
         }
 
+        /* Zoomed Image Lightbox */
+        .image-lightbox {
+            position: fixed; inset: 0; z-index: 9999;
+            background: rgba(0,0,0,0.85); backdrop-filter: blur(5px);
+            display: flex; justify-content: center; align-items: center;
+        }
+        .image-lightbox img { max-width: 90vw; max-height: 90vh; border-radius: 8px; box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.5); }
+
         [x-cloak] { display: none !important; }
     </style>
 </head>
@@ -96,6 +103,12 @@
     <div x-show="toast.show" x-transition.opacity class="fixed top-5 left-1/2 transform -translate-x-1/2 z-[1000] px-4 py-3 rounded-md shadow-2xl text-sm font-bold text-white transition-all flex items-center gap-3" :class="toast.isError ? 'bg-red-500' : 'bg-[#5865F2]'" style="display: none;">
         <i class="ph-fill text-xl" :class="toast.isError ? 'ph-warning-circle' : 'ph-info'"></i>
         <span x-text="toast.message"></span>
+    </div>
+
+    <!-- Image Lightbox Modal -->
+    <div x-show="zoomedImage" class="image-lightbox" style="display: none;" @click="zoomedImage = null">
+        <button class="absolute top-6 right-6 text-white bg-red-500 hover:bg-red-600 rounded-full p-2 transition"><i class="ph-bold ph-x text-xl"></i></button>
+        <img :src="zoomedImage" @click.stop>
     </div>
 
     <!-- Onboarding / Auth Overlay -->
@@ -162,22 +175,19 @@
                 </div>
             </div>
 
-            <!-- Live Profile Preview (Fixed Clipping) -->
+            <!-- Live Profile Preview -->
             <div class="w-full max-w-sm hidden md:block" x-show="authMode === 'register'">
                 <div class="text-xs font-bold text-gray-500 uppercase mb-3 text-center">Live Profile Preview</div>
                 <div class="bg-[#232428] rounded-xl shadow-2xl w-full overflow-hidden">
                     <div class="h-24 bg-[#5865F2] w-full"></div>
                     <div class="px-5 pb-6">
-                        <!-- -mt-12 pulls the avatar UP into the banner while keeping it in the normal document flow -->
                         <div class="-mt-12 bg-[#232428] rounded-full p-1.5 inline-block relative z-10">
                             <img :src="authAvatar" class="w-20 h-20 rounded-full object-cover bg-[#1e1f22] shadow-sm">
                         </div>
                         <div class="pt-2">
                             <h3 class="text-xl font-extrabold text-gray-100 leading-tight truncate" x-text="authDisplayName || 'Your Name'"></h3>
                             <p class="text-sm text-gray-400 font-medium mb-4" x-text="'@' + (authUsername.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase() || 'username')"></p>
-                            
                             <div class="w-full h-[1px] bg-[#313338] mb-4"></div>
-                            
                             <h4 class="text-[11px] font-bold text-gray-400 uppercase mb-2">About Me</h4>
                             <p class="text-sm text-gray-300">Ready to chat on Le BaroChat™!</p>
                         </div>
@@ -214,6 +224,8 @@
                             <span x-text="server.name.substring(0,2).toUpperCase()" class="font-bold text-sm"></span>
                         </template>
                         <div class="absolute -left-3 w-1 bg-white rounded-r-md transition-all duration-200" :class="activeTarget === server.id && activeView === 'server' ? 'h-10' : 'h-0 group-hover:h-5'"></div>
+                        <!-- Unread Dot -->
+                        <div x-show="getServerUnreadState(server.id)" class="absolute -left-3 w-1 h-2 bg-white rounded-r-md"></div>
                     </button>
                 </template>
 
@@ -264,7 +276,7 @@
                                         <div class="absolute bottom-0 right-0 w-3 h-3 border-2 border-[#2b2d31] rounded-full" :class="isUserOnline(dm.partnerUid) ? 'bg-[#23A559]' : 'bg-gray-500'"></div>
                                     </div>
                                     <div class="flex-1 text-left truncate">
-                                        <div class="font-medium text-[15px] truncate" x-text="getUser(dm.partnerUid)?.displayName || 'Unknown'"></div>
+                                        <div class="font-medium text-[15px] truncate" :class="hasUnread(dm.id) ? 'text-gray-100 font-bold' : ''" x-text="getUser(dm.partnerUid)?.displayName || 'Unknown'"></div>
                                     </div>
                                     <!-- DM Unread Badge -->
                                     <template x-if="hasUnread(dm.id) && activeTarget !== dm.id">
@@ -697,7 +709,7 @@
                                             
                                             <!-- Image Attachments -->
                                             <template x-if="msg.image">
-                                                <img :src="msg.image" class="mt-2 max-w-md w-full rounded-md object-contain border border-[#1e1f22] bg-[#2b2d31] cursor-pointer block" @click="window.open(msg.image, '_blank')">
+                                                <img :src="msg.image" class="mt-2 max-w-md w-full rounded-md object-contain border border-[#1e1f22] bg-[#2b2d31] cursor-pointer block" @click="zoomedImage = msg.image">
                                             </template>
                                             
                                             <!-- Edit/Delete Controls (Right aligned) -->
@@ -728,9 +740,9 @@
 
                     <!-- @ Mention Autocomplete Menu -->
                     <div x-show="showMentions" class="absolute bottom-full left-4 mb-2 bg-[#2b2d31] border border-[#1e1f22] rounded-md shadow-2xl w-64 max-h-48 overflow-y-auto z-50 py-1" style="display:none;">
-                        <div class="px-3 py-1 text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Members</div>
-                        <template x-for="user in filteredMentionUsers" :key="user.uid">
-                            <button @click="insertMention(user.username)" class="w-full flex items-center px-3 py-1.5 hover:bg-[#3f4147] transition group text-left">
+                        <div class="px-3 py-1 text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Members (Tab to select)</div>
+                        <template x-for="(user, index) in filteredMentionUsers" :key="user.uid">
+                            <button @click="insertMention(user.username)" class="w-full flex items-center px-3 py-1.5 hover:bg-[#3f4147] transition group text-left" :class="index === 0 ? 'bg-[#3f4147]/50' : ''">
                                 <img :src="user.avatar" class="w-6 h-6 rounded-full mr-2 object-cover bg-[#1e1f22]">
                                 <span class="text-sm font-medium text-gray-200 group-hover:text-white truncate" x-text="user.displayName"></span>
                                 <span class="text-xs text-gray-500 ml-2 truncate" x-text="'@' + user.username"></span>
@@ -742,7 +754,7 @@
                         <button @click="triggerImageUpload('chat')" x-show="!editingMessageId" class="text-gray-400 hover:text-gray-200 p-1 flex-shrink-0 transition mr-2 bg-[#2b2d31] rounded-full h-7 w-7 flex items-center justify-center hover:bg-[#5865F2] hover:text-white">
                             <i class="ph-fill ph-plus font-bold"></i>
                         </button>
-                        <input type="text" x-model="newMessage" x-ref="chatInput" @input="checkMentions()" @keydown.enter="sendMessage()" :placeholder="editingMessageId ? 'Edit message...' : getChatPlaceholder()" class="flex-1 bg-transparent px-1 focus:outline-none text-gray-100 placeholder-gray-500 text-[15px]">
+                        <input type="text" x-model="newMessage" x-ref="chatInput" @input="checkMentions()" @keydown.tab.prevent="if(showMentions && filteredMentionUsers.length > 0) insertMention(filteredMentionUsers[0].username)" @keydown.enter="sendMessage()" :placeholder="editingMessageId ? 'Edit message...' : getChatPlaceholder()" class="flex-1 bg-transparent px-1 focus:outline-none text-gray-100 placeholder-gray-500 text-[15px]">
                         <button @click="sendMessage()" :disabled="!newMessage.trim() && !pendingImage" class="p-1.5 rounded-md text-gray-400 hover:text-[#5865F2] disabled:opacity-50 disabled:cursor-not-allowed transition flex-shrink-0 ml-2">
                             <i x-show="!editingMessageId" class="ph-fill ph-paper-plane-right text-xl"></i>
                             <i x-show="editingMessageId" class="ph-bold ph-check text-xl text-[#23A559]"></i>
@@ -836,7 +848,6 @@
         </div>
     </template>
 
-    
     <!-- Profile Popout Overlay -->
     <div x-show="showProfilePopout" style="display: none;" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm transition-opacity">
         <div class="bg-[#232428] rounded-xl shadow-2xl w-full max-w-sm overflow-hidden" @click.away="showProfilePopout = false">
@@ -982,6 +993,10 @@
                 <h3 class="text-xs font-bold text-gray-400 uppercase px-2 mb-2 truncate" x-text="editServer.name || 'Server'"></h3>
                 <button @click="serverSettingsTab = 'overview'" class="text-left px-2 py-1.5 rounded-md text-sm font-medium transition" :class="serverSettingsTab === 'overview' ? 'bg-[#3f4147] text-white' : 'text-gray-400 hover:bg-[#35373c] hover:text-gray-200'">Overview</button>
                 <button @click="serverSettingsTab = 'channels'" class="text-left px-2 py-1.5 rounded-md text-sm font-medium transition" :class="serverSettingsTab === 'channels' ? 'bg-[#3f4147] text-white' : 'text-gray-400 hover:bg-[#35373c] hover:text-gray-200'">Channels</button>
+                
+                <div class="mt-auto">
+                    <button @click="deleteServer()" class="w-full text-left px-2 py-1.5 rounded-md text-sm font-medium text-red-400 hover:bg-red-500 hover:text-white transition">Delete Server</button>
+                </div>
             </div>
             
             <div class="flex-1 p-6 overflow-y-auto relative">
@@ -1034,6 +1049,12 @@
                             </label>
                         </div>
                     </div>
+
+                    <div class="mb-6">
+                        <label class="block text-xs font-bold text-gray-400 uppercase mb-2">Server Bio</label>
+                        <textarea x-model="editServer.bio" rows="3" class="w-full px-3 py-2 bg-[#1e1f22] rounded-md text-gray-100 focus:outline-none focus:ring-1 focus:ring-[#5865F2] text-sm resize-none" placeholder="Tell everyone what this server is about..."></textarea>
+                    </div>
+
                     <div class="pt-4 border-t border-[#2b2d31] flex justify-end">
                         <button @click="saveServerSettings()" class="px-5 py-2 text-sm font-bold text-white bg-[#23A559] hover:bg-[#1f8c4b] rounded-md transition shadow">Save Changes</button>
                     </div>
@@ -1079,11 +1100,9 @@
     <!-- Hidden Textarea for copying (iframe safe) -->
     <textarea id="hiddenCopyTextarea" style="position: absolute; left: -9999px;"></textarea>
 
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script type="module">
         import Alpine from 'https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/module.esm.js';
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, addDoc, deleteDoc, getDocs, query, where, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Meticulously Handcrafted Modern SVGs
         const svgC = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%235865F2"/><stop offset="100%" stop-color="%234752C4"/></linearGradient><filter id="s"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.3"/></filter></defs><rect width="100" height="100" fill="url(%23g)"/><text x="50" y="72" font-family="Arial, sans-serif" font-size="65" font-weight="900" fill="white" text-anchor="middle" filter="url(%23s)">C</text></svg>`;
@@ -1106,6 +1125,7 @@
             currentUserProfile: null,
             
             toast: { show: false, message: '', isError: false, timeout: null },
+            zoomedImage: null,
 
             // Modals & Popouts
             showSettingsModal: false, editProfile: {},
@@ -1127,13 +1147,19 @@
             showMentions: false, mentionQuery: '', filteredMentionUsers: [],
             directFriendRequestUsername: '',
             
-            // Data
+            // Data Arrays (Live synchronized)
             servers: [], dms: [], messages: [], filteredMessages: [], users: {}, globalPresence: [],
             
             get myServers() { return this.servers.filter(s => this.currentUserProfile?.joinedServers?.includes(s.id)); },
             get discoveryServers() { return this.servers.filter(s => s.isPublic && !this.currentUserProfile?.joinedServers?.includes(s.id)); },
             get currentChatId() { return this.activeView === 'server' ? this.activeChannelId : this.activeTarget; },
             
+            // Supabase Active Presence Filtering
+            get activePresence() {
+                const now = Date.now();
+                return this.globalPresence.filter(p => (now - p.lastActive < 60000) && p.status === 'online');
+            },
+
             // Friend Request Logic (Mutual Check)
             get myFriendsList() {
                 const myFriends = this.currentUserProfile?.friends || [];
@@ -1174,11 +1200,19 @@
                 const lastRead = this.currentUserProfile?.lastRead?.[roomId] || 0;
                 return lastMsg.timestamp > lastRead;
             },
+            getServerUnreadState(serverId) {
+                const s = this.servers.find(srv => srv.id === serverId);
+                if(!s || !s.channels) return false;
+                for(let c of s.channels) {
+                    if (c.type === 'text' && this.hasUnread(c.id) && this.activeChannelId !== c.id) return true;
+                }
+                return false;
+            },
             markRead(roomId) {
                 if (!roomId || !this.logicalUid || !this.currentUserProfile) return;
                 const lr = this.currentUserProfile.lastRead || {};
                 lr[roomId] = Date.now();
-                updateDoc(doc(this.usersRef, this.logicalUid), { lastRead: lr });
+                this.apiUpdate('users', this.logicalUid, { lastRead: lr });
                 this.updateFavicon();
             },
             updateFavicon() {
@@ -1258,8 +1292,10 @@
             // Canvas Fallback Color Extractor
             getAvatarColor(base64str) {
                 if (!base64str || !base64str.startsWith('data:image')) return '#5865F2';
-                // Very crude approximation: if it contains a lot of 'f', it's bright. We just return a nice Discord blurple to be safe and fast.
-                return '#5865F2'; 
+                let hash = 0;
+                for (let i = 0; i < base64str.length; i++) hash = base64str.charCodeAt(i) + ((hash << 5) - hash);
+                const h = Math.abs(hash) % 360;
+                return `hsl(${h}, 60%, 40%)`; 
             },
 
             // WebRTC State & Hardware
@@ -1267,23 +1303,16 @@
             rtcVideoOff: true, isMuted: false, isDeafened: false, isScreenSharing: false,
             localStream: null, screenStream: null, simplePeers: {},
 
-            db: null, auth: null, publicDataPath: '', usersRef: null, accountsRef: null, heartbeatInterval: null, cleanupInterval: null,
+            // Supabase Architecture
+            supabase: null, heartbeatInterval: null, cleanupInterval: null,
 
             async init() {
                 try {
-                    const defaultCfg = { apiKey: "AIzaSyDUoYS6MwDIVe8coZOM9A0ZCYaZTeDSloo", authDomain: "babjeu-85d3e.firebaseapp.com", databaseURL: "https://babjeu-85d3e-default-rtdb.firebaseio.com", projectId: "babjeu-85d3e", storageBucket: "babjeu-85d3e.firebasestorage.app", messagingSenderId: "306959176803", appId: "1:306959176803:web:2be00da38dbb37e777d456" };
-                    const config = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : defaultCfg;
-                    const app = initializeApp(config);
-                    this.db = getFirestore(app);
-                    this.auth = getAuth(app);
-                    
-                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'le-barochat';
-                    // FRESH ISOLATION V4 to wipe buggy legacy data
-                    this.publicDataPath = `artifacts/${appId}/public/data_v4`;
-                    this.usersRef = collection(this.db, `${this.publicDataPath}/users`);
-                    this.accountsRef = collection(this.db, `${this.publicDataPath}/accounts`);
-
-                    await signInAnonymously(this.auth);
+                    // Initialize Supabase Client directly pointing to the bridged NoSQL Table
+                    this.supabase = window.supabase.createClient(
+                        'https://tzdwxrdkqcntskwdvkfl.supabase.co', 
+                        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6ZHd4cmRrcWNudHNrd2R2a2ZsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2ODUzNjksImV4cCI6MjA5NDI2MTM2OX0.MpMEqeXXgAGuOwu9fCgSYMmWsP4JHze2s2DerNrUBu4'
+                    );
 
                     const savedSession = localStorage.getItem('lebarochat_session_v4');
                     if (savedSession) {
@@ -1315,7 +1344,7 @@
                     this.$watch('messages', () => this.updateFavicon());
                     
                     window.addEventListener('beforeunload', () => {
-                        if(this.logicalUid) setDoc(doc(this.db, `${this.publicDataPath}/presence`, this.logicalUid), { status: 'offline' }, { merge: true });
+                        if(this.logicalUid) this.apiUpdate('presence', this.logicalUid, { status: 'offline' });
                     });
 
                     // Handle Join links
@@ -1328,29 +1357,48 @@
 
                 } catch (e) { 
                     console.error("Init Error:", e); 
-                    this.showToast("Failed to connect to servers.", true);
+                    this.showToast("Failed to connect to Supabase servers.", true);
                 }
+            },
+
+            // Supabase API Wrappers (Mimicking old Firebase NoSQL behavior directly on PostgreSQL)
+            async apiSet(collection, id, data) {
+                await this.supabase.from('lebarochat_data_v4').upsert({ collection_name: collection, document_id: id, data: data });
+            },
+            async apiAdd(collection, data) {
+                const id = collection.charAt(0) + '_' + Date.now() + Math.random().toString(36).substr(2, 9);
+                await this.apiSet(collection, id, data);
+                return id;
+            },
+            async apiUpdate(collection, id, partialData) {
+                let current = {};
+                // Pre-fetch locally known state to simulate atomic merge
+                if(collection === 'users') current = this.users[id] || {};
+                else if(collection === 'servers') current = this.servers.find(s=>s.id===id) || {};
+                else if(collection === 'presence') current = this.globalPresence.find(p=>p.uid===id) || {};
+                
+                const merged = { ...current, ...partialData };
+                await this.apiSet(collection, id, merged);
+            },
+            async apiDelete(collection, id) {
+                await this.supabase.from('lebarochat_data_v4').delete().match({ collection_name: collection, document_id: id });
             },
 
             async processAuth() {
                 this.authLoading = true;
                 try {
-                    const usernameNormalized = this.authUsername.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
-                    if(!usernameNormalized) throw new Error("Please enter a valid @username.");
+                    const usernameNormalized = this.authUsername.trim().toLowerCase().replace(/[^a-z0-9_@.]/g, '');
+                    if(!usernameNormalized) throw new Error("Please enter a valid username/email.");
 
                     if (this.authMode === 'login') {
-                        const snap = await getDocs(this.accountsRef);
-                        let foundAccount = null;
-                        snap.forEach(doc => {
-                            const data = doc.data();
-                            // Allow login by exact username OR legacy email mapping
-                            if((data.username === usernameNormalized || data.email === usernameNormalized) && data.password === this.authPassword) {
-                                foundAccount = data;
-                            }
-                        });
+                        // Supabase specific JSONB exact match check to prevent downloading whole table
+                        const { data, error } = await this.supabase.from('lebarochat_data_v4')
+                            .select('data')
+                            .eq('collection_name', 'accounts')
+                            .contains('data', { username: usernameNormalized, password: this.authPassword });
 
-                        if (foundAccount) {
-                            this.logicalUid = foundAccount.profileId;
+                        if (data && data.length > 0) {
+                            this.logicalUid = data[0].data.profileId;
                             localStorage.setItem('lebarochat_session_v4', this.logicalUid);
                             await this.loadLogicalProfile();
                         } else {
@@ -1358,14 +1406,16 @@
                         }
 
                     } else {
-                        const snap = await getDocs(this.accountsRef);
-                        let usernameTaken = false;
-                        snap.forEach(d => { if(d.data().username === usernameNormalized) usernameTaken = true; });
-                        if(usernameTaken) throw new Error("That @username is already taken.");
+                        const { data, error } = await this.supabase.from('lebarochat_data_v4')
+                            .select('data')
+                            .eq('collection_name', 'accounts')
+                            .contains('data', { username: usernameNormalized });
+                        
+                        if(data && data.length > 0) throw new Error("That username/email is already taken.");
 
                         const newProfileId = "user_" + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
                         
-                        await setDoc(doc(this.accountsRef, newProfileId), {
+                        await this.apiSet('accounts', newProfileId, {
                             username: usernameNormalized,
                             password: this.authPassword, 
                             profileId: newProfileId
@@ -1383,7 +1433,7 @@
                             friends: [],
                             lastRead: {}
                         };
-                        await setDoc(doc(this.usersRef, newProfileId), profile);
+                        await this.apiSet('users', newProfileId, profile);
 
                         this.logicalUid = newProfileId;
                         localStorage.setItem('lebarochat_session_v4', this.logicalUid);
@@ -1397,38 +1447,38 @@
 
             async loadLogicalProfile() {
                 if(!this.logicalUid) return;
-                onSnapshot(doc(this.usersRef, this.logicalUid), (docSnap) => {
-                    if (docSnap.exists()) {
-                        this.currentUserProfile = docSnap.data();
-                        if (!this.currentUserProfile.joinedServers) this.currentUserProfile.joinedServers = [];
-                        if (!this.currentUserProfile.friends) this.currentUserProfile.friends = [];
-                        if (!this.currentUserProfile.lastRead) this.currentUserProfile.lastRead = {};
-                        if (!this.currentUserProfile.username) {
-                            this.currentUserProfile.username = "user" + Math.floor(Math.random()*9999);
-                        }
-                        this.cacheUser(this.currentUserProfile);
-                        
-                        if(!this.isReady) {
-                            this.startGlobalListeners();
-                            this.isReady = true;
-                            this.authLoading = false;
-                            
-                            if (this._pendingJoinId) {
-                                this.joinServer(this._pendingJoinId);
-                                this._pendingJoinId = null;
-                            }
-                            
-                            this.updatePresence();
-                            this.heartbeatInterval = setInterval(() => this.updatePresence(), 15000);
-                        }
-                    } else {
-                        localStorage.removeItem('lebarochat_session_v4');
-                        this.logicalUid = null;
-                        this.authMode = 'login';
-                        this.authLoading = false;
-                        this.isReady = false;
+                const { data, error } = await this.supabase.from('lebarochat_data_v4')
+                    .select('data')
+                    .eq('collection_name', 'users')
+                    .eq('document_id', this.logicalUid)
+                    .single();
+
+                if (data && data.data) {
+                    this.currentUserProfile = data.data;
+                    if (!this.currentUserProfile.joinedServers) this.currentUserProfile.joinedServers = [];
+                    if (!this.currentUserProfile.friends) this.currentUserProfile.friends = [];
+                    if (!this.currentUserProfile.lastRead) this.currentUserProfile.lastRead = {};
+                    if (!this.currentUserProfile.username) {
+                        this.currentUserProfile.username = "user" + Math.floor(Math.random()*9999);
                     }
-                });
+                    this.cacheUser(this.currentUserProfile);
+                    
+                    if(!this.isReady) {
+                        await this.startGlobalListeners(); // Fetch cache before showing UI
+                        this.isReady = true;
+                        this.authLoading = false;
+                        
+                        if (this._pendingJoinId) {
+                            this.joinServer(this._pendingJoinId);
+                            this._pendingJoinId = null;
+                        }
+                        
+                        this.updatePresence();
+                        this.heartbeatInterval = setInterval(() => this.updatePresence(), 15000);
+                    }
+                } else {
+                    this.logout();
+                }
             },
 
             logout() {
@@ -1436,67 +1486,92 @@
                 window.location.reload();
             },
 
-            startGlobalListeners() {
-                onSnapshot(this.usersRef, (snap) => snap.forEach(d => this.cacheUser(d.data())), (e) => console.error(e));
+            async startGlobalListeners() {
+                // 1. Initial Load of entire DB into local state
+                const { data: allData, error } = await this.supabase.from('lebarochat_data_v4').select('*');
+                if (error) { console.error("Cache load failed:", error); return; }
                 
-                onSnapshot(collection(this.db, `${this.publicDataPath}/servers`), (snap) => {
-                    const s = []; snap.forEach(d => s.push({id: d.id, ...d.data()})); this.servers = s;
-                }, (e) => console.error(e));
+                // Reset arrays to prevent duplicate injection
+                this.servers = []; this.dms = []; this.messages = []; this.globalPresence = [];
+                allData.forEach(row => this.handleDbChange('INSERT', row));
+
+                // 2. Subscribe to live changes using Supabase Realtime Channels
+                this.supabase.channel('public:lebarochat_data_v4')
+                    .on('postgres_changes', { event: '*', schema: 'public', table: 'lebarochat_data_v4' }, payload => {
+                        if (payload.eventType === 'DELETE') {
+                            this.handleDbChange('DELETE', payload.old);
+                        } else {
+                            this.handleDbChange(payload.eventType, payload.new);
+                        }
+                    })
+                    .subscribe();
+            },
+
+            handleDbChange(event, row) {
+                const c = row.collection_name;
+                const id = row.document_id;
+                const d = row.data;
                 
-                onSnapshot(collection(this.db, `${this.publicDataPath}/dms`), (snap) => {
-                    const ds = []; 
-                    snap.forEach(d => {
-                        const data = d.data();
-                        if (data.participants && data.participants.includes(this.logicalUid)) {
-                            ds.push({ id: d.id, partnerUid: data.participants.find(p => p !== this.logicalUid) });
+                if (event === 'DELETE') {
+                    if (c === 'messages') { this.messages = this.messages.filter(m => m.id !== id); this.filterMessages(); }
+                    else if (c === 'servers') { this.servers = this.servers.filter(s => s.id !== id); }
+                    else if (c === 'signaling') { /* ignore local signaling delete */ }
+                } else {
+                    d.id = id; 
+                    if (c === 'users') { this.cacheUser(d); if(id === this.logicalUid) { this.currentUserProfile = d; } }
+                    else if (c === 'servers') { const idx = this.servers.findIndex(s=>s.id===id); if(idx>=0) this.servers[idx]=d; else this.servers.push(d); }
+                    else if (c === 'dms') {
+                        if (d.participants && d.participants.includes(this.logicalUid)) {
+                            const mapped = { id: id, partnerUid: d.participants.find(p => p !== this.logicalUid) };
+                            const idx = this.dms.findIndex(x=>x.id===id); if(idx>=0) this.dms[idx]=mapped; else this.dms.push(mapped);
                         }
-                    });
-                    this.dms = ds;
-                }, (e) => console.error(e));
-
-                onSnapshot(collection(this.db, `${this.publicDataPath}/messages`), (snap) => {
-                    const m = []; snap.forEach(d => m.push({id: d.id, ...d.data()}));
-                    this.messages = m; this.filterMessages();
-                }, (e) => console.error(e));
-
-                onSnapshot(collection(this.db, `${this.publicDataPath}/presence`), (snap) => {
-                    const pres = [];
-                    const now = Date.now();
-                    snap.forEach(d => {
-                        const data = d.data();
-                        if (now - data.lastActive < 60000 && data.status === 'online') {
-                            pres.push(data);
-                            if (this.inVoiceRoom && data.currentVoice === this.inVoiceRoom && data.uid !== this.logicalUid && !this.simplePeers[data.uid]) {
-                                this.createPeer(data.uid, this.logicalUid < data.uid);
-                            }
-                        }
-                    });
-                    this.globalPresence = pres;
-                    
-                    if(this.inVoiceRoom) {
-                        const currentVoiceUsers = pres.filter(p => p.currentVoice === this.inVoiceRoom).map(p => p.uid);
-                        Object.keys(this.simplePeers).forEach(uid => {
-                            if (!currentVoiceUsers.includes(uid)) this.removePeer(uid);
-                        });
                     }
-                });
+                    else if (c === 'messages') { const idx = this.messages.findIndex(m=>m.id===id); if(idx>=0) this.messages[idx]=d; else this.messages.push(d); this.filterMessages(); }
+                    else if (c === 'presence') { 
+                        const idx = this.globalPresence.findIndex(p=>p.uid===id); if(idx>=0) this.globalPresence[idx]=d; else this.globalPresence.push(d);
+                        this.checkPresenceSideEffects(); 
+                    }
+                    else if (c === 'signaling') {
+                        if (d.to === this.logicalUid && d.room === this.inVoiceRoom) {
+                            this.handleIncomingSignal(d.from, d.signal);
+                            this.apiDelete('signaling', id); // auto cleanup signaling after receive
+                        }
+                    }
+                }
+            },
 
-                onSnapshot(collection(this.db, `${this.publicDataPath}/signaling`), (snap) => {
-                    snap.docChanges().forEach(change => {
-                        if (change.type === 'added') {
-                            const data = change.doc.data();
-                            if (data.to === this.logicalUid && data.room === this.inVoiceRoom) {
-                                this.handleIncomingSignal(data.from, data.signal);
-                                deleteDoc(change.doc.ref); 
+            checkPresenceSideEffects() {
+                if(this.inVoiceRoom) {
+                    const currentVoiceUsers = this.activePresence.filter(p => p.currentVoice === this.inVoiceRoom).map(p => p.uid);
+                    
+                    // Cleanup left peers
+                    Object.keys(this.simplePeers).forEach(uid => {
+                        if (!currentVoiceUsers.includes(uid)) this.removePeer(uid);
+                    });
+                    
+                    // Create new peers if we don't have them
+                    currentVoiceUsers.forEach(uid => {
+                        if (uid !== this.logicalUid && !this.simplePeers[uid]) {
+                            this.createPeer(uid, this.logicalUid < uid);
+                        }
+                    });
+
+                    // Cleanup stuck screenshares in DOM
+                    this.activePresence.forEach(p => {
+                        if (p.currentVoice === this.inVoiceRoom && !p.isScreenSharing) {
+                            const screenshareWrap = document.getElementById(`vid_wrap_${p.uid}_screenshare`);
+                            if (screenshareWrap) {
+                                if(this.fullscreenVideoId === `${p.uid}_screenshare`) this.fullscreenVideoId = null;
+                                screenshareWrap.remove();
                             }
                         }
                     });
-                });
+                }
             },
 
             updatePresence() {
                 if(!this.logicalUid) return;
-                setDoc(doc(this.db, `${this.publicDataPath}/presence`, this.logicalUid), {
+                this.apiUpdate('presence', this.logicalUid, {
                     uid: this.logicalUid,
                     status: 'online',
                     currentServer: this.activeView === 'server' ? this.activeTarget : null,
@@ -1505,7 +1580,7 @@
                     isCameraOff: this.rtcVideoOff,
                     isMuted: this.isMuted,
                     lastActive: Date.now()
-                }, { merge: true });
+                });
             },
 
             showToast(msg, isError = false) {
@@ -1548,7 +1623,7 @@
                 const c = s.channels.find(ch => ch.id === cid); return c ? c.name : '';
             },
 
-            isUserOnline(uid) { return this.globalPresence.some(p => p.uid === uid); },
+            isUserOnline(uid) { return this.activePresence.some(p => p.uid === uid); },
             getServerMembers(status) {
                 if(!this.activeTarget || this.activeView !== 'server') return [];
                 const s = this.getServer();
@@ -1565,7 +1640,7 @@
                 if (status === 'online') return members.filter(m => this.isUserOnline(m.uid));
                 else return members.filter(m => !this.isUserOnline(m.uid));
             },
-            getVoiceUsers(channelId) { return this.globalPresence.filter(p => p.currentVoice === channelId); },
+            getVoiceUsers(channelId) { return this.activePresence.filter(p => p.currentVoice === channelId); },
 
             openHome() {
                 this.activeView = 'home'; this.activeTarget = null; this.activeChannelId = null;
@@ -1601,10 +1676,10 @@
                 if (targetUid === this.logicalUid) return;
                 const sorted = [this.logicalUid, targetUid].sort();
                 const dmId = sorted.join('_');
-                const dmRef = doc(this.db, `${this.publicDataPath}/dms`, dmId);
-                const dmSnap = await getDoc(dmRef);
-                if (!dmSnap.exists()) {
-                    await setDoc(dmRef, { participants: sorted });
+                
+                const existingDm = this.dms.find(d => d.id === dmId);
+                if (!existingDm) {
+                    await this.apiSet('dms', dmId, { participants: sorted });
                 }
                 this.showProfilePopout = false;
                 this.openDM(dmId);
@@ -1617,12 +1692,12 @@
             async addFriend(uid) {
                 if(uid === this.logicalUid || this.isFriend(uid)) return;
                 const newFriends = [...(this.currentUserProfile.friends || []), uid];
-                await updateDoc(doc(this.usersRef, this.logicalUid), { friends: newFriends });
+                await this.apiUpdate('users', this.logicalUid, { friends: newFriends });
                 this.showToast(this.isPendingIncoming(uid) ? "Friend request accepted!" : "Friend request sent!");
             },
             async removeFriend(uid) {
                 const newFriends = (this.currentUserProfile.friends || []).filter(id => id !== uid);
-                await updateDoc(doc(this.usersRef, this.logicalUid), { friends: newFriends });
+                await this.apiUpdate('users', this.logicalUid, { friends: newFriends });
             },
             
             sendDirectFriendRequest() {
@@ -1656,14 +1731,14 @@
                 this.newMessage = '';
             },
             async deleteMessage(msgId) {
-                await deleteDoc(doc(this.db, `${this.publicDataPath}/messages`, msgId));
+                await this.apiDelete('messages', msgId);
             },
 
             async sendMessage() {
                 if (!this.currentChatId || (!this.newMessage.trim() && !this.pendingImage)) return;
                 
                 if (this.editingMessageId) {
-                    await updateDoc(doc(this.db, `${this.publicDataPath}/messages`, this.editingMessageId), {
+                    await this.apiUpdate('messages', this.editingMessageId, {
                         text: this.newMessage.trim(),
                         edited: true
                     });
@@ -1671,31 +1746,30 @@
                 } else {
                     const payload = { roomId: this.currentChatId, senderId: this.logicalUid, text: this.newMessage.trim(), image: this.pendingImage, timestamp: Date.now() };
                     this.newMessage = ''; this.pendingImage = null; this.showMentions = false;
-                    await addDoc(collection(this.db, `${this.publicDataPath}/messages`), payload);
+                    await this.apiAdd('messages', payload);
                     this.markRead(this.currentChatId); 
                 }
             },
 
             async createServer() {
                 if(!this.newServerName.trim()) return;
-                const newServerRef = doc(collection(this.db, `${this.publicDataPath}/servers`));
                 const payload = {
-                    name: this.newServerName.trim(), icon: this.newServerIcon, owner: this.logicalUid, isPublic: false,
+                    name: this.newServerName.trim(), icon: this.newServerIcon, owner: this.logicalUid, isPublic: false, bio: '',
                     banner: null, bannerColor: '#5865F2',
                     channels: [ { id: 'c1_' + Date.now(), name: 'general', type: 'text' }, { id: 'c2_' + Date.now(), name: 'General Voice', type: 'voice' } ]
                 };
-                await setDoc(newServerRef, payload);
-                const joined = [...(this.currentUserProfile.joinedServers || []), newServerRef.id];
-                await updateDoc(doc(this.usersRef, this.logicalUid), { joinedServers: joined });
+                const newServerId = await this.apiAdd('servers', payload);
+                const joined = [...(this.currentUserProfile.joinedServers || []), newServerId];
+                await this.apiUpdate('users', this.logicalUid, { joinedServers: joined });
                 
                 this.showCreateServerModal = false;
-                this.openServer(newServerRef.id);
+                this.openServer(newServerId);
             },
 
             async joinServer(serverId) {
                 if(this.currentUserProfile?.joinedServers?.includes(serverId)) { this.openServer(serverId); return; }
                 const joined = [...(this.currentUserProfile.joinedServers || []), serverId];
-                await updateDoc(doc(this.usersRef, this.logicalUid), { joinedServers: joined });
+                await this.apiUpdate('users', this.logicalUid, { joinedServers: joined });
                 this.showToast("Joined Server!");
                 this.openServer(serverId);
             },
@@ -1703,8 +1777,17 @@
             async leaveServer() {
                 if(!this.activeTarget || this.activeView !== 'server') return;
                 const joined = (this.currentUserProfile.joinedServers || []).filter(id => id !== this.activeTarget);
-                await updateDoc(doc(this.usersRef, this.logicalUid), { joinedServers: joined });
+                await this.apiUpdate('users', this.logicalUid, { joinedServers: joined });
                 this.openHome();
+            },
+
+            async deleteServer() {
+                if(!this.activeTarget || this.activeView !== 'server') return;
+                if(confirm("Are you sure you want to permanently delete this server?")) {
+                    await this.apiDelete('servers', this.activeTarget);
+                    this.showServerSettingsModal = false;
+                    this.openHome();
+                }
             },
 
             openSettings() {
@@ -1721,8 +1804,8 @@
             },
 
             async saveServerSettings() {
-                await updateDoc(doc(this.db, `${this.publicDataPath}/servers`, this.editServer.id), {
-                    name: this.editServer.name, icon: this.editServer.icon, isPublic: this.editServer.isPublic, channels: this.editServer.channels,
+                await this.apiUpdate('servers', this.editServer.id, {
+                    name: this.editServer.name, icon: this.editServer.icon, isPublic: this.editServer.isPublic, bio: this.editServer.bio, channels: this.editServer.channels,
                     banner: this.editServer.banner, bannerColor: this.editServer.bannerColor || '#5865F2'
                 });
                 this.showToast("Server updated.");
@@ -1741,7 +1824,7 @@
             },
 
             async saveProfileSettings() {
-                await updateDoc(doc(this.usersRef, this.logicalUid), { displayName: this.editProfile.displayName, bio: this.editProfile.bio, avatar: this.editProfile.avatar, banner: this.editProfile.banner });
+                await this.apiUpdate('users', this.logicalUid, { displayName: this.editProfile.displayName, bio: this.editProfile.bio, avatar: this.editProfile.avatar, banner: this.editProfile.banner });
                 this.showSettingsModal = false; this.showToast("Profile updated.");
             },
 
@@ -1801,30 +1884,27 @@
             async joinVoiceRoom(channelId) {
                 if (this.inVoiceRoom) this.leaveVoiceRoom();
                 try {
+                    // Pre-fetch permissions strictly FIRST to prevent hanging blank canvas loops
+                    const stream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+                    const micTrack = stream.getAudioTracks()[0];
+                    micTrack.enabled = !this.isMuted;
+                    
                     const canvas = document.createElement('canvas'); canvas.width = 1; canvas.height = 1;
+                    const ctx = canvas.getContext('2d'); ctx.fillStyle = 'black'; ctx.fillRect(0,0,1,1); // Prevent 0-frame hang
                     const dummyVideo = canvas.captureStream().getVideoTracks()[0];
-                    const dummyAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                    const dummyAudio = dummyAudioCtx.createMediaStreamDestination().stream.getAudioTracks()[0];
-                    this.localStream = new MediaStream([dummyVideo, dummyAudio]);
+                    
+                    this.localStream = new MediaStream([dummyVideo, micTrack]);
                     
                     this.inVoiceRoom = channelId; this.rtcVideoOff = true; this.isScreenSharing = false; this.viewingVoice = true; 
                     
                     this.updatePresence();
-
-                    navigator.mediaDevices.getUserMedia({ video: false, audio: true }).then(stream => {
-                        const micTrack = stream.getAudioTracks()[0];
-                        micTrack.enabled = !this.isMuted;
-                        this.localStream.removeTrack(this.localStream.getAudioTracks()[0]);
-                        this.localStream.addTrack(micTrack);
-                        Object.values(this.simplePeers).forEach(p => p.replaceTrack(dummyAudio, micTrack, this.localStream));
-                    }).catch(() => this.showToast("Mic access denied.", true));
 
                     setTimeout(() => {
                         const localVid = document.getElementById('local-video');
                         if (localVid) localVid.srcObject = this.localStream;
                     }, 500);
                     
-                } catch(e) { this.showToast("Failed to initialize voice.", true); }
+                } catch(e) { this.showToast("Mic access denied or failed.", true); }
             },
 
             leaveVoiceRoom() {
@@ -1880,6 +1960,7 @@
                     if (vidTrack) {
                         vidTrack.stop();
                         const canvas = document.createElement('canvas'); canvas.width = 1; canvas.height = 1;
+                        const ctx = canvas.getContext('2d'); ctx.fillStyle = 'black'; ctx.fillRect(0,0,1,1);
                         const dummyVideo = canvas.captureStream().getVideoTracks()[0];
                         this.localStream.removeTrack(vidTrack);
                         this.localStream.addTrack(dummyVideo);
@@ -1944,6 +2025,7 @@
                     initiator: initiator, trickle: true, stream: this.localStream,
                     config: {
                         iceServers: [
+                            { urls: 'stun:stun.l.google.com:19302' },
                             { urls: 'stun:openrelay.metered.ca:80' },
                             { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
                             { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' }
@@ -1956,7 +2038,7 @@
                 }
 
                 peer.on('signal', data => {
-                    addDoc(collection(this.db, `${this.publicDataPath}/signaling`), {
+                    this.apiAdd('signaling', {
                         to: targetUid, from: this.logicalUid, room: this.inVoiceRoom, signal: JSON.stringify(data)
                     });
                 });
@@ -1969,7 +2051,8 @@
                     setTimeout(() => {
                         const grid = document.getElementById('fullscreen-video-grid'); if(!grid) return;
                         
-                        const vId = `${targetUid}_${stream.id}`;
+                        const isScreen = stream.getAudioTracks().length === 0;
+                        const vId = isScreen ? `${targetUid}_screenshare` : `${targetUid}_cam`;
                         const wrapperId = `vid_wrap_${vId}`;
                         let wrapper = document.getElementById(wrapperId);
                         
@@ -1986,22 +2069,23 @@
                             
                             const overlay = document.createElement('div');
                             overlay.className = "absolute bottom-3 left-3 bg-black/60 px-2.5 py-1.5 rounded text-[13px] text-white font-bold backdrop-blur-sm z-10";
-                            const isScreen = stream.getAudioTracks().length === 0;
                             overlay.innerText = this.getUser(targetUid).displayName + (isScreen ? " (Screen)" : "");
 
                             // Avatar fallback block
                             const fallback = document.createElement('div');
-                            fallback.className = "absolute inset-0 flex items-center justify-center transition-opacity duration-300";
-                            fallback.style.backgroundColor = this.getAvatarColor(this.getUser(targetUid).avatar);
-                            const img = document.createElement('img');
-                            img.src = this.getUser(targetUid).avatar;
-                            img.className = "w-32 h-32 rounded-full object-cover shadow-2xl bg-[#1e1f22]";
-                            fallback.appendChild(img);
+                            if (!isScreen) {
+                                fallback.className = "absolute inset-0 flex items-center justify-center transition-opacity duration-300 z-0";
+                                fallback.style.backgroundColor = this.getAvatarColor(this.getUser(targetUid).avatar);
+                                const img = document.createElement('img');
+                                img.src = this.getUser(targetUid).avatar;
+                                img.className = "w-32 h-32 rounded-full object-cover shadow-2xl bg-[#1e1f22]";
+                                fallback.appendChild(img);
 
-                            // Hide fallback if video is actively sending frames
-                            v.addEventListener('playing', () => { fallback.style.opacity = '0'; });
+                                // Hide fallback if video is actively sending frames
+                                v.addEventListener('playing', () => { fallback.style.opacity = '0'; });
+                            }
 
-                            wrapper.appendChild(fallback);
+                            if(!isScreen) wrapper.appendChild(fallback);
                             wrapper.appendChild(v); 
                             wrapper.appendChild(overlay); 
                             grid.appendChild(wrapper);
