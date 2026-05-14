@@ -659,7 +659,7 @@
                             <video id="local-video" autoplay playsinline muted class="transition-opacity duration-300" :class="rtcVideoOff ? 'opacity-0' : 'opacity-100'"></video>
                             
                             <!-- Avatar overlay when cam is off (Correctly pulls color) -->
-                            <div x-show="rtcVideoOff" class="absolute inset-0 flex items-center justify-center" :style="'background-color: ' + getAvatarColor(currentUserProfile?.avatar)">
+                            <div x-show="rtcVideoOff" class="absolute inset-0 flex items-center justify-center z-0" :style="'background-color: ' + getAvatarColor(currentUserProfile?.avatar)">
                                 <img :src="currentUserProfile?.avatar" class="w-32 h-32 rounded-full object-cover shadow-2xl bg-[#1e1f22]">
                             </div>
 
@@ -686,9 +686,9 @@
 
                     <!-- Discord-Style Grouped Messages -->
                     <template x-for="group in groupedMessages" :key="group.id">
-                        <div class="flex mt-4 -mx-2 px-2 group">
-                            <!-- Group Header (PFP & Name) -->
-                            <div class="flex-shrink-0 mr-4">
+                        <div class="flex mt-4 px-2 group">
+                            <!-- Group Header (PFP) -->
+                            <div class="flex-shrink-0 mr-4 w-10">
                                 <img :src="getUser(group.senderId)?.avatar" @click="openProfilePopout(group.senderId)" class="w-10 h-10 rounded-full mt-0.5 object-cover cursor-pointer bg-[#1e1f22]">
                             </div>
                             <div class="flex-1 min-w-0 flex flex-col">
@@ -699,9 +699,9 @@
                                 </div>
                                 
                                 <!-- Messages in this Group -->
-                                <div class="space-y-1">
+                                <div class="space-y-0.5">
                                     <template x-for="msg in group.messages" :key="msg.id">
-                                        <div class="group/msg relative flex items-center -ml-16 pl-16 py-0.5 rounded hover:bg-[#2b2d31] transition" :class="isMentioned(msg.text) ? 'bg-[#5865F2]/10 border-l-2 border-[#5865F2]' : ''">
+                                        <div class="group/msg relative flex items-center py-0.5 hover:bg-[#2b2d31] transition -ml-14 pl-14 rounded-r" :class="isMentioned(msg.text) ? 'bg-[#5865F2]/10 border-l-2 border-[#5865F2]' : 'border-l-2 border-transparent'">
                                             
                                             <!-- Message Content -->
                                             <div class="flex-1 text-gray-300 whitespace-pre-wrap break-words leading-snug text-[15px]" x-show="msg.text">
@@ -1102,11 +1102,9 @@
     <!-- Hidden Textarea for copying (iframe safe) -->
     <textarea id="hiddenCopyTextarea" style="position: absolute; left: -9999px;"></textarea>
 
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script type="module">
         import Alpine from 'https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/module.esm.js';
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, addDoc, deleteDoc, getDocs, query, where, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Meticulously Handcrafted Modern SVGs
         const svgC = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%235865F2"/><stop offset="100%" stop-color="%234752C4"/></linearGradient><filter id="s"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.3"/></filter></defs><rect width="100" height="100" fill="url(%23g)"/><text x="50" y="72" font-family="Arial, sans-serif" font-size="65" font-weight="900" fill="white" text-anchor="middle" filter="url(%23s)">C</text></svg>`;
@@ -1116,7 +1114,7 @@
 
         // Dynamic Favicons
         const faviconNormal = 'favicon.ico';
-        const faviconAlert = `faviconnotification.ico`;
+        const faviconAlert = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="20" fill="%235865F2"/><circle cx="80" cy="20" r="18" fill="red"/></svg>`;
 
         window.nexusApp = () => ({
             isReady: false,
@@ -1151,19 +1149,19 @@
             showMentions: false, mentionQuery: '', filteredMentionUsers: [],
             directFriendRequestUsername: '',
             
-            // Data
+            // Data Arrays (Live synchronized)
             servers: [], dms: [], messages: [], filteredMessages: [], users: {}, globalPresence: [],
             
             get myServers() { return this.servers.filter(s => this.currentUserProfile?.joinedServers?.includes(s.id)); },
             get discoveryServers() { return this.servers.filter(s => s.isPublic && !this.currentUserProfile?.joinedServers?.includes(s.id)); },
             get currentChatId() { return this.activeView === 'server' ? this.activeChannelId : this.activeTarget; },
             
-            // FIX: 5 Minute Tolerance for Clock Skew (Prevents dropping peers every 5 seconds)
+            // Supabase Active Presence Filtering
             get activePresence() {
                 const now = Date.now();
-                return this.globalPresence.filter(p => (now - p.lastActive < 300000) && p.status === 'online');
+                return this.globalPresence.filter(p => (now - p.lastActive < 60000) && p.status === 'online');
             },
-            
+
             // Friend Request Logic (Mutual Check)
             get myFriendsList() {
                 const myFriends = this.currentUserProfile?.friends || [];
@@ -1216,7 +1214,7 @@
                 if (!roomId || !this.logicalUid || !this.currentUserProfile) return;
                 const lr = this.currentUserProfile.lastRead || {};
                 lr[roomId] = Date.now();
-                updateDoc(doc(this.usersRef, this.logicalUid), { lastRead: lr });
+                this.apiUpdate('users', this.logicalUid, { lastRead: lr });
                 this.updateFavicon();
             },
             updateFavicon() {
@@ -1307,22 +1305,16 @@
             rtcVideoOff: true, isMuted: false, isDeafened: false, isScreenSharing: false,
             localStream: null, screenStream: null, simplePeers: {}, dummyCanvasInterval: null,
 
-            db: null, auth: null, publicDataPath: '', usersRef: null, accountsRef: null, heartbeatInterval: null, cleanupInterval: null,
+            // Supabase Architecture
+            supabase: null, heartbeatInterval: null, cleanupInterval: null,
 
             async init() {
                 try {
-                    const defaultCfg = { apiKey: "AIzaSyDUoYS6MwDIVe8coZOM9A0ZCYaZTeDSloo", authDomain: "babjeu-85d3e.firebaseapp.com", databaseURL: "https://babjeu-85d3e-default-rtdb.firebaseio.com", projectId: "babjeu-85d3e", storageBucket: "babjeu-85d3e.firebasestorage.app", messagingSenderId: "306959176803", appId: "1:306959176803:web:2be00da38dbb37e777d456" };
-                    const config = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : defaultCfg;
-                    const app = initializeApp(config);
-                    this.db = getFirestore(app);
-                    this.auth = getAuth(app);
-                    
-                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'le-barochat';
-                    this.publicDataPath = `artifacts/${appId}/public/data_v4`;
-                    this.usersRef = collection(this.db, `${this.publicDataPath}/users`);
-                    this.accountsRef = collection(this.db, `${this.publicDataPath}/accounts`);
-
-                    await signInAnonymously(this.auth);
+                    // Initialize Supabase Client directly pointing to the bridged NoSQL Table
+                    this.supabase = window.supabase.createClient(
+                        'https://tzdwxrdkqcntskwdvkfl.supabase.co', 
+                        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6ZHd4cmRrcWNudHNrd2R2a2ZsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2ODUzNjksImV4cCI6MjA5NDI2MTM2OX0.MpMEqeXXgAGuOwu9fCgSYMmWsP4JHze2s2DerNrUBu4'
+                    );
 
                     const savedSession = localStorage.getItem('lebarochat_session_v4');
                     if (savedSession) {
@@ -1354,7 +1346,7 @@
                     this.$watch('messages', () => this.updateFavicon());
                     
                     window.addEventListener('beforeunload', () => {
-                        if(this.logicalUid) setDoc(doc(this.db, `${this.publicDataPath}/presence`, this.logicalUid), { status: 'offline' }, { merge: true });
+                        if(this.logicalUid) this.apiUpdate('presence', this.logicalUid, { status: 'offline' });
                     });
 
                     // Handle Join links
@@ -1367,29 +1359,48 @@
 
                 } catch (e) { 
                     console.error("Init Error:", e); 
-                    this.showToast("Failed to connect to servers.", true);
+                    this.showToast("Failed to connect to Supabase servers.", true);
                 }
+            },
+
+            // Supabase API Wrappers (Mimicking old Firebase NoSQL behavior directly on PostgreSQL)
+            async apiSet(collection, id, data) {
+                await this.supabase.from('lebarochat_data_v4').upsert({ collection_name: collection, document_id: id, data: data });
+            },
+            async apiAdd(collection, data) {
+                const id = collection.charAt(0) + '_' + Date.now() + Math.random().toString(36).substr(2, 9);
+                await this.apiSet(collection, id, data);
+                return id;
+            },
+            async apiUpdate(collection, id, partialData) {
+                let current = {};
+                // Pre-fetch locally known state to simulate atomic merge
+                if(collection === 'users') current = this.users[id] || {};
+                else if(collection === 'servers') current = this.servers.find(s=>s.id===id) || {};
+                else if(collection === 'presence') current = this.globalPresence.find(p=>p.uid===id) || {};
+                
+                const merged = { ...current, ...partialData };
+                await this.apiSet(collection, id, merged);
+            },
+            async apiDelete(collection, id) {
+                await this.supabase.from('lebarochat_data_v4').delete().match({ collection_name: collection, document_id: id });
             },
 
             async processAuth() {
                 this.authLoading = true;
                 try {
-                    const usernameNormalized = this.authUsername.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
-                    if(!usernameNormalized) throw new Error("Please enter a valid @username.");
+                    const usernameNormalized = this.authUsername.trim().toLowerCase().replace(/[^a-z0-9_@.]/g, '');
+                    if(!usernameNormalized) throw new Error("Please enter a valid username/email.");
 
                     if (this.authMode === 'login') {
-                        const snap = await getDocs(this.accountsRef);
-                        let foundAccount = null;
-                        snap.forEach(doc => {
-                            const data = doc.data();
-                            // Allow login by exact username OR legacy email mapping
-                            if((data.username === usernameNormalized || data.email === usernameNormalized) && data.password === this.authPassword) {
-                                foundAccount = data;
-                            }
-                        });
+                        // Supabase specific JSONB exact match check to prevent downloading whole table
+                        const { data, error } = await this.supabase.from('lebarochat_data_v4')
+                            .select('data')
+                            .eq('collection_name', 'accounts')
+                            .contains('data', { username: usernameNormalized, password: this.authPassword });
 
-                        if (foundAccount) {
-                            this.logicalUid = foundAccount.profileId;
+                        if (data && data.length > 0) {
+                            this.logicalUid = data[0].data.profileId;
                             localStorage.setItem('lebarochat_session_v4', this.logicalUid);
                             await this.loadLogicalProfile();
                         } else {
@@ -1397,14 +1408,16 @@
                         }
 
                     } else {
-                        const snap = await getDocs(this.accountsRef);
-                        let usernameTaken = false;
-                        snap.forEach(d => { if(d.data().username === usernameNormalized) usernameTaken = true; });
-                        if(usernameTaken) throw new Error("That @username is already taken.");
+                        const { data, error } = await this.supabase.from('lebarochat_data_v4')
+                            .select('data')
+                            .eq('collection_name', 'accounts')
+                            .contains('data', { username: usernameNormalized });
+                        
+                        if(data && data.length > 0) throw new Error("That username/email is already taken.");
 
                         const newProfileId = "user_" + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
                         
-                        await setDoc(doc(this.accountsRef, newProfileId), {
+                        await this.apiSet('accounts', newProfileId, {
                             username: usernameNormalized,
                             password: this.authPassword, 
                             profileId: newProfileId
@@ -1422,7 +1435,7 @@
                             friends: [],
                             lastRead: {}
                         };
-                        await setDoc(doc(this.usersRef, newProfileId), profile);
+                        await this.apiSet('users', newProfileId, profile);
 
                         this.logicalUid = newProfileId;
                         localStorage.setItem('lebarochat_session_v4', this.logicalUid);
@@ -1436,38 +1449,38 @@
 
             async loadLogicalProfile() {
                 if(!this.logicalUid) return;
-                onSnapshot(doc(this.usersRef, this.logicalUid), (docSnap) => {
-                    if (docSnap.exists()) {
-                        this.currentUserProfile = docSnap.data();
-                        if (!this.currentUserProfile.joinedServers) this.currentUserProfile.joinedServers = [];
-                        if (!this.currentUserProfile.friends) this.currentUserProfile.friends = [];
-                        if (!this.currentUserProfile.lastRead) this.currentUserProfile.lastRead = {};
-                        if (!this.currentUserProfile.username) {
-                            this.currentUserProfile.username = "user" + Math.floor(Math.random()*9999);
-                        }
-                        this.cacheUser(this.currentUserProfile);
-                        
-                        if(!this.isReady) {
-                            this.startGlobalListeners();
-                            this.isReady = true;
-                            this.authLoading = false;
-                            
-                            if (this._pendingJoinId) {
-                                this.joinServer(this._pendingJoinId);
-                                this._pendingJoinId = null;
-                            }
-                            
-                            this.updatePresence();
-                            this.heartbeatInterval = setInterval(() => this.updatePresence(), 15000);
-                        }
-                    } else {
-                        localStorage.removeItem('lebarochat_session_v4');
-                        this.logicalUid = null;
-                        this.authMode = 'login';
-                        this.authLoading = false;
-                        this.isReady = false;
+                const { data, error } = await this.supabase.from('lebarochat_data_v4')
+                    .select('data')
+                    .eq('collection_name', 'users')
+                    .eq('document_id', this.logicalUid)
+                    .single();
+
+                if (data && data.data) {
+                    this.currentUserProfile = data.data;
+                    if (!this.currentUserProfile.joinedServers) this.currentUserProfile.joinedServers = [];
+                    if (!this.currentUserProfile.friends) this.currentUserProfile.friends = [];
+                    if (!this.currentUserProfile.lastRead) this.currentUserProfile.lastRead = {};
+                    if (!this.currentUserProfile.username) {
+                        this.currentUserProfile.username = "user" + Math.floor(Math.random()*9999);
                     }
-                });
+                    this.cacheUser(this.currentUserProfile);
+                    
+                    if(!this.isReady) {
+                        await this.startGlobalListeners(); // Fetch cache before showing UI
+                        this.isReady = true;
+                        this.authLoading = false;
+                        
+                        if (this._pendingJoinId) {
+                            this.joinServer(this._pendingJoinId);
+                            this._pendingJoinId = null;
+                        }
+                        
+                        this.updatePresence();
+                        this.heartbeatInterval = setInterval(() => this.updatePresence(), 15000);
+                    }
+                } else {
+                    this.logout();
+                }
             },
 
             logout() {
@@ -1476,67 +1489,105 @@
             },
 
             startGlobalListeners() {
-                onSnapshot(this.usersRef, (snap) => snap.forEach(d => this.cacheUser(d.data())), (e) => console.error(e));
-                
-                onSnapshot(collection(this.db, `${this.publicDataPath}/servers`), (snap) => {
-                    const s = []; snap.forEach(d => s.push({id: d.id, ...d.data()})); this.servers = s;
-                }, (e) => console.error(e));
-                
-                onSnapshot(collection(this.db, `${this.publicDataPath}/dms`), (snap) => {
-                    const ds = []; 
-                    snap.forEach(d => {
-                        const data = d.data();
-                        if (data.participants && data.participants.includes(this.logicalUid)) {
-                            ds.push({ id: d.id, partnerUid: data.participants.find(p => p !== this.logicalUid) });
-                        }
-                    });
-                    this.dms = ds;
-                }, (e) => console.error(e));
+                // 1. Initial Load of entire DB into local state
+                this.supabase.from('lebarochat_data_v4').select('*').then(({ data: allData, error }) => {
+                    if (error) { console.error("Cache load failed:", error); return; }
+                    this.servers = []; this.dms = []; this.messages = []; this.globalPresence = [];
+                    allData.forEach(row => this.handleDbChange('INSERT', row));
+                });
 
-                onSnapshot(collection(this.db, `${this.publicDataPath}/messages`), (snap) => {
-                    const m = []; snap.forEach(d => m.push({id: d.id, ...d.data()}));
-                    this.messages = m; this.filterMessages();
-                }, (e) => console.error(e));
+                // 2. Subscribe to live changes using Supabase Realtime Channels & Enable WebRTC Broadcast
+                this.globalChannel = this.supabase.channel('public:lebarochat_data_v4', {
+                    config: { broadcast: { self: false } }
+                });
 
-                onSnapshot(collection(this.db, `${this.publicDataPath}/presence`), (snap) => {
-                    const pres = [];
-                    const now = Date.now();
-                    snap.forEach(d => {
-                        const data = d.data();
-                        // FIX: 5 Minute tolerance for clock skew
-                        if (now - data.lastActive < 300000 && data.status === 'online') {
-                            pres.push(data);
-                            if (this.inVoiceRoom && data.currentVoice === this.inVoiceRoom && data.uid !== this.logicalUid && !this.simplePeers[data.uid]) {
-                                this.createPeer(data.uid, this.logicalUid < data.uid);
-                            }
+                this.globalChannel
+                    .on('postgres_changes', { event: '*', schema: 'public', table: 'lebarochat_data_v4' }, payload => {
+                        if (payload.eventType === 'DELETE') {
+                            this.handleDbChange('DELETE', payload.old);
+                        } else {
+                            this.handleDbChange(payload.eventType, payload.new);
                         }
-                    });
-                    this.globalPresence = pres;
-                    
-                    if(this.inVoiceRoom) {
-                        const currentVoiceUsers = pres.filter(p => p.currentVoice === this.inVoiceRoom).map(p => p.uid);
-                        Object.keys(this.simplePeers).forEach(uid => {
-                            if (!currentVoiceUsers.includes(uid)) this.removePeer(uid);
-                        });
+                    })
+                    .on('broadcast', { event: 'webrtc_signal' }, payload => {
+                        const data = payload.payload;
+                        if (data.to === this.logicalUid && data.room === this.inVoiceRoom) {
+                            this.handleIncomingSignal(data.from, data.signal);
+                        }
+                    })
+                    .subscribe();
+            },
+
+            handleDbChange(event, row) {
+                const c = row.collection_name;
+                const id = row.document_id;
+                const d = row.data;
+                
+                if (event === 'DELETE') {
+                    if (c === 'messages') { this.messages = this.messages.filter(m => m.id !== id); this.filterMessages(); }
+                    else if (c === 'servers') { this.servers = this.servers.filter(s => s.id !== id); }
+                    else if (c === 'signaling') { /* ignore local signaling delete */ }
+                } else {
+                    d.id = id; 
+                    if (c === 'users') { this.cacheUser(d); if(id === this.logicalUid) { this.currentUserProfile = d; } }
+                    else if (c === 'servers') { const idx = this.servers.findIndex(s=>s.id===id); if(idx>=0) this.servers[idx]=d; else this.servers.push(d); }
+                    else if (c === 'dms') {
+                        if (d.participants && d.participants.includes(this.logicalUid)) {
+                            const mapped = { id: id, partnerUid: d.participants.find(p => p !== this.logicalUid) };
+                            const idx = this.dms.findIndex(x=>x.id===id); if(idx>=0) this.dms[idx]=mapped; else this.dms.push(mapped);
+                        }
                     }
-                });
+                    else if (c === 'messages') { const idx = this.messages.findIndex(m=>m.id===id); if(idx>=0) this.messages[idx]=d; else this.messages.push(d); this.filterMessages(); }
+                    else if (c === 'presence') { 
+                        const idx = this.globalPresence.findIndex(p=>p.uid===id); 
+                        if(idx>=0) {
+                            if (d.lastActive < this.globalPresence[idx].lastActive) return; // FIX FLAPPING
+                            this.globalPresence[idx]=d; 
+                        } else {
+                            this.globalPresence.push(d);
+                        }
+                        this.checkPresenceSideEffects(); 
+                    }
+                }
+            },
 
-                onSnapshot(collection(this.db, `${this.publicDataPath}/signaling`), (snap) => {
-                    snap.docChanges().forEach(change => {
-                        if (change.type === 'added') {
-                            const data = change.doc.data();
-                            if (data.to === this.logicalUid && data.room === this.inVoiceRoom) {
-                                this.handleIncomingSignal(data.from, data.signal);
-                                deleteDoc(change.doc.ref); 
+            checkPresenceSideEffects() {
+                if(this.inVoiceRoom) {
+                    const currentVoiceUsers = this.activePresence.filter(p => p.currentVoice === this.inVoiceRoom).map(p => p.uid);
+                    
+                    // Cleanup left peers
+                    Object.keys(this.simplePeers).forEach(uid => {
+                        if (!currentVoiceUsers.includes(uid)) this.removePeer(uid);
+                    });
+                    
+                    // Create new peers if we don't have them
+                    currentVoiceUsers.forEach(uid => {
+                        if (uid !== this.logicalUid && !this.simplePeers[uid]) {
+                            this.createPeer(uid, this.logicalUid < uid);
+                        }
+                    });
+
+                    // Update Camera Fallback Overlays & Cleanup stuck screenshares
+                    this.activePresence.forEach(p => {
+                        const fallback = document.getElementById(`fallback_${p.uid}_cam`);
+                        if (fallback) {
+                            fallback.style.opacity = p.isCameraOff ? '1' : '0';
+                        }
+
+                        if (p.currentVoice === this.inVoiceRoom && !p.isScreenSharing) {
+                            const screenshareWrap = document.getElementById(`vid_wrap_${p.uid}_screenshare`);
+                            if (screenshareWrap) {
+                                if(this.fullscreenVideoId === `${p.uid}_screenshare`) this.fullscreenVideoId = null;
+                                screenshareWrap.remove();
                             }
                         }
                     });
-                });
+                }
             },
 
             updatePresence() {
                 if(!this.logicalUid) return;
-                setDoc(doc(this.db, `${this.publicDataPath}/presence`, this.logicalUid), {
+                this.apiUpdate('presence', this.logicalUid, {
                     uid: this.logicalUid,
                     status: 'online',
                     currentServer: this.activeView === 'server' ? this.activeTarget : null,
@@ -1545,7 +1596,7 @@
                     isCameraOff: this.rtcVideoOff,
                     isMuted: this.isMuted,
                     lastActive: Date.now()
-                }, { merge: true });
+                });
             },
 
             showToast(msg, isError = false) {
@@ -1641,10 +1692,10 @@
                 if (targetUid === this.logicalUid) return;
                 const sorted = [this.logicalUid, targetUid].sort();
                 const dmId = sorted.join('_');
-                const dmRef = doc(this.db, `${this.publicDataPath}/dms`, dmId);
-                const dmSnap = await getDoc(dmRef);
-                if (!dmSnap.exists()) {
-                    await setDoc(dmRef, { participants: sorted });
+                
+                const existingDm = this.dms.find(d => d.id === dmId);
+                if (!existingDm) {
+                    await this.apiSet('dms', dmId, { participants: sorted });
                 }
                 this.showProfilePopout = false;
                 this.openDM(dmId);
@@ -1657,12 +1708,12 @@
             async addFriend(uid) {
                 if(uid === this.logicalUid || this.isFriend(uid)) return;
                 const newFriends = [...(this.currentUserProfile.friends || []), uid];
-                await updateDoc(doc(this.usersRef, this.logicalUid), { friends: newFriends });
+                await this.apiUpdate('users', this.logicalUid, { friends: newFriends });
                 this.showToast(this.isPendingIncoming(uid) ? "Friend request accepted!" : "Friend request sent!");
             },
             async removeFriend(uid) {
                 const newFriends = (this.currentUserProfile.friends || []).filter(id => id !== uid);
-                await updateDoc(doc(this.usersRef, this.logicalUid), { friends: newFriends });
+                await this.apiUpdate('users', this.logicalUid, { friends: newFriends });
             },
             
             sendDirectFriendRequest() {
@@ -1696,14 +1747,14 @@
                 this.newMessage = '';
             },
             async deleteMessage(msgId) {
-                await deleteDoc(doc(this.db, `${this.publicDataPath}/messages`, msgId));
+                await this.apiDelete('messages', msgId);
             },
 
             async sendMessage() {
                 if (!this.currentChatId || (!this.newMessage.trim() && !this.pendingImage)) return;
                 
                 if (this.editingMessageId) {
-                    await updateDoc(doc(this.db, `${this.publicDataPath}/messages`, this.editingMessageId), {
+                    await this.apiUpdate('messages', this.editingMessageId, {
                         text: this.newMessage.trim(),
                         edited: true
                     });
@@ -1711,31 +1762,30 @@
                 } else {
                     const payload = { roomId: this.currentChatId, senderId: this.logicalUid, text: this.newMessage.trim(), image: this.pendingImage, timestamp: Date.now() };
                     this.newMessage = ''; this.pendingImage = null; this.showMentions = false;
-                    await addDoc(collection(this.db, `${this.publicDataPath}/messages`), payload);
+                    await this.apiAdd('messages', payload);
                     this.markRead(this.currentChatId); 
                 }
             },
 
             async createServer() {
                 if(!this.newServerName.trim()) return;
-                const newServerRef = doc(collection(this.db, `${this.publicDataPath}/servers`));
                 const payload = {
                     name: this.newServerName.trim(), icon: this.newServerIcon, owner: this.logicalUid, isPublic: false, bio: '',
                     banner: null, bannerColor: '#5865F2',
                     channels: [ { id: 'c1_' + Date.now(), name: 'general', type: 'text' }, { id: 'c2_' + Date.now(), name: 'General Voice', type: 'voice' } ]
                 };
-                await setDoc(newServerRef, payload);
-                const joined = [...(this.currentUserProfile.joinedServers || []), newServerRef.id];
-                await updateDoc(doc(this.usersRef, this.logicalUid), { joinedServers: joined });
+                const newServerId = await this.apiAdd('servers', payload);
+                const joined = [...(this.currentUserProfile.joinedServers || []), newServerId];
+                await this.apiUpdate('users', this.logicalUid, { joinedServers: joined });
                 
                 this.showCreateServerModal = false;
-                this.openServer(newServerRef.id);
+                this.openServer(newServerId);
             },
 
             async joinServer(serverId) {
                 if(this.currentUserProfile?.joinedServers?.includes(serverId)) { this.openServer(serverId); return; }
                 const joined = [...(this.currentUserProfile.joinedServers || []), serverId];
-                await updateDoc(doc(this.usersRef, this.logicalUid), { joinedServers: joined });
+                await this.apiUpdate('users', this.logicalUid, { joinedServers: joined });
                 this.showToast("Joined Server!");
                 this.openServer(serverId);
             },
@@ -1743,14 +1793,14 @@
             async leaveServer() {
                 if(!this.activeTarget || this.activeView !== 'server') return;
                 const joined = (this.currentUserProfile.joinedServers || []).filter(id => id !== this.activeTarget);
-                await updateDoc(doc(this.usersRef, this.logicalUid), { joinedServers: joined });
+                await this.apiUpdate('users', this.logicalUid, { joinedServers: joined });
                 this.openHome();
             },
 
             async deleteServer() {
                 if(!this.activeTarget || this.activeView !== 'server') return;
                 if(confirm("Are you sure you want to permanently delete this server?")) {
-                    await deleteDoc(doc(this.db, `${this.publicDataPath}/servers`, this.activeTarget));
+                    await this.apiDelete('servers', this.activeTarget);
                     this.showServerSettingsModal = false;
                     this.openHome();
                 }
@@ -1770,7 +1820,7 @@
             },
 
             async saveServerSettings() {
-                await updateDoc(doc(this.db, `${this.publicDataPath}/servers`, this.editServer.id), {
+                await this.apiUpdate('servers', this.editServer.id, {
                     name: this.editServer.name, icon: this.editServer.icon, isPublic: this.editServer.isPublic, bio: this.editServer.bio, channels: this.editServer.channels,
                     banner: this.editServer.banner, bannerColor: this.editServer.bannerColor || '#5865F2'
                 });
@@ -1790,7 +1840,7 @@
             },
 
             async saveProfileSettings() {
-                await updateDoc(doc(this.usersRef, this.logicalUid), { displayName: this.editProfile.displayName, bio: this.editProfile.bio, avatar: this.editProfile.avatar, banner: this.editProfile.banner });
+                await this.apiUpdate('users', this.logicalUid, { displayName: this.editProfile.displayName, bio: this.editProfile.bio, avatar: this.editProfile.avatar, banner: this.editProfile.banner });
                 this.showSettingsModal = false; this.showToast("Profile updated.");
             },
 
@@ -1850,19 +1900,17 @@
             async joinVoiceRoom(channelId) {
                 if (this.inVoiceRoom) this.leaveVoiceRoom();
                 try {
-                    // FIX: Ensure mic tracking is requested FIRST so it connects properly
+                    // FIX: Pre-fetch and await mic permission explicitly first
                     const stream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
                     const micTrack = stream.getAudioTracks()[0];
                     micTrack.enabled = !this.isMuted;
                     
-                    if (this.dummyCanvasInterval) clearInterval(this.dummyCanvasInterval);
                     const canvas = document.createElement('canvas'); canvas.width = 2; canvas.height = 2;
                     const ctx = canvas.getContext('2d'); ctx.fillStyle = '#000000'; ctx.fillRect(0,0,2,2); 
-                    
                     const dummyStream = canvas.captureStream(15);
                     const dummyVideo = dummyStream.getVideoTracks()[0];
                     
-                    // FIX: Keep painting dummy canvas to prevent browser from freezing track
+                    if (this.dummyCanvasInterval) clearInterval(this.dummyCanvasInterval);
                     this.dummyCanvasInterval = setInterval(() => {
                         if(ctx) { ctx.fillStyle = ctx.fillStyle === '#000000' ? '#000001' : '#000000'; ctx.fillRect(0,0,2,2); }
                     }, 100);
@@ -1933,7 +1981,6 @@
                         this.rtcVideoOff = false; this.viewingVoice = true; 
                         this.updatePresence();
 
-                        // FIX: Force rebind local video source
                         const localVid = document.getElementById('local-video');
                         if (localVid) { localVid.srcObject = null; localVid.srcObject = this.localStream; }
                         
@@ -1948,6 +1995,11 @@
                         const dummyStream = canvas.captureStream(15);
                         const dummyVideo = dummyStream.getVideoTracks()[0];
                         
+                        if (this.dummyCanvasInterval) clearInterval(this.dummyCanvasInterval);
+                        this.dummyCanvasInterval = setInterval(() => {
+                            if(ctx) { ctx.fillStyle = ctx.fillStyle === '#000000' ? '#000001' : '#000000'; ctx.fillRect(0,0,2,2); }
+                        }, 100);
+                        
                         this.localStream.removeTrack(vidTrack);
                         this.localStream.addTrack(dummyVideo);
                         
@@ -1958,7 +2010,6 @@
                         this.rtcVideoOff = true;
                         this.updatePresence();
 
-                        // FIX: Force rebind local video source
                         const localVid = document.getElementById('local-video');
                         if (localVid) { localVid.srcObject = null; localVid.srcObject = this.localStream; }
                     }
@@ -2033,8 +2084,10 @@
                 }
 
                 peer.on('signal', data => {
-                    addDoc(collection(this.db, `${this.publicDataPath}/signaling`), {
-                        to: targetUid, from: this.logicalUid, room: this.inVoiceRoom, signal: JSON.stringify(data)
+                    this.globalChannel.send({
+                        type: 'broadcast',
+                        event: 'webrtc_signal',
+                        payload: { to: targetUid, from: this.logicalUid, room: this.inVoiceRoom, signal: JSON.stringify(data) }
                     });
                 });
                 
@@ -2046,8 +2099,12 @@
                     setTimeout(() => {
                         const grid = document.getElementById('fullscreen-video-grid'); if(!grid) return;
                         
-                        const isScreen = stream.getAudioTracks().length === 0;
-                        // FIX: Use specific _cam or _screenshare DOM IDs instead of random stream IDs
+                        // FIX: Collision prevention. If a cam tile already exists, this new stream is their screenshare.
+                        let isScreen = stream.getAudioTracks().length === 0;
+                        if (document.getElementById(`vid_wrap_${targetUid}_cam`) && stream.getAudioTracks().length > 0) {
+                            isScreen = true;
+                        }
+                        
                         const vId = isScreen ? `${targetUid}_screenshare` : `${targetUid}_cam`;
                         const wrapperId = `vid_wrap_${vId}`;
                         let wrapper = document.getElementById(wrapperId);
@@ -2063,28 +2120,27 @@
                             v.id = `vid_${vId}`; v.autoplay = true; v.playsInline = true; 
                             v.className = "remote-vid w-full h-full bg-black object-contain"; v.muted = this.isDeafened;
                             
-                            // FIX: Force play to fix screenshare black screens
+                            // FIX: Force play to prevent screenshare/camera freezing on black frame
                             v.onloadedmetadata = () => { v.play().catch(e=>console.warn("Autoplay blocked:", e)); };
                             
                             const overlay = document.createElement('div');
                             overlay.className = "absolute bottom-3 left-3 bg-black/60 px-2.5 py-1.5 rounded text-[13px] text-white font-bold backdrop-blur-sm z-10";
                             overlay.innerText = this.getUser(targetUid).displayName + (isScreen ? " (Screen)" : "");
 
-                            // Avatar fallback block
-                            const fallback = document.createElement('div');
                             if (!isScreen) {
+                                const fallback = document.createElement('div');
+                                fallback.id = `fallback_${targetUid}_cam`; // Bind ID for dynamic opacity updates
                                 fallback.className = "absolute inset-0 flex items-center justify-center transition-opacity duration-300 z-0";
                                 fallback.style.backgroundColor = this.getAvatarColor(this.getUser(targetUid).avatar);
+                                
                                 const img = document.createElement('img');
                                 img.src = this.getUser(targetUid).avatar;
                                 img.className = "w-32 h-32 rounded-full object-cover shadow-2xl bg-[#1e1f22]";
                                 fallback.appendChild(img);
 
-                                // Hide fallback if video is actively sending frames
-                                v.addEventListener('playing', () => { fallback.style.opacity = '0'; });
+                                wrapper.appendChild(fallback);
                             }
 
-                            if(!isScreen) wrapper.appendChild(fallback);
                             wrapper.appendChild(v); 
                             wrapper.appendChild(overlay); 
                             grid.appendChild(wrapper);
@@ -2106,7 +2162,6 @@
             removePeer(uid) {
                 if (this.simplePeers[uid]) { this.simplePeers[uid].destroy(); delete this.simplePeers[uid]; }
                 document.querySelectorAll('.video-wrapper').forEach(w => {
-                    // FIX: Ensure it correctly purges both _cam and _screenshare tags attached to this UID
                     if (w.id.startsWith(`vid_wrap_${uid}_`)) {
                         const vidId = w.id.replace('vid_wrap_', '');
                         if(this.fullscreenVideoId === vidId) this.fullscreenVideoId = null;
