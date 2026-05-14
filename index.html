@@ -39,14 +39,11 @@
             align-content: center;
             justify-content: center;
             padding: 1rem;
-            overflow: hidden;
-            min-height: 0; 
-            min-width: 0;
         }
         #fullscreen-video-grid .video-wrapper {
             position: relative;
-            flex: 0 1 calc(50% - 1rem); /* STRICT 50% constraint to prevent stretching */
-            max-width: calc(50% - 1rem);
+            flex: 1 1 40%;
+            max-width: 100%;
             min-width: 300px;
             aspect-ratio: 16 / 9;
             border-radius: 0.5rem;
@@ -81,7 +78,6 @@
             background-color: #000 !important;
             border: none !important;
             max-width: none !important;
-            flex: none !important;
         }
 
         [x-cloak] { display: none !important; }
@@ -93,14 +89,6 @@
     <div x-show="toast.show" x-transition.opacity class="fixed top-5 left-1/2 transform -translate-x-1/2 z-[1000] px-4 py-3 rounded-md shadow-2xl text-sm font-bold text-white transition-all flex items-center gap-3" :class="toast.isError ? 'bg-red-500' : 'bg-[#5865F2]'" style="display: none;">
         <i class="ph-fill text-xl" :class="toast.isError ? 'ph-warning-circle' : 'ph-info'"></i>
         <span x-text="toast.message"></span>
-    </div>
-
-    <!-- Image Lightbox Modal -->
-    <div x-show="lightboxImage" style="display: none;" class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/90 backdrop-blur-sm cursor-pointer" @click="lightboxImage = null">
-        <button class="absolute top-6 right-6 text-gray-400 hover:text-white transition">
-            <i class="ph ph-x text-3xl"></i>
-        </button>
-        <img :src="lightboxImage" class="max-w-[90vw] max-h-[90vh] object-contain shadow-2xl rounded-sm" @click.stop>
     </div>
 
     <!-- Onboarding / Auth Overlay -->
@@ -167,16 +155,17 @@
                 </div>
             </div>
 
-            <!-- Live Profile Preview (Fixed Clipping with -mt-12) -->
+            <!-- Live Profile Preview (Fixed Clipping) -->
             <div class="w-full max-w-sm hidden md:block" x-show="authMode === 'register'">
                 <div class="text-xs font-bold text-gray-500 uppercase mb-3 text-center">Live Profile Preview</div>
                 <div class="bg-[#232428] rounded-xl shadow-2xl w-full overflow-hidden">
-                    <div class="h-24 bg-[#5865F2] w-full relative"></div>
-                    <div class="px-5 pb-6 relative">
-                        <div class="absolute -top-12 left-5 bg-[#232428] rounded-full p-1.5 inline-block z-10">
+                    <div class="h-24 bg-[#5865F2] w-full"></div>
+                    <div class="px-5 pb-6">
+                        <!-- -mt-12 pulls the avatar UP into the banner while keeping it in the normal document flow -->
+                        <div class="-mt-12 bg-[#232428] rounded-full p-1.5 inline-block relative z-10">
                             <img :src="authAvatar" class="w-20 h-20 rounded-full object-cover bg-[#1e1f22] shadow-sm">
                         </div>
-                        <div class="pt-12">
+                        <div class="pt-2">
                             <h3 class="text-xl font-extrabold text-gray-100 leading-tight truncate" x-text="authDisplayName || 'Your Name'"></h3>
                             <p class="text-sm text-gray-400 font-medium mb-4" x-text="'@' + (authUsername.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase() || 'username')"></p>
                             
@@ -218,9 +207,6 @@
                             <span x-text="server.name.substring(0,2).toUpperCase()" class="font-bold text-sm"></span>
                         </template>
                         <div class="absolute -left-3 w-1 bg-white rounded-r-md transition-all duration-200" :class="activeTarget === server.id && activeView === 'server' ? 'h-10' : 'h-0 group-hover:h-5'"></div>
-                        
-                        <!-- Server Unread Badge (White Dot) -->
-                        <div x-show="hasUnreadServer(server.id) && activeTarget !== server.id" class="absolute -left-1 top-1/2 -translate-y-1/2 w-2 h-2 bg-white rounded-full"></div>
                     </button>
                 </template>
 
@@ -271,7 +257,7 @@
                                         <div class="absolute bottom-0 right-0 w-3 h-3 border-2 border-[#2b2d31] rounded-full" :class="isUserOnline(dm.partnerUid) ? 'bg-[#23A559]' : 'bg-gray-500'"></div>
                                     </div>
                                     <div class="flex-1 text-left truncate">
-                                        <div class="font-medium text-[15px] truncate" :class="hasUnread(dm.id) && activeTarget !== dm.id ? 'text-gray-100 font-bold' : ''" x-text="getUser(dm.partnerUid)?.displayName || 'Unknown'"></div>
+                                        <div class="font-medium text-[15px] truncate" x-text="getUser(dm.partnerUid)?.displayName || 'Unknown'"></div>
                                     </div>
                                     <!-- DM Unread Badge -->
                                     <template x-if="hasUnread(dm.id) && activeTarget !== dm.id">
@@ -322,8 +308,7 @@
                             <template x-for="channel in (getServer()?.channels || []).filter(c => c.type === 'text')" :key="channel.id">
                                 <button @click="activeChannelId = channel.id; viewingVoice = false; markRead(channel.id)" class="w-full flex items-center px-2 py-1.5 rounded-md transition" :class="activeChannelId === channel.id && !viewingVoice ? 'bg-[#3f4147] text-white' : 'text-gray-400 hover:bg-[#35373c] hover:text-gray-200'">
                                     <i class="ph ph-hash mr-2 text-lg" :class="hasUnread(channel.id) ? 'text-gray-200' : ''"></i>
-                                    <span class="font-medium text-[15px] truncate flex-1 text-left" :class="hasUnread(channel.id) && activeChannelId !== channel.id ? 'text-gray-100 font-bold' : ''" x-text="channel.name"></span>
-                                    <!-- Channel Unread Badge -->
+                                    <span class="font-medium text-[15px] truncate flex-1 text-left" :class="hasUnread(channel.id) ? 'text-gray-100 font-bold' : ''" x-text="channel.name"></span>
                                     <template x-if="hasUnread(channel.id) && activeChannelId !== channel.id">
                                         <div class="w-1.5 h-1.5 bg-white rounded-full flex-shrink-0"></div>
                                     </template>
@@ -624,7 +609,7 @@
                                     <div x-show="!server.icon" class="w-16 h-16 rounded-2xl absolute -top-8 left-4 border-4 border-[#2b2d31] bg-[#1e1f22] flex items-center justify-center text-xl font-bold text-white shadow-md" x-text="server.name.substring(0,2).toUpperCase()"></div>
                                     
                                     <h3 class="mt-8 text-lg font-bold text-gray-100 truncate" x-text="server.name"></h3>
-                                    <p class="text-sm text-gray-400 mt-1 flex-1 line-clamp-2" x-text="server.bio || 'A public community server.'"></p>
+                                    <p class="text-sm text-gray-400 mt-1 flex-1 truncate">A public community server.</p>
                                     
                                     <div class="flex items-center justify-between text-xs text-gray-400 mt-2 font-medium">
                                         <div class="flex items-center">
@@ -668,7 +653,7 @@
                 </div>
 
                 <!-- Text Chat Window -->
-                <div x-show="!viewingVoice && activeView !== 'discovery' && (activeTarget || activeChannelId)" class="flex-1 overflow-y-auto flex flex-col p-4" id="chatContainer" @click="handleMentionClick($event)">
+                <div x-show="!viewingVoice && activeView !== 'discovery' && (activeTarget || activeChannelId)" class="flex-1 overflow-y-auto flex flex-col p-4" id="chatContainer">
                     <template x-if="!currentChatId">
                         <div class="flex flex-col items-center justify-center h-full text-gray-500">
                             <i class="ph-fill ph-chat-circle-dots text-6xl mb-4 text-[#3f4147]"></i>
@@ -680,43 +665,35 @@
 
                     <!-- Discord-Style Grouped Messages -->
                     <template x-for="group in groupedMessages" :key="group.id">
-                        <div class="flex mt-4 group w-full">
-                            <!-- Group Header (PFP) -->
-                            <div class="w-[40px] flex-shrink-0 mr-4 flex justify-center items-start pt-0.5">
-                                <img :src="getUser(group.senderId)?.avatar" @click="openProfilePopout(group.senderId)" class="w-10 h-10 rounded-full object-cover cursor-pointer bg-[#1e1f22]">
+                        <div class="flex mt-4 -mx-2 px-2 group">
+                            <!-- Group Header (PFP & Name) -->
+                            <div class="flex-shrink-0 mr-4">
+                                <img :src="getUser(group.senderId)?.avatar" @click="openProfilePopout(group.senderId)" class="w-10 h-10 rounded-full mt-0.5 object-cover cursor-pointer bg-[#1e1f22]">
                             </div>
-                            
-                            <!-- Content Column -->
                             <div class="flex-1 min-w-0 flex flex-col">
-                                <!-- Name and Initial Timestamp -->
-                                <div class="flex items-baseline mb-1 leading-none">
+                                <div class="flex items-baseline mb-1">
                                     <span class="font-medium text-gray-100 mr-2 cursor-pointer hover:underline text-[15px]" @click="openProfilePopout(group.senderId)" x-text="getUser(group.senderId)?.displayName || 'Unknown'"></span>
                                     <i x-show="activeView === 'server' && getServer()?.owner === group.senderId" class="ph-fill ph-crown text-[#F1C40F] mr-2 text-sm" title="Server Owner"></i>
-                                    <span class="text-xs text-gray-400 font-medium" x-text="formatTime(group.timestamp)"></span>
+                                    <span class="text-[11px] text-gray-400 font-medium" x-text="formatTime(group.timestamp)"></span>
                                 </div>
                                 
                                 <!-- Messages in this Group -->
-                                <div class="flex flex-col">
-                                    <template x-for="(msg, idx) in group.messages" :key="msg.id">
-                                        <div class="group/msg relative flex items-start py-0.5 -ml-14 pl-14 hover:bg-[#2b2d31] transition" :class="isMentioned(msg.text) ? 'bg-[#5865F2]/10 border-l-2 border-[#5865F2]' : ''">
-                                            
-                                            <!-- Tiny Hover Timestamp for subsequent messages -->
-                                            <div class="absolute left-2 top-0.5 w-10 text-right opacity-0 group-hover/msg:opacity-100 text-[10px] text-gray-500 font-medium select-none pointer-events-none" x-show="idx > 0" x-text="formatTimeShort(msg.timestamp)"></div>
+                                <div class="space-y-1">
+                                    <template x-for="msg in group.messages" :key="msg.id">
+                                        <div class="group/msg relative flex items-center -ml-16 pl-16 py-0.5 rounded hover:bg-[#2b2d31] transition" :class="isMentioned(msg.text) ? 'bg-[#5865F2]/10 border-l-2 border-[#5865F2]' : ''">
                                             
                                             <!-- Message Content -->
-                                            <div class="flex-1 min-w-0">
-                                                <div class="text-gray-300 whitespace-pre-wrap break-words leading-[1.375rem] text-[15px]" x-show="msg.text">
-                                                    <span x-html="formatMessage(msg.text)"></span>
-                                                    <span x-show="msg.edited" class="text-[10px] text-gray-500 ml-1 select-none">(edited)</span>
-                                                </div>
-                                                
-                                                <!-- Image Attachments -->
-                                                <template x-if="msg.image">
-                                                    <img :src="msg.image" class="mt-2 max-w-md w-full rounded-md object-contain border border-[#1e1f22] bg-[#2b2d31] cursor-pointer block" @click="lightboxImage = msg.image">
-                                                </template>
+                                            <div class="flex-1 text-gray-300 whitespace-pre-wrap break-words leading-snug text-[15px]" x-show="msg.text">
+                                                <span x-html="formatMessage(msg.text)"></span>
+                                                <span x-show="msg.edited" class="text-[10px] text-gray-500 ml-1">(edited)</span>
                                             </div>
                                             
-                                            <!-- Edit/Delete Controls -->
+                                            <!-- Image Attachments -->
+                                            <template x-if="msg.image">
+                                                <img :src="msg.image" class="mt-2 max-w-md w-full rounded-md object-contain border border-[#1e1f22] bg-[#2b2d31] cursor-pointer block" @click="window.open(msg.image, '_blank')">
+                                            </template>
+                                            
+                                            <!-- Edit/Delete Controls (Right aligned) -->
                                             <div x-show="msg.senderId === logicalUid" class="absolute right-2 -top-3 bg-[#313338] border border-[#1e1f22] rounded shadow-md hidden group-hover/msg:flex items-center z-10 overflow-hidden">
                                                 <button @click="startEditMessage(msg)" class="p-1.5 text-gray-400 hover:bg-[#3f4147] hover:text-gray-200 transition" title="Edit">
                                                     <i class="ph-fill ph-pencil-simple text-sm"></i>
@@ -742,7 +719,7 @@
                         <button @click="cancelEditMessage()" class="text-[#00A8FC] hover:underline">Cancel</button>
                     </div>
 
-                    <!-- @ Mention Autocomplete Menu (Press Tab to select top) -->
+                    <!-- @ Mention Autocomplete Menu -->
                     <div x-show="showMentions" class="absolute bottom-full left-4 mb-2 bg-[#2b2d31] border border-[#1e1f22] rounded-md shadow-2xl w-64 max-h-48 overflow-y-auto z-50 py-1" style="display:none;">
                         <div class="px-3 py-1 text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Members</div>
                         <template x-for="user in filteredMentionUsers" :key="user.uid">
@@ -758,12 +735,7 @@
                         <button @click="triggerImageUpload('chat')" x-show="!editingMessageId" class="text-gray-400 hover:text-gray-200 p-1 flex-shrink-0 transition mr-2 bg-[#2b2d31] rounded-full h-7 w-7 flex items-center justify-center hover:bg-[#5865F2] hover:text-white">
                             <i class="ph-fill ph-plus font-bold"></i>
                         </button>
-                        <input type="text" x-model="newMessage" x-ref="chatInput" 
-                            @input="checkMentions()" 
-                            @keydown.tab.prevent="if(showMentions && filteredMentionUsers.length > 0) insertMention(filteredMentionUsers[0].username);" 
-                            @keydown.enter="sendMessage()" 
-                            :placeholder="editingMessageId ? 'Edit message...' : getChatPlaceholder()" 
-                            class="flex-1 bg-transparent px-1 focus:outline-none text-gray-100 placeholder-gray-500 text-[15px]">
+                        <input type="text" x-model="newMessage" x-ref="chatInput" @input="checkMentions()" @keydown.enter="sendMessage()" :placeholder="editingMessageId ? 'Edit message...' : getChatPlaceholder()" class="flex-1 bg-transparent px-1 focus:outline-none text-gray-100 placeholder-gray-500 text-[15px]">
                         <button @click="sendMessage()" :disabled="!newMessage.trim() && !pendingImage" class="p-1.5 rounded-md text-gray-400 hover:text-[#5865F2] disabled:opacity-50 disabled:cursor-not-allowed transition flex-shrink-0 ml-2">
                             <i x-show="!editingMessageId" class="ph-fill ph-paper-plane-right text-xl"></i>
                             <i x-show="editingMessageId" class="ph-bold ph-check text-xl text-[#23A559]"></i>
@@ -823,11 +795,12 @@
                         </div>
                     </template>
 
-                    <!-- DM Member List -->
+                    <!-- DM Member List (Just shows the two participants) -->
                     <template x-if="activeView === 'home' && activeTarget">
                         <div>
                             <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-3">Participants</div>
                             <div class="space-y-[2px] mb-6">
+                                <!-- The Partner -->
                                 <div @click="openProfilePopout(getDmPartner(activeTarget))" class="flex items-center px-2 py-1.5 rounded-md hover:bg-[#35373c] cursor-pointer transition group">
                                     <div class="relative">
                                         <img :src="getUser(getDmPartner(activeTarget))?.avatar" class="w-8 h-8 rounded-full object-cover bg-[#1e1f22]" :class="isUserOnline(getDmPartner(activeTarget)) ? '' : 'grayscale'">
@@ -837,6 +810,7 @@
                                         <div class="text-[15px] font-medium text-gray-300 group-hover:text-gray-100 truncate transition" x-text="getUser(getDmPartner(activeTarget))?.displayName"></div>
                                     </div>
                                 </div>
+                                <!-- You -->
                                 <div class="flex items-center px-2 py-1.5 rounded-md hover:bg-[#35373c] cursor-pointer transition group" @click="openSettings()">
                                     <div class="relative">
                                         <img :src="currentUserProfile?.avatar" class="w-8 h-8 rounded-full object-cover bg-[#1e1f22]">
@@ -865,10 +839,12 @@
                 </template>
             </div>
             <div class="px-5 pb-6 relative">
+                <!-- Absolute Avatar Overlay to prevent clipping -->
                 <div class="absolute -top-12 left-5 bg-[#232428] rounded-full p-1.5 inline-block z-10">
                     <img :src="popoutUser?.avatar" class="w-20 h-20 rounded-full bg-[#1e1f22] object-cover shadow-sm">
                 </div>
                 
+                <!-- Action Buttons right aligned below banner -->
                 <div class="flex justify-end pt-3 mb-4 gap-2 h-12 relative z-20">
                     <template x-if="popoutUser?.uid !== currentUserProfile?.uid">
                         <button @click="initiateDM(popoutUser?.uid)" class="w-9 h-9 rounded-full bg-[#313338] hover:bg-[#5865F2] text-gray-200 hover:text-white flex items-center justify-center transition shadow-lg border border-[#1e1f22]" title="Send Message">
@@ -876,6 +852,7 @@
                         </button>
                     </template>
                     
+                    <!-- Mutual Friend Request Logic -->
                     <template x-if="popoutUser?.uid !== currentUserProfile?.uid && !isFriend(popoutUser?.uid) && !isPendingOutgoing(popoutUser?.uid) && !isPendingIncoming(popoutUser?.uid)">
                         <button @click="addFriend(popoutUser?.uid)" class="w-9 h-9 rounded-full bg-[#23A559] hover:bg-[#1f8c4b] text-white flex items-center justify-center transition shadow-lg border border-[#1e1f22]" title="Add Friend">
                             <i class="ph-fill ph-user-plus text-lg"></i>
@@ -918,6 +895,7 @@
                 <h2 class="text-xl font-bold text-gray-100 mb-6">User Settings</h2>
                 
                 <div class="flex flex-col gap-6 mb-6">
+                    <!-- Banner Edit -->
                     <div class="relative group cursor-pointer w-full h-32 rounded-lg overflow-hidden border border-[#1e1f22]" @click="triggerImageUpload('banner')" :style="'background-color: ' + (editProfile.bannerColor || '#5865F2')">
                         <template x-if="editProfile.banner">
                             <img :src="editProfile.banner" class="w-full h-full object-cover">
@@ -999,8 +977,8 @@
                 <button @click="serverSettingsTab = 'channels'" class="text-left px-2 py-1.5 rounded-md text-sm font-medium transition" :class="serverSettingsTab === 'channels' ? 'bg-[#3f4147] text-white' : 'text-gray-400 hover:bg-[#35373c] hover:text-gray-200'">Channels</button>
             </div>
             
-            <div class="flex-1 p-6 overflow-y-auto relative flex flex-col">
-                <div x-show="serverSettingsTab === 'overview'" class="flex-1 flex flex-col">
+            <div class="flex-1 p-6 overflow-y-auto relative">
+                <div x-show="serverSettingsTab === 'overview'">
                     <h2 class="text-xl font-bold text-gray-100 mb-6">Server Overview</h2>
                     
                     <!-- Server Banner Edit -->
@@ -1040,10 +1018,6 @@
                                 <label class="block text-xs font-bold text-gray-400 uppercase mb-2">Server Name</label>
                                 <input type="text" x-model="editServer.name" class="w-full px-3 py-2 bg-[#1e1f22] rounded-md text-gray-100 focus:outline-none focus:ring-1 focus:ring-[#5865F2] text-sm">
                             </div>
-                            <div>
-                                <label class="block text-xs font-bold text-gray-400 uppercase mb-2">Server Bio</label>
-                                <textarea x-model="editServer.bio" rows="3" class="w-full px-3 py-2 bg-[#1e1f22] rounded-md text-gray-100 focus:outline-none focus:ring-1 focus:ring-[#5865F2] text-sm resize-none"></textarea>
-                            </div>
                             <label class="flex items-center gap-3 cursor-pointer p-3 bg-[#1e1f22] rounded-md border border-[#2b2d31] transition hover:border-[#3f4147]">
                                 <input type="checkbox" x-model="editServer.isPublic" class="w-5 h-5 accent-[#5865F2]">
                                 <div>
@@ -1053,8 +1027,7 @@
                             </label>
                         </div>
                     </div>
-                    <div class="mt-auto pt-4 border-t border-[#2b2d31] flex justify-between items-center">
-                        <button @click="deleteServer()" class="px-4 py-2 text-sm font-bold text-red-500 hover:text-white hover:bg-red-500 rounded transition">Delete Server</button>
+                    <div class="pt-4 border-t border-[#2b2d31] flex justify-end">
                         <button @click="saveServerSettings()" class="px-5 py-2 text-sm font-bold text-white bg-[#23A559] hover:bg-[#1f8c4b] rounded-md transition shadow">Save Changes</button>
                     </div>
                 </div>
@@ -1101,7 +1074,9 @@
 
     <script type="module">
         import Alpine from 'https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/module.esm.js';
-        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, addDoc, deleteDoc, getDocs, query, where, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Meticulously Handcrafted Modern SVGs
         const svgC = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%235865F2"/><stop offset="100%" stop-color="%234752C4"/></linearGradient><filter id="s"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.3"/></filter></defs><rect width="100" height="100" fill="url(%23g)"/><text x="50" y="72" font-family="Arial, sans-serif" font-size="65" font-weight="900" fill="white" text-anchor="middle" filter="url(%23s)">C</text></svg>`;
@@ -1111,7 +1086,7 @@
 
         // Dynamic Favicons
         const faviconNormal = 'favicon.ico';
-        const faviconAlert = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="20" fill="%235865F2"/><circle cx="80" cy="20" r="18" fill="red"/></svg>`;
+        const faviconAlert = `faviconnotification.ico`;
 
         window.nexusApp = () => ({
             isReady: false,
@@ -1130,7 +1105,6 @@
             showProfilePopout: false, popoutUser: null,
             showCreateServerModal: false, newServerName: '', newServerIcon: null,
             showServerSettingsModal: false, serverSettingsTab: 'overview', editServer: {}, newChannelName: '', newChannelType: 'text',
-            lightboxImage: null,
             
             // Navigation & UI
             activeView: 'home', // home, server, discovery
@@ -1169,6 +1143,7 @@
 
             // DM Logic
             get sortedDms() {
+                // Sort DMs based on the timestamp of the last message sent in that DM
                 return this.dms.slice().sort((a, b) => {
                     const lastA = this.getLastMessageTimestamp(a.id);
                     const lastB = this.getLastMessageTimestamp(b.id);
@@ -1183,11 +1158,6 @@
             get totalUnreadDms() {
                 return this.dms.filter(dm => this.hasUnread(dm.id) && this.activeTarget !== dm.id).length;
             },
-            hasUnreadServer(serverId) {
-                const s = this.servers.find(srv => srv.id === serverId);
-                if (!s || !s.channels) return false;
-                return s.channels.some(c => this.hasUnread(c.id));
-            },
             hasUnread(roomId) {
                 if (!roomId || !this.messages) return false;
                 const msgs = this.messages.filter(m => m.roomId === roomId);
@@ -1197,27 +1167,27 @@
                 const lastRead = this.currentUserProfile?.lastRead?.[roomId] || 0;
                 return lastMsg.timestamp > lastRead;
             },
-            async markRead(roomId) {
+            markRead(roomId) {
                 if (!roomId || !this.logicalUid || !this.currentUserProfile) return;
                 const lr = this.currentUserProfile.lastRead || {};
                 lr[roomId] = Date.now();
-                this.currentUserProfile.lastRead = lr;
-                await this.supabase.from('db_store').upsert({ collection: 'users', id: this.logicalUid, data: this.currentUserProfile });
+                updateDoc(doc(this.usersRef, this.logicalUid), { lastRead: lr });
                 this.updateFavicon();
             },
             updateFavicon() {
                 const link = document.getElementById('dynamic-favicon');
                 if (link) {
-                    link.href = (this.totalUnreadDms > 0 || this.servers.some(s => this.hasUnreadServer(s.id))) ? faviconAlert : faviconNormal;
+                    link.href = this.totalUnreadDms > 0 ? faviconAlert : faviconNormal;
                 }
             },
 
-            // Message Grouping
+            // Message Grouping & Mentions
             get groupedMessages() {
                 if (!this.filteredMessages || this.filteredMessages.length === 0) return [];
                 const groups = [];
                 let currentGroup = null;
                 for (const msg of this.filteredMessages) {
+                    // Group if same sender AND less than 5 minutes gap AND no one else sent a message between
                     if (!currentGroup || currentGroup.senderId !== msg.senderId || (msg.timestamp - currentGroup.lastTimestamp) > 300000) {
                         currentGroup = {
                             id: msg.id + '_grp',
@@ -1243,7 +1213,8 @@
             },
             formatMessage(text) {
                 let safe = this.escapeHTML(text);
-                safe = safe.replace(/@([a-zA-Z0-9_]+)/g, '<span class="text-[#5865F2] bg-[#5865F2]/20 px-1 rounded font-medium cursor-pointer hover:underline mention-tag" data-username="$1">@$1</span>');
+                // Highlight @mentions dynamically
+                safe = safe.replace(/@([a-zA-Z0-9_]+)/g, '<span class="text-[#5865F2] bg-[#5865F2]/20 px-1 rounded font-medium cursor-pointer hover:underline">@$1</span>');
                 return safe;
             },
             isMentioned(text) {
@@ -1251,14 +1222,6 @@
                 return text.includes('@' + this.currentUserProfile.username);
             },
             
-            handleMentionClick(e) {
-                if (e.target.matches('.mention-tag')) {
-                    const username = e.target.getAttribute('data-username');
-                    const user = Object.values(this.users).find(u => u.username === username);
-                    if (user) this.openProfilePopout(user.uid);
-                }
-            },
-
             checkMentions() {
                 const match = this.newMessage.match(/@([a-zA-Z0-9_]*)$/);
                 if (match) {
@@ -1285,25 +1248,35 @@
                 this.$refs.chatInput.focus();
             },
 
+            // Canvas Fallback Color Extractor
             getAvatarColor(base64str) {
                 if (!base64str || !base64str.startsWith('data:image')) return '#5865F2';
-                let hash = 0;
-                for (let i = 0; i < base64str.length; i++) hash = base64str.charCodeAt(i) + ((hash << 5) - hash);
-                return `hsl(${Math.abs(hash % 360)}, 60%, 40%)`;
+                // Very crude approximation: if it contains a lot of 'f', it's bright. We just return a nice Discord blurple to be safe and fast.
+                return '#5865F2'; 
             },
 
-            // WebRTC State & Supabase
+            // WebRTC State & Hardware
             inVoiceRoom: null, voicePeers: {}, 
             rtcVideoOff: true, isMuted: false, isDeafened: false, isScreenSharing: false,
             localStream: null, screenStream: null, simplePeers: {},
 
-            supabase: null, roomChannel: null,
+            db: null, auth: null, publicDataPath: '', usersRef: null, accountsRef: null, heartbeatInterval: null, cleanupInterval: null,
 
             async init() {
                 try {
-                    const supabaseUrl = 'https://tzdwxrdkqcntskwdvkfl.supabase.co';
-                    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6ZHd4cmRrcWNudHNrd2R2a2ZsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2ODUzNjksImV4cCI6MjA5NDI2MTM2OX0.MpMEqeXXgAGuOwu9fCgSYMmWsP4JHze2s2DerNrUBu4';
-                    this.supabase = createClient(supabaseUrl, supabaseKey);
+                    const defaultCfg = { apiKey: "AIzaSyDUoYS6MwDIVe8coZOM9A0ZCYaZTeDSloo", authDomain: "babjeu-85d3e.firebaseapp.com", databaseURL: "https://babjeu-85d3e-default-rtdb.firebaseio.com", projectId: "babjeu-85d3e", storageBucket: "babjeu-85d3e.firebasestorage.app", messagingSenderId: "306959176803", appId: "1:306959176803:web:2be00da38dbb37e777d456" };
+                    const config = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : defaultCfg;
+                    const app = initializeApp(config);
+                    this.db = getFirestore(app);
+                    this.auth = getAuth(app);
+                    
+                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'le-barochat';
+                    // FRESH ISOLATION V4 to wipe buggy legacy data
+                    this.publicDataPath = `artifacts/${appId}/public/data_v4`;
+                    this.usersRef = collection(this.db, `${this.publicDataPath}/users`);
+                    this.accountsRef = collection(this.db, `${this.publicDataPath}/accounts`);
+
+                    await signInAnonymously(this.auth);
 
                     const savedSession = localStorage.getItem('lebarochat_session_v4');
                     if (savedSession) {
@@ -1320,6 +1293,7 @@
                             const c = document.getElementById('chatContainer');
                             if(c) c.scrollTop = c.scrollHeight;
                         });
+                        // Mark as read if we are looking at it
                         if(this.currentChatId && this.messages.length > 0) {
                             const lastMsg = this.messages[this.messages.length - 1];
                             if(lastMsg.roomId === this.currentChatId) this.markRead(this.currentChatId);
@@ -1332,13 +1306,19 @@
                     
                     this.$watch('dms', () => this.updateFavicon());
                     this.$watch('messages', () => this.updateFavicon());
+                    
+                    window.addEventListener('beforeunload', () => {
+                        if(this.logicalUid) setDoc(doc(this.db, `${this.publicDataPath}/presence`, this.logicalUid), { status: 'offline' }, { merge: true });
+                    });
 
+                    // Handle Join links
                     const urlParams = new URLSearchParams(window.location.search);
                     const joinId = urlParams.get('join');
                     if (joinId) {
                         window.history.replaceState({}, document.title, window.location.pathname);
                         this._pendingJoinId = joinId;
                     }
+
                 } catch (e) { 
                     console.error("Init Error:", e); 
                     this.showToast("Failed to connect to servers.", true);
@@ -1352,14 +1332,13 @@
                     if(!usernameNormalized) throw new Error("Please enter a valid @username.");
 
                     if (this.authMode === 'login') {
-                        const { data, error } = await this.supabase.from('db_store').select('*').eq('collection', 'accounts');
-                        if (error) throw new Error(error.message);
-                        
+                        const snap = await getDocs(this.accountsRef);
                         let foundAccount = null;
-                        data.forEach(doc => {
-                            const d = doc.data;
-                            if((d.username === usernameNormalized || d.email === usernameNormalized) && d.password === this.authPassword) {
-                                foundAccount = d;
+                        snap.forEach(doc => {
+                            const data = doc.data();
+                            // Allow login by exact username OR legacy email mapping
+                            if((data.username === usernameNormalized || data.email === usernameNormalized) && data.password === this.authPassword) {
+                                foundAccount = data;
                             }
                         });
 
@@ -1372,16 +1351,17 @@
                         }
 
                     } else {
-                        const { data } = await this.supabase.from('db_store').select('*').eq('collection', 'accounts');
+                        const snap = await getDocs(this.accountsRef);
                         let usernameTaken = false;
-                        if(data) data.forEach(d => { if(d.data.username === usernameNormalized) usernameTaken = true; });
+                        snap.forEach(d => { if(d.data().username === usernameNormalized) usernameTaken = true; });
                         if(usernameTaken) throw new Error("That @username is already taken.");
 
                         const newProfileId = "user_" + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
                         
-                        await this.supabase.from('db_store').upsert({
-                            collection: 'accounts', id: newProfileId, 
-                            data: { username: usernameNormalized, password: this.authPassword, profileId: newProfileId }
+                        await setDoc(doc(this.accountsRef, newProfileId), {
+                            username: usernameNormalized,
+                            password: this.authPassword, 
+                            profileId: newProfileId
                         });
 
                         const profile = {
@@ -1396,7 +1376,7 @@
                             friends: [],
                             lastRead: {}
                         };
-                        await this.supabase.from('db_store').upsert({ collection: 'users', id: newProfileId, data: profile });
+                        await setDoc(doc(this.usersRef, newProfileId), profile);
 
                         this.logicalUid = newProfileId;
                         localStorage.setItem('lebarochat_session_v4', this.logicalUid);
@@ -1410,133 +1390,106 @@
 
             async loadLogicalProfile() {
                 if(!this.logicalUid) return;
-                const { data, error } = await this.supabase.from('db_store').select('data').match({ collection: 'users', id: this.logicalUid }).single();
-                
-                if (data && data.data) {
-                    this.currentUserProfile = data.data;
-                    if (!this.currentUserProfile.joinedServers) this.currentUserProfile.joinedServers = [];
-                    if (!this.currentUserProfile.friends) this.currentUserProfile.friends = [];
-                    if (!this.currentUserProfile.lastRead) this.currentUserProfile.lastRead = {};
-                    if (!this.currentUserProfile.username) {
-                        this.currentUserProfile.username = "user" + Math.floor(Math.random()*9999);
-                    }
-                    this.cacheUser(this.currentUserProfile);
-                    
-                    if(!this.isReady) {
-                        await this.startGlobalListeners();
-                        this.isReady = true;
-                        this.authLoading = false;
-                        
-                        if (this._pendingJoinId) {
-                            this.joinServer(this._pendingJoinId);
-                            this._pendingJoinId = null;
+                onSnapshot(doc(this.usersRef, this.logicalUid), (docSnap) => {
+                    if (docSnap.exists()) {
+                        this.currentUserProfile = docSnap.data();
+                        if (!this.currentUserProfile.joinedServers) this.currentUserProfile.joinedServers = [];
+                        if (!this.currentUserProfile.friends) this.currentUserProfile.friends = [];
+                        if (!this.currentUserProfile.lastRead) this.currentUserProfile.lastRead = {};
+                        if (!this.currentUserProfile.username) {
+                            this.currentUserProfile.username = "user" + Math.floor(Math.random()*9999);
                         }
+                        this.cacheUser(this.currentUserProfile);
+                        
+                        if(!this.isReady) {
+                            this.startGlobalListeners();
+                            this.isReady = true;
+                            this.authLoading = false;
+                            
+                            if (this._pendingJoinId) {
+                                this.joinServer(this._pendingJoinId);
+                                this._pendingJoinId = null;
+                            }
+                            
+                            this.updatePresence();
+                            this.heartbeatInterval = setInterval(() => this.updatePresence(), 15000);
+                        }
+                    } else {
+                        localStorage.removeItem('lebarochat_session_v4');
+                        this.logicalUid = null;
+                        this.authMode = 'login';
+                        this.authLoading = false;
+                        this.isReady = false;
                     }
-                } else {
-                    localStorage.removeItem('lebarochat_session_v4');
-                    this.logicalUid = null;
-                    this.authMode = 'login';
-                    this.authLoading = false;
-                    this.isReady = false;
-                }
+                });
             },
 
-            async startGlobalListeners() {
-                // Initial Fetch
-                const { data, error } = await this.supabase.from('db_store').select('*');
-                if (error) { this.showToast("Database fetch error. Did you run the SQL script?", true); return; }
+            logout() {
+                localStorage.removeItem('lebarochat_session_v4');
+                window.location.reload();
+            },
 
-                const s = []; const ds = []; const m = [];
-                data.forEach(row => {
-                    if (row.collection === 'servers') s.push({ id: row.id, ...row.data });
-                    else if (row.collection === 'users') this.cacheUser({ uid: row.id, ...row.data });
-                    else if (row.collection === 'messages') m.push({ id: row.id, ...row.data });
-                    else if (row.collection === 'dms') {
-                        if (row.data.participants && row.data.participants.includes(this.logicalUid)) {
-                            ds.push({ id: row.id, partnerUid: row.data.participants.find(p => p !== this.logicalUid) });
+            startGlobalListeners() {
+                onSnapshot(this.usersRef, (snap) => snap.forEach(d => this.cacheUser(d.data())), (e) => console.error(e));
+                
+                onSnapshot(collection(this.db, `${this.publicDataPath}/servers`), (snap) => {
+                    const s = []; snap.forEach(d => s.push({id: d.id, ...d.data()})); this.servers = s;
+                }, (e) => console.error(e));
+                
+                onSnapshot(collection(this.db, `${this.publicDataPath}/dms`), (snap) => {
+                    const ds = []; 
+                    snap.forEach(d => {
+                        const data = d.data();
+                        if (data.participants && data.participants.includes(this.logicalUid)) {
+                            ds.push({ id: d.id, partnerUid: data.participants.find(p => p !== this.logicalUid) });
                         }
-                    }
-                });
-                this.servers = s; this.dms = ds; this.messages = m; this.filterMessages();
+                    });
+                    this.dms = ds;
+                }, (e) => console.error(e));
 
-                // Setup Supabase Realtime for Persistence Sync
-                this.supabase.channel('public:db_store')
-                    .on('postgres_changes', { event: '*', schema: 'public', table: 'db_store' }, payload => {
-                        const { eventType, new: newRow, old: oldRow } = payload;
-                        if (eventType === 'INSERT' || eventType === 'UPDATE') {
-                            if (newRow.collection === 'servers') {
-                                const idx = this.servers.findIndex(x => x.id === newRow.id);
-                                if (idx >= 0) this.servers[idx] = { id: newRow.id, ...newRow.data };
-                                else this.servers.push({ id: newRow.id, ...newRow.data });
-                            }
-                            else if (newRow.collection === 'dms') {
-                                if (newRow.data.participants && newRow.data.participants.includes(this.logicalUid)) {
-                                    const dmObj = { id: newRow.id, partnerUid: newRow.data.participants.find(p => p !== this.logicalUid) };
-                                    const idx = this.dms.findIndex(x => x.id === newRow.id);
-                                    if (idx >= 0) this.dms[idx] = dmObj; else this.dms.push(dmObj);
-                                }
-                            }
-                            else if (newRow.collection === 'messages') {
-                                const idx = this.messages.findIndex(x => x.id === newRow.id);
-                                if (idx >= 0) this.messages[idx] = { id: newRow.id, ...newRow.data };
-                                else this.messages.push({ id: newRow.id, ...newRow.data });
-                                this.filterMessages();
-                            }
-                            else if (newRow.collection === 'users') {
-                                this.cacheUser({ uid: newRow.id, ...newRow.data });
-                                if (newRow.id === this.logicalUid) this.currentUserProfile = { uid: newRow.id, ...newRow.data };
-                            }
-                        } else if (eventType === 'DELETE') {
-                            if (oldRow.collection === 'servers') this.servers = this.servers.filter(x => x.id !== oldRow.id);
-                            else if (oldRow.collection === 'dms') this.dms = this.dms.filter(x => x.id !== oldRow.id);
-                            else if (oldRow.collection === 'messages') { this.messages = this.messages.filter(x => x.id !== oldRow.id); this.filterMessages(); }
-                        }
-                    })
-                    .subscribe();
+                onSnapshot(collection(this.db, `${this.publicDataPath}/messages`), (snap) => {
+                    const m = []; snap.forEach(d => m.push({id: d.id, ...d.data()}));
+                    this.messages = m; this.filterMessages();
+                }, (e) => console.error(e));
 
-                // Setup Supabase Realtime Channels for WebRTC Signaling & Ephemeral Presence
-                this.roomChannel = this.supabase.channel('global_webrtc_room', {
-                    config: { presence: { key: this.logicalUid } }
-                });
-
-                this.roomChannel.on('presence', { event: 'sync' }, () => {
-                    const state = this.roomChannel.presenceState();
+                onSnapshot(collection(this.db, `${this.publicDataPath}/presence`), (snap) => {
                     const pres = [];
-                    for (const id in state) pres.push(state[id][0]);
+                    const now = Date.now();
+                    snap.forEach(d => {
+                        const data = d.data();
+                        if (now - data.lastActive < 60000 && data.status === 'online') {
+                            pres.push(data);
+                            if (this.inVoiceRoom && data.currentVoice === this.inVoiceRoom && data.uid !== this.logicalUid && !this.simplePeers[data.uid]) {
+                                this.createPeer(data.uid, this.logicalUid < data.uid);
+                            }
+                        }
+                    });
                     this.globalPresence = pres;
                     
                     if(this.inVoiceRoom) {
                         const currentVoiceUsers = pres.filter(p => p.currentVoice === this.inVoiceRoom).map(p => p.uid);
-                        const currentSharingUsers = pres.filter(p => p.currentVoice === this.inVoiceRoom && p.isScreenSharing).map(p => p.uid);
-
                         Object.keys(this.simplePeers).forEach(uid => {
                             if (!currentVoiceUsers.includes(uid)) this.removePeer(uid);
                         });
-                        
-                        document.querySelectorAll('.video-wrapper[data-isscreen="true"]').forEach(w => {
-                            const uid = w.getAttribute('data-uid');
-                            if (uid && !currentSharingUsers.includes(uid)) w.remove();
-                        });
                     }
                 });
 
-                this.roomChannel.on('broadcast', { event: 'signal' }, payload => {
-                    const data = payload.payload;
-                    if (data.to === this.logicalUid && data.room === this.inVoiceRoom) {
-                        this.handleIncomingSignal(data.from, data.signal);
-                    }
-                });
-
-                this.roomChannel.subscribe(async (status) => {
-                    if (status === 'SUBSCRIBED') {
-                        await this.updatePresence();
-                    }
+                onSnapshot(collection(this.db, `${this.publicDataPath}/signaling`), (snap) => {
+                    snap.docChanges().forEach(change => {
+                        if (change.type === 'added') {
+                            const data = change.doc.data();
+                            if (data.to === this.logicalUid && data.room === this.inVoiceRoom) {
+                                this.handleIncomingSignal(data.from, data.signal);
+                                deleteDoc(change.doc.ref); 
+                            }
+                        }
+                    });
                 });
             },
 
-            async updatePresence() {
-                if(!this.logicalUid || !this.roomChannel) return;
-                await this.roomChannel.track({
+            updatePresence() {
+                if(!this.logicalUid) return;
+                setDoc(doc(this.db, `${this.publicDataPath}/presence`, this.logicalUid), {
                     uid: this.logicalUid,
                     status: 'online',
                     currentServer: this.activeView === 'server' ? this.activeTarget : null,
@@ -1545,7 +1498,7 @@
                     isCameraOff: this.rtcVideoOff,
                     isMuted: this.isMuted,
                     lastActive: Date.now()
-                });
+                }, { merge: true });
             },
 
             showToast(msg, isError = false) {
@@ -1579,9 +1532,8 @@
             getUser(uid) { return this.users[uid] || { displayName: 'User', username: 'loading', avatar: svgPerson }; },
             getServer() { return this.servers.find(s => s.id === this.activeTarget); },
             getChannelName(cid) {
-                if (!cid) return '';
-                if (cid.includes('_') || (this.activeView === 'home' && this.activeTarget)) {
-                    const partner = this.getDmPartner(cid || this.activeTarget);
+                if (cid && cid.includes('_')) {
+                    const partner = this.getDmPartner(cid);
                     return this.getUser(partner)?.displayName || 'Direct Message';
                 }
                 const s = this.servers.find(srv => srv.channels?.some(c => c.id === cid));
@@ -1622,12 +1574,9 @@
             openServer(id) {
                 this.activeView = 'server'; this.activeTarget = id;
                 const s = this.servers.find(server => server.id === id);
-                if (s && s.channels) {
+                if (s && s.channels && !this.activeChannelId) {
                     const texts = s.channels.filter(c => c.type === 'text');
-                    const currentChannelInServer = s.channels.find(c => c.id === this.activeChannelId);
-                    if (!currentChannelInServer && texts.length > 0) {
-                        this.activeChannelId = texts[0].id;
-                    }
+                    this.activeChannelId = texts.length > 0 ? texts[0].id : null;
                 }
                 const voiceChannels = s?.channels?.filter(c => c.type === 'voice').map(c=>c.id) || [];
                 if(!voiceChannels.includes(this.inVoiceRoom)) this.viewingVoice = false;
@@ -1645,10 +1594,10 @@
                 if (targetUid === this.logicalUid) return;
                 const sorted = [this.logicalUid, targetUid].sort();
                 const dmId = sorted.join('_');
-                
-                const { data } = await this.supabase.from('db_store').select('*').match({ collection: 'dms', id: dmId }).single();
-                if (!data) {
-                    await this.supabase.from('db_store').upsert({ collection: 'dms', id: dmId, data: { participants: sorted } });
+                const dmRef = doc(this.db, `${this.publicDataPath}/dms`, dmId);
+                const dmSnap = await getDoc(dmRef);
+                if (!dmSnap.exists()) {
+                    await setDoc(dmRef, { participants: sorted });
                 }
                 this.showProfilePopout = false;
                 this.openDM(dmId);
@@ -1661,14 +1610,12 @@
             async addFriend(uid) {
                 if(uid === this.logicalUid || this.isFriend(uid)) return;
                 const newFriends = [...(this.currentUserProfile.friends || []), uid];
-                this.currentUserProfile.friends = newFriends;
-                await this.supabase.from('db_store').upsert({ collection: 'users', id: this.logicalUid, data: this.currentUserProfile });
+                await updateDoc(doc(this.usersRef, this.logicalUid), { friends: newFriends });
                 this.showToast(this.isPendingIncoming(uid) ? "Friend request accepted!" : "Friend request sent!");
             },
             async removeFriend(uid) {
                 const newFriends = (this.currentUserProfile.friends || []).filter(id => id !== uid);
-                this.currentUserProfile.friends = newFriends;
-                await this.supabase.from('db_store').upsert({ collection: 'users', id: this.logicalUid, data: this.currentUserProfile });
+                await updateDoc(doc(this.usersRef, this.logicalUid), { friends: newFriends });
             },
             
             sendDirectFriendRequest() {
@@ -1702,67 +1649,55 @@
                 this.newMessage = '';
             },
             async deleteMessage(msgId) {
-                await this.supabase.from('db_store').delete().match({ collection: 'messages', id: msgId });
+                await deleteDoc(doc(this.db, `${this.publicDataPath}/messages`, msgId));
             },
 
             async sendMessage() {
                 if (!this.currentChatId || (!this.newMessage.trim() && !this.pendingImage)) return;
                 
                 if (this.editingMessageId) {
-                    const msgToEdit = this.messages.find(m => m.id === this.editingMessageId);
-                    if (msgToEdit) {
-                        const updatedMsg = { ...msgToEdit, text: this.newMessage.trim(), edited: true };
-                        delete updatedMsg.id; // Don't nest ID in data
-                        await this.supabase.from('db_store').upsert({ collection: 'messages', id: this.editingMessageId, data: updatedMsg });
-                    }
+                    await updateDoc(doc(this.db, `${this.publicDataPath}/messages`, this.editingMessageId), {
+                        text: this.newMessage.trim(),
+                        edited: true
+                    });
                     this.cancelEditMessage();
                 } else {
-                    const msgId = 'm_' + Date.now() + Math.random().toString(36).substr(2, 5);
                     const payload = { roomId: this.currentChatId, senderId: this.logicalUid, text: this.newMessage.trim(), image: this.pendingImage, timestamp: Date.now() };
                     this.newMessage = ''; this.pendingImage = null; this.showMentions = false;
-                    await this.supabase.from('db_store').upsert({ collection: 'messages', id: msgId, data: payload });
+                    await addDoc(collection(this.db, `${this.publicDataPath}/messages`), payload);
                     this.markRead(this.currentChatId); 
                 }
             },
 
             async createServer() {
                 if(!this.newServerName.trim()) return;
-                const newServerId = 's_' + Date.now();
+                const newServerRef = doc(collection(this.db, `${this.publicDataPath}/servers`));
                 const payload = {
                     name: this.newServerName.trim(), icon: this.newServerIcon, owner: this.logicalUid, isPublic: false,
-                    banner: null, bannerColor: '#5865F2', bio: '',
+                    banner: null, bannerColor: '#5865F2',
                     channels: [ { id: 'c1_' + Date.now(), name: 'general', type: 'text' }, { id: 'c2_' + Date.now(), name: 'General Voice', type: 'voice' } ]
                 };
-                await this.supabase.from('db_store').upsert({ collection: 'servers', id: newServerId, data: payload });
-                
-                this.currentUserProfile.joinedServers = [...(this.currentUserProfile.joinedServers || []), newServerId];
-                await this.supabase.from('db_store').upsert({ collection: 'users', id: this.logicalUid, data: this.currentUserProfile });
+                await setDoc(newServerRef, payload);
+                const joined = [...(this.currentUserProfile.joinedServers || []), newServerRef.id];
+                await updateDoc(doc(this.usersRef, this.logicalUid), { joinedServers: joined });
                 
                 this.showCreateServerModal = false;
-                this.openServer(newServerId);
+                this.openServer(newServerRef.id);
             },
 
             async joinServer(serverId) {
                 if(this.currentUserProfile?.joinedServers?.includes(serverId)) { this.openServer(serverId); return; }
-                this.currentUserProfile.joinedServers = [...(this.currentUserProfile.joinedServers || []), serverId];
-                await this.supabase.from('db_store').upsert({ collection: 'users', id: this.logicalUid, data: this.currentUserProfile });
+                const joined = [...(this.currentUserProfile.joinedServers || []), serverId];
+                await updateDoc(doc(this.usersRef, this.logicalUid), { joinedServers: joined });
                 this.showToast("Joined Server!");
                 this.openServer(serverId);
             },
 
             async leaveServer() {
                 if(!this.activeTarget || this.activeView !== 'server') return;
-                this.currentUserProfile.joinedServers = (this.currentUserProfile.joinedServers || []).filter(id => id !== this.activeTarget);
-                await this.supabase.from('db_store').upsert({ collection: 'users', id: this.logicalUid, data: this.currentUserProfile });
+                const joined = (this.currentUserProfile.joinedServers || []).filter(id => id !== this.activeTarget);
+                await updateDoc(doc(this.usersRef, this.logicalUid), { joinedServers: joined });
                 this.openHome();
-            },
-            
-            async deleteServer() {
-                if(!this.activeTarget || this.activeView !== 'server' || this.getServer()?.owner !== this.logicalUid) return;
-                await this.supabase.from('db_store').delete().match({ collection: 'servers', id: this.activeTarget });
-                this.showServerSettingsModal = false;
-                this.openHome();
-                this.showToast("Server deleted.");
             },
 
             openSettings() {
@@ -1775,12 +1710,14 @@
                 const s = this.getServer(); if(!s) return;
                 this.editServer = JSON.parse(JSON.stringify(s)); 
                 if(!this.editServer.channels) this.editServer.channels = [];
-                if(!this.editServer.bio) this.editServer.bio = '';
                 this.serverSettingsTab = tab; this.showServerSettingsModal = true;
             },
 
             async saveServerSettings() {
-                await this.supabase.from('db_store').upsert({ collection: 'servers', id: this.editServer.id, data: this.editServer });
+                await updateDoc(doc(this.db, `${this.publicDataPath}/servers`, this.editServer.id), {
+                    name: this.editServer.name, icon: this.editServer.icon, isPublic: this.editServer.isPublic, channels: this.editServer.channels,
+                    banner: this.editServer.banner, bannerColor: this.editServer.bannerColor || '#5865F2'
+                });
                 this.showToast("Server updated.");
             },
 
@@ -1797,11 +1734,7 @@
             },
 
             async saveProfileSettings() {
-                this.currentUserProfile.displayName = this.editProfile.displayName;
-                this.currentUserProfile.bio = this.editProfile.bio;
-                this.currentUserProfile.avatar = this.editProfile.avatar;
-                this.currentUserProfile.banner = this.editProfile.banner;
-                await this.supabase.from('db_store').upsert({ collection: 'users', id: this.logicalUid, data: this.currentUserProfile });
+                await updateDoc(doc(this.usersRef, this.logicalUid), { displayName: this.editProfile.displayName, bio: this.editProfile.bio, avatar: this.editProfile.avatar, banner: this.editProfile.banner });
                 this.showSettingsModal = false; this.showToast("Profile updated.");
             },
 
@@ -1840,7 +1773,6 @@
             },
 
             formatTime(ts) { return new Date(ts).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}); },
-            formatTimeShort(ts) { return new Date(ts).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}); },
 
             // WebRTC Logic
             handleVoiceChannelClick(channelId) {
@@ -1862,32 +1794,38 @@
             async joinVoiceRoom(channelId) {
                 if (this.inVoiceRoom) this.leaveVoiceRoom();
                 try {
-                    // Try to get mic access strictly FIRST before engaging peers
+                    // Fix: Acquire media FIRST before broadcasting presence to ensure SimplePeer negotiates correctly
+                    let micTrack;
                     try {
-                        this.localStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
-                        this.localStream.getAudioTracks()[0].enabled = !this.isMuted;
-                        // Add dummy video layer for consistent SimplePeer architecture
-                        const canvas = document.createElement('canvas'); canvas.width = 1; canvas.height = 1;
-                        this.localStream.addTrack(canvas.captureStream().getVideoTracks()[0]);
+                        const mediaStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+                        micTrack = mediaStream.getAudioTracks()[0];
+                        micTrack.enabled = !this.isMuted;
                     } catch(e) {
                         this.showToast("Mic access denied. Joining muted.", true);
-                        const canvas = document.createElement('canvas'); canvas.width = 1; canvas.height = 1;
-                        const dummyVideo = canvas.captureStream().getVideoTracks()[0];
                         const dummyAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                        const dummyAudio = dummyAudioCtx.createMediaStreamDestination().stream.getAudioTracks()[0];
-                        this.localStream = new MediaStream([dummyVideo, dummyAudio]);
+                        micTrack = dummyAudioCtx.createMediaStreamDestination().stream.getAudioTracks()[0];
                     }
+                    
+                    // Create Dummy Video Track (so replaceTrack works later) and paint it so Chrome transmits frames
+                    const canvas = document.createElement('canvas'); canvas.width = 2; canvas.height = 2;
+                    canvas.getContext('2d').fillRect(0,0,2,2); 
+                    const dummyVideo = canvas.captureStream().getVideoTracks()[0];
+                    
+                    this.localStream = new MediaStream([dummyVideo, micTrack]);
                     
                     this.inVoiceRoom = channelId; this.rtcVideoOff = true; this.isScreenSharing = false; this.viewingVoice = true; 
                     
-                    this.updatePresence();
+                    this.updatePresence(); // Broadcast presence AFTER getting stream!
 
                     setTimeout(() => {
                         const localVid = document.getElementById('local-video');
                         if (localVid) localVid.srcObject = this.localStream;
                     }, 500);
                     
-                } catch(e) { this.showToast("Failed to initialize voice.", true); }
+                } catch(e) { 
+                    console.error("Voice Error:", e);
+                    this.showToast("Failed to initialize voice.", true); 
+                }
             },
 
             leaveVoiceRoom() {
@@ -1910,8 +1848,8 @@
 
             toggleMute() {
                 this.isMuted = !this.isMuted;
-                if(this.localStream && this.localStream.getAudioTracks().length > 0) {
-                    this.localStream.getAudioTracks()[0].enabled = !this.isMuted;
+                if(this.localStream) {
+                    this.localStream.getAudioTracks().forEach(t => t.enabled = !this.isMuted);
                 }
                 this.updatePresence();
             },
@@ -2009,9 +1947,9 @@
                         iceServers: [
                             { urls: 'stun:stun.l.google.com:19302' },
                             { urls: 'stun:stun1.l.google.com:19302' },
+                            { urls: 'stun:openrelay.metered.ca:80' },
                             { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
-                            { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
-                            { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
+                            { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' }
                         ]
                     }
                 });
@@ -2021,10 +1959,8 @@
                 }
 
                 peer.on('signal', data => {
-                    this.roomChannel.send({
-                        type: 'broadcast',
-                        event: 'signal',
-                        payload: { to: targetUid, from: this.logicalUid, room: this.inVoiceRoom, signal: JSON.stringify(data) }
+                    addDoc(collection(this.db, `${this.publicDataPath}/signaling`), {
+                        to: targetUid, from: this.logicalUid, room: this.inVoiceRoom, signal: JSON.stringify(data)
                     });
                 });
                 
@@ -2036,7 +1972,6 @@
                     setTimeout(() => {
                         const grid = document.getElementById('fullscreen-video-grid'); if(!grid) return;
                         
-                        const isScreen = stream.getAudioTracks().length === 0;
                         const vId = `${targetUid}_${stream.id}`;
                         const wrapperId = `vid_wrap_${vId}`;
                         let wrapper = document.getElementById(wrapperId);
@@ -2045,8 +1980,6 @@
                             wrapper = document.createElement('div');
                             wrapper.id = wrapperId; 
                             wrapper.className = "video-wrapper group";
-                            wrapper.setAttribute('data-uid', targetUid);
-                            wrapper.setAttribute('data-isscreen', isScreen);
                             wrapper.setAttribute('x-bind:class', `fullscreenVideoId === '${vId}' ? 'video-fullscreen-mode' : ''`);
                             wrapper.onclick = () => this.toggleFullscreenVideo(vId);
                             
@@ -2056,9 +1989,10 @@
                             
                             const overlay = document.createElement('div');
                             overlay.className = "absolute bottom-3 left-3 bg-black/60 px-2.5 py-1.5 rounded text-[13px] text-white font-bold backdrop-blur-sm z-10";
+                            const isScreen = stream.getAudioTracks().length === 0;
                             overlay.innerText = this.getUser(targetUid).displayName + (isScreen ? " (Screen)" : "");
 
-                            // Unique Color Avatar fallback block
+                            // Avatar fallback block
                             const fallback = document.createElement('div');
                             fallback.className = "absolute inset-0 flex items-center justify-center transition-opacity duration-300";
                             fallback.style.backgroundColor = this.getAvatarColor(this.getUser(targetUid).avatar);
@@ -2076,6 +2010,7 @@
                             grid.appendChild(wrapper);
                         }
                         document.getElementById(`vid_${vId}`).srcObject = stream;
+                        document.getElementById(`vid_${vId}`).play().catch(e=>console.log(e));
                     }, 200);
                 });
 
@@ -2092,7 +2027,7 @@
             removePeer(uid) {
                 if (this.simplePeers[uid]) { this.simplePeers[uid].destroy(); delete this.simplePeers[uid]; }
                 document.querySelectorAll('.video-wrapper').forEach(w => {
-                    if (w.getAttribute('data-uid') === uid) {
+                    if (w.id.startsWith(`vid_wrap_${uid}_`)) {
                         const vidId = w.id.replace('vid_wrap_', '');
                         if(this.fullscreenVideoId === vidId) this.fullscreenVideoId = null;
                         w.remove();
