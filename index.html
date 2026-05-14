@@ -38,13 +38,15 @@
             height: 100%;
             align-content: center;
             justify-content: center;
+            align-items: center;
             padding: 1rem;
+            overflow-y: auto;
         }
         #fullscreen-video-grid .video-wrapper {
             position: relative;
-            flex: 1 1 40%;
-            max-width: 100%;
-            min-width: 300px;
+            flex: 1 1 300px;
+            max-width: calc(50% - 0.5rem); /* Caps at 2 per row, prevents 3rd item from stretching */
+            max-height: calc(50vh - 2rem); /* Keep items appropriately sized to prevent off-screen overflow */
             aspect-ratio: 16 / 9;
             border-radius: 0.5rem;
             background-color: #1e1f22;
@@ -53,6 +55,10 @@
             box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.5);
             cursor: pointer;
             transition: all 0.2s ease-in-out;
+        }
+        #fullscreen-video-grid .video-wrapper:only-child {
+            max-width: 80%; /* Allows a solitary user to take up more space cleanly */
+            max-height: 80vh;
         }
         #fullscreen-video-grid .video-wrapper:hover {
             border-color: #5865F2;
@@ -64,20 +70,21 @@
             object-fit: contain; 
         }
 
-        /* Fixed Fullscreen Mode - Absolute Top Z-Index */
+        /* Fixed Fullscreen Mode - Absolute Top Z-Index bounded to the central pane */
         .video-fullscreen-mode {
-            position: fixed !important;
+            position: absolute !important;
             top: 0 !important;
             left: 0 !important;
             right: 0 !important;
             bottom: 0 !important;
-            width: 100vw !important;
-            height: 100vh !important;
-            z-index: 9999 !important; /* Highest possible */
+            width: 100% !important;
+            height: 100% !important;
+            z-index: 50 !important; 
             border-radius: 0 !important;
             background-color: #000 !important;
             border: none !important;
             max-width: none !important;
+            max-height: none !important;
         }
 
         [x-cloak] { display: none !important; }
@@ -1086,7 +1093,7 @@
 
         // Dynamic Favicons
         const faviconNormal = 'favicon.ico';
-        const faviconAlert = `faviconnotification.ico`;
+        const faviconAlert = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="20" fill="%235865F2"/><circle cx="80" cy="20" r="18" fill="red"/></svg>`;
 
         window.nexusApp = () => ({
             isReady: false,
@@ -1794,38 +1801,30 @@
             async joinVoiceRoom(channelId) {
                 if (this.inVoiceRoom) this.leaveVoiceRoom();
                 try {
-                    // Fix: Acquire media FIRST before broadcasting presence to ensure SimplePeer negotiates correctly
-                    let micTrack;
-                    try {
-                        const mediaStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
-                        micTrack = mediaStream.getAudioTracks()[0];
-                        micTrack.enabled = !this.isMuted;
-                    } catch(e) {
-                        this.showToast("Mic access denied. Joining muted.", true);
-                        const dummyAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                        micTrack = dummyAudioCtx.createMediaStreamDestination().stream.getAudioTracks()[0];
-                    }
-                    
-                    // Create Dummy Video Track (so replaceTrack works later) and paint it so Chrome transmits frames
-                    const canvas = document.createElement('canvas'); canvas.width = 2; canvas.height = 2;
-                    canvas.getContext('2d').fillRect(0,0,2,2); 
+                    const canvas = document.createElement('canvas'); canvas.width = 1; canvas.height = 1;
                     const dummyVideo = canvas.captureStream().getVideoTracks()[0];
-                    
-                    this.localStream = new MediaStream([dummyVideo, micTrack]);
+                    const dummyAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    const dummyAudio = dummyAudioCtx.createMediaStreamDestination().stream.getAudioTracks()[0];
+                    this.localStream = new MediaStream([dummyVideo, dummyAudio]);
                     
                     this.inVoiceRoom = channelId; this.rtcVideoOff = true; this.isScreenSharing = false; this.viewingVoice = true; 
                     
-                    this.updatePresence(); // Broadcast presence AFTER getting stream!
+                    this.updatePresence();
+
+                    navigator.mediaDevices.getUserMedia({ video: false, audio: true }).then(stream => {
+                        const micTrack = stream.getAudioTracks()[0];
+                        micTrack.enabled = !this.isMuted;
+                        this.localStream.removeTrack(this.localStream.getAudioTracks()[0]);
+                        this.localStream.addTrack(micTrack);
+                        Object.values(this.simplePeers).forEach(p => p.replaceTrack(dummyAudio, micTrack, this.localStream));
+                    }).catch(() => this.showToast("Mic access denied.", true));
 
                     setTimeout(() => {
                         const localVid = document.getElementById('local-video');
                         if (localVid) localVid.srcObject = this.localStream;
                     }, 500);
                     
-                } catch(e) { 
-                    console.error("Voice Error:", e);
-                    this.showToast("Failed to initialize voice.", true); 
-                }
+                } catch(e) { this.showToast("Failed to initialize voice.", true); }
             },
 
             leaveVoiceRoom() {
@@ -1945,8 +1944,6 @@
                     initiator: initiator, trickle: true, stream: this.localStream,
                     config: {
                         iceServers: [
-                            { urls: 'stun:stun.l.google.com:19302' },
-                            { urls: 'stun:stun1.l.google.com:19302' },
                             { urls: 'stun:openrelay.metered.ca:80' },
                             { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
                             { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' }
@@ -2010,7 +2007,6 @@
                             grid.appendChild(wrapper);
                         }
                         document.getElementById(`vid_${vId}`).srcObject = stream;
-                        document.getElementById(`vid_${vId}`).play().catch(e=>console.log(e));
                     }, 200);
                 });
 
