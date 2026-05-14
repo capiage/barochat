@@ -68,7 +68,7 @@
             width: 100%;
             height: 100%;
             background-color: #000;
-            object-fit: contain; 
+            object-fit: cover; /* CHANGED: Forces 16:9 fill without letterboxing */
         }
 
         /* Fixed Fullscreen Mode - Absolute Top Z-Index */
@@ -656,10 +656,10 @@
                     <div id="fullscreen-video-grid">
                         <!-- Local Camera Video (Always exists if in room) -->
                         <div class="video-wrapper group" :class="fullscreenVideoId === 'local' ? 'video-fullscreen-mode' : ''" @click="toggleFullscreenVideo('local')">
-                            <video id="local-video" x-ignore autoplay playsinline muted class="w-full h-full bg-black object-cover transition-opacity duration-300"></video>
+                            <video id="local-video" autoplay playsinline muted class="w-full h-full bg-black object-cover transition-opacity duration-300"></video>
                             
                             <!-- Avatar overlay when cam is off (Correctly pulls color) -->
-                            <div x-show="rtcVideoOff" class="absolute inset-0 flex items-center justify-center z-0" :style="'background-color: ' + getAvatarColor(currentUserProfile?.avatar)">
+                            <div x-show="rtcVideoOff" x-transition.opacity class="absolute inset-0 flex items-center justify-center z-0" :style="'background-color: ' + getAvatarColor(currentUserProfile?.avatar)">
                                 <img :src="currentUserProfile?.avatar" class="w-32 h-32 rounded-full object-cover shadow-2xl bg-[#1e1f22]">
                             </div>
 
@@ -1512,12 +1512,6 @@
                             this.handleDbChange(payload.eventType, payload.new);
                         }
                     })
-                    .on('broadcast', { event: 'webrtc_signal' }, payload => {
-                        const data = payload.payload;
-                        if (data.to === this.logicalUid && data.room === this.inVoiceRoom) {
-                            this.handleIncomingSignal(data.from, data.signal);
-                        }
-                    })
                     .subscribe();
             },
 
@@ -1553,14 +1547,33 @@
                         d._localLastSeen = Date.now(); // Record local time to prevent clock drift issues
                         const idx = this.globalPresence.findIndex(p=>p.uid===id); 
                         if(idx>=0) {
-                            if (d.lastActive < this.globalPresence[idx].lastActive) return; // FIX FLAPPING
+                            if (d.lastActive < this.globalPresence[idx].lastActive) return; // Prevent old packets from resetting state
                             this.globalPresence.splice(idx, 1, d); 
                         } else {
                             this.globalPresence.push(d);
                         }
                         this.checkPresenceSideEffects(); 
+                        this.updateVideoFallbacks(); // Sync the active camera overlays
+                    }
+                    else if (c === 'signaling') {
+                        if (d.to === this.logicalUid && d.room === this.inVoiceRoom) {
+                            this.handleIncomingSignal(d.from, d.signal);
+                            this.apiDelete('signaling', id); // Consume and wipe candidate
+                        }
                     }
                 }
+            },
+
+            // Keeps custom avatar fallbacks correctly toggled without black-video hacks
+            updateVideoFallbacks() {
+                if (!this.inVoiceRoom) return;
+                this.activePresence.forEach(p => {
+                    const fallback = document.getElementById(`fallback_${p.uid}_cam`);
+                    if (fallback) {
+                        fallback.style.opacity = p.isCameraOff ? '1' : '0';
+                        fallback.style.pointerEvents = p.isCameraOff ? 'auto' : 'none';
+                    }
+                });
             },
 
             checkPresenceSideEffects() {
@@ -1579,13 +1592,8 @@
                         }
                     });
 
-                    // Update Camera Fallback Overlays & Cleanup stuck screenshares
+                    // Cleanup stuck screenshares in DOM
                     this.activePresence.forEach(p => {
-                        const fallback = document.getElementById(`fallback_${p.uid}_cam`);
-                        if (fallback) {
-                            fallback.style.opacity = p.isCameraOff ? '1' : '0';
-                        }
-
                         if (p.currentVoice === this.inVoiceRoom && !p.isScreenSharing) {
                             const screenshareWrap = document.getElementById(`vid_wrap_${p.uid}_screenshare`);
                             if (screenshareWrap) {
@@ -1912,21 +1920,21 @@
             async joinVoiceRoom(channelId) {
                 if (this.inVoiceRoom) this.leaveVoiceRoom();
                 try {
-                    // Pre-fetch permissions strictly FIRST to prevent hanging blank canvas loops
                     const stream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
                     const micTrack = stream.getAudioTracks()[0];
                     micTrack.enabled = !this.isMuted;
                     
-                    const canvas = document.createElement('canvas'); canvas.width = 16; canvas.height = 9;
-                    const ctx = canvas.getContext('2d'); ctx.fillStyle = '#000000'; ctx.fillRect(0,0,16,9); 
-                    
+                    // True 16:9 720p Dummy Canvas prevents awkward WebRTC distortion when cam is off
+                    const canvas = document.createElement('canvas'); 
+                    canvas.width = 1280; canvas.height = 720;
+                    const ctx = canvas.getContext('2d'); 
+                    ctx.fillStyle = '#000000'; ctx.fillRect(0,0,1280,720); 
                     const dummyStream = canvas.captureStream(15);
                     const dummyVideo = dummyStream.getVideoTracks()[0];
                     
-                    // Critical: Keep painting to prevent browser from freezing track
                     if (this.dummyCanvasInterval) clearInterval(this.dummyCanvasInterval);
                     this.dummyCanvasInterval = setInterval(() => {
-                        if(ctx) { ctx.fillStyle = ctx.fillStyle === '#000000' ? '#000001' : '#000000'; ctx.fillRect(0,0,16,9); }
+                        if(ctx) { ctx.fillStyle = ctx.fillStyle === '#000000' ? '#000001' : '#000000'; ctx.fillRect(0,0,1280,720); }
                     }, 100);
                     
                     this.localStream = new MediaStream([dummyVideo, micTrack]);
@@ -1937,7 +1945,10 @@
 
                     setTimeout(() => {
                         const localVid = document.getElementById('local-video');
-                        if (localVid) localVid.srcObject = this.localStream;
+                        if (localVid) {
+                            localVid.srcObject = this.localStream;
+                            localVid.style.opacity = '0'; // hide local canvas explicitly so custom avatar fallback shines through
+                        }
                     }, 500);
                     
                 } catch(e) { this.showToast("Mic access denied or failed.", true); }
@@ -1981,7 +1992,10 @@
                 
                 if (this.rtcVideoOff) {
                     try {
-                        const vidStream = await navigator.mediaDevices.getUserMedia({ video: { aspectRatio: 16/9 } });
+                        // Enforce native 16:9 ratio hardware request
+                        const vidStream = await navigator.mediaDevices.getUserMedia({ 
+                            video: { aspectRatio: 16/9, width: { ideal: 1280 }, height: { ideal: 720 } } 
+                        });
                         const vidTrack = vidStream.getVideoTracks()[0];
                         const oldTrack = this.localStream.getVideoTracks()[0];
                         
@@ -1995,24 +2009,27 @@
                         this.rtcVideoOff = false; this.viewingVoice = true; 
                         this.updatePresence();
 
-                        // Force rebind local video source
                         const localVid = document.getElementById('local-video');
-                        if (localVid) { localVid.srcObject = null; localVid.srcObject = this.localStream; }
-                        
+                        if (localVid) { 
+                            localVid.srcObject = null; localVid.srcObject = this.localStream; 
+                            localVid.style.opacity = '1';
+                        }
                     } catch(e) { this.showToast("Camera access denied.", true); }
                 } else {
                     const vidTrack = this.localStream.getVideoTracks()[0];
                     if (vidTrack) {
                         vidTrack.stop();
                         
-                        const canvas = document.createElement('canvas'); canvas.width = 16; canvas.height = 9;
-                        const ctx = canvas.getContext('2d'); ctx.fillStyle = '#000000'; ctx.fillRect(0,0,16,9);
+                        const canvas = document.createElement('canvas'); 
+                        canvas.width = 1280; canvas.height = 720;
+                        const ctx = canvas.getContext('2d'); 
+                        ctx.fillStyle = '#000000'; ctx.fillRect(0,0,1280,720);
                         const dummyStream = canvas.captureStream(15);
                         const dummyVideo = dummyStream.getVideoTracks()[0];
                         
                         if (this.dummyCanvasInterval) clearInterval(this.dummyCanvasInterval);
                         this.dummyCanvasInterval = setInterval(() => {
-                            if(ctx) { ctx.fillStyle = ctx.fillStyle === '#000000' ? '#000001' : '#000000'; ctx.fillRect(0,0,16,9); }
+                            if(ctx) { ctx.fillStyle = ctx.fillStyle === '#000000' ? '#000001' : '#000000'; ctx.fillRect(0,0,1280,720); }
                         }, 100);
                         
                         this.localStream.removeTrack(vidTrack);
@@ -2026,7 +2043,10 @@
                         this.updatePresence();
 
                         const localVid = document.getElementById('local-video');
-                        if (localVid) { localVid.srcObject = null; localVid.srcObject = this.localStream; }
+                        if (localVid) { 
+                            localVid.srcObject = null; localVid.srcObject = this.localStream; 
+                            localVid.style.opacity = '0';
+                        }
                     }
                 }
             },
@@ -2082,12 +2102,15 @@
 
             createPeer(targetUid, initiator) {
                 const peer = new SimplePeer({
-                    initiator: initiator, trickle: true, stream: this.localStream,
+                    initiator: initiator, 
+                    trickle: false, // CRITICAL FIX: Stops random disconnections from DB signaling race conditions by batching ICE candidates.
+                    stream: this.localStream,
                     config: {
                         iceServers: [
                             { urls: 'stun:stun.l.google.com:19302' },
                             { urls: 'stun:stun1.l.google.com:19302' },
-                            { urls: 'stun:openrelay.metered.ca:80' },
+                            { urls: 'stun:stun2.l.google.com:19302' },
+                            { urls: 'stun:stun3.l.google.com:19302' },
                             { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
                             { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' }
                         ]
@@ -2099,22 +2122,31 @@
                 }
 
                 peer.on('signal', data => {
-                    this.globalChannel.send({
-                        type: 'broadcast',
-                        event: 'webrtc_signal',
-                        payload: { to: targetUid, from: this.logicalUid, room: this.inVoiceRoom, signal: JSON.stringify(data) }
+                    this.apiAdd('signaling', {
+                        to: targetUid, from: this.logicalUid, room: this.inVoiceRoom, signal: JSON.stringify(data)
                     });
                 });
                 
-                peer.on('error', err => { this.removePeer(targetUid); });
-                peer.on('close', () => { this.removePeer(targetUid); });
+                // Rapid-reconnect architecture
+                peer.on('error', err => { 
+                    this.removePeer(targetUid); 
+                    setTimeout(() => this.checkPresenceSideEffects(), 1500);
+                });
+                peer.on('close', () => { 
+                    this.removePeer(targetUid); 
+                    setTimeout(() => this.checkPresenceSideEffects(), 1500); 
+                });
 
                 peer.on('stream', stream => {
                     this.voicePeers[targetUid] = true;
                     setTimeout(() => {
                         const grid = document.getElementById('fullscreen-video-grid'); if(!grid) return;
                         
-                        const isScreen = stream.getAudioTracks().length === 0;
+                        let isScreen = stream.getAudioTracks().length === 0;
+                        if (document.getElementById(`vid_wrap_${targetUid}_cam`)) {
+                            isScreen = true;
+                        }
+                        
                         const vId = isScreen ? `${targetUid}_screenshare` : `${targetUid}_cam`;
                         const wrapperId = `vid_wrap_${vId}`;
                         let wrapper = document.getElementById(wrapperId);
@@ -2128,9 +2160,9 @@
                             
                             const v = document.createElement('video');
                             v.id = `vid_${vId}`; v.autoplay = true; v.playsInline = true; 
-                            v.className = isScreen ? "remote-vid w-full h-full bg-black object-contain transition-opacity duration-300" : "remote-vid w-full h-full bg-black object-cover transition-opacity duration-300"; v.muted = this.isDeafened;
+                            v.className = "remote-vid w-full h-full bg-black object-cover"; v.muted = this.isDeafened;
                             
-                            // Force play to fix screenshare black screens
+                            // Force play to fix any obscure blockades
                             v.onloadedmetadata = () => { v.play().catch(e=>console.warn("Autoplay blocked:", e)); };
                             
                             const overlay = document.createElement('div');
@@ -2138,10 +2170,15 @@
                             overlay.innerText = this.getUser(targetUid).displayName + (isScreen ? " (Screen)" : "");
 
                             if (!isScreen) {
+                                // Camera Off Profile Setup (No hacky 'playing' override needed anymore)
                                 const fallback = document.createElement('div');
                                 fallback.id = `fallback_${targetUid}_cam`;
                                 fallback.className = "absolute inset-0 flex items-center justify-center transition-opacity duration-300 z-0";
                                 fallback.style.backgroundColor = this.getAvatarColor(this.getUser(targetUid).avatar);
+                                
+                                const currentStatus = this.activePresence.find(p => p.uid === targetUid)?.isCameraOff;
+                                fallback.style.opacity = currentStatus ? '1' : '0';
+                                fallback.style.pointerEvents = currentStatus ? 'auto' : 'none';
                                 
                                 const img = document.createElement('img');
                                 img.src = this.getUser(targetUid).avatar;
@@ -2178,7 +2215,6 @@
                         w.remove();
                     }
                 });
-                setTimeout(() => this.checkPresenceSideEffects(), 1000);
             }
         });
 
