@@ -29,6 +29,7 @@
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
+        /* Corrected WebRTC Video Grid */
         #fullscreen-video-grid {
             display: flex;
             flex-wrap: wrap;
@@ -70,6 +71,7 @@
             object-fit: contain; 
         }
 
+        /* Fixed Fullscreen Mode - Absolute Top Z-Index */
         .video-fullscreen-mode {
             position: absolute !important;
             top: 0 !important;
@@ -657,7 +659,7 @@
                             <video id="local-video" autoplay playsinline muted class="transition-opacity duration-300" :class="rtcVideoOff ? 'opacity-0' : 'opacity-100'"></video>
                             
                             <!-- Avatar overlay when cam is off (Correctly pulls color) -->
-                            <div x-show="rtcVideoOff" class="absolute inset-0 flex items-center justify-center" :style="'background-color: ' + getAvatarColor(currentUserProfile?.avatar)">
+                            <div x-show="rtcVideoOff" class="absolute inset-0 flex items-center justify-center z-0" :style="'background-color: ' + getAvatarColor(currentUserProfile?.avatar)">
                                 <img :src="currentUserProfile?.avatar" class="w-32 h-32 rounded-full object-cover shadow-2xl bg-[#1e1f22]">
                             </div>
 
@@ -684,9 +686,9 @@
 
                     <!-- Discord-Style Grouped Messages -->
                     <template x-for="group in groupedMessages" :key="group.id">
-                        <div class="flex mt-4 -mx-2 px-2 group">
-                            <!-- Group Header (PFP & Name) -->
-                            <div class="flex-shrink-0 mr-4">
+                        <div class="flex mt-4 px-2 group">
+                            <!-- Group Header (PFP) -->
+                            <div class="flex-shrink-0 mr-4 w-10">
                                 <img :src="getUser(group.senderId)?.avatar" @click="openProfilePopout(group.senderId)" class="w-10 h-10 rounded-full mt-0.5 object-cover cursor-pointer bg-[#1e1f22]">
                             </div>
                             <div class="flex-1 min-w-0 flex flex-col">
@@ -697,9 +699,9 @@
                                 </div>
                                 
                                 <!-- Messages in this Group -->
-                                <div class="space-y-1">
+                                <div class="space-y-0.5">
                                     <template x-for="msg in group.messages" :key="msg.id">
-                                        <div class="group/msg relative flex items-center -ml-16 pl-16 py-0.5 rounded hover:bg-[#2b2d31] transition" :class="isMentioned(msg.text) ? 'bg-[#5865F2]/10 border-l-2 border-[#5865F2]' : ''">
+                                        <div class="group/msg relative flex items-center py-0.5 hover:bg-[#2b2d31] transition -ml-14 pl-14 rounded-r" :class="isMentioned(msg.text) ? 'bg-[#5865F2]/10 border-l-2 border-[#5865F2]' : 'border-l-2 border-transparent'">
                                             
                                             <!-- Message Content -->
                                             <div class="flex-1 text-gray-300 whitespace-pre-wrap break-words leading-snug text-[15px]" x-show="msg.text">
@@ -740,9 +742,9 @@
 
                     <!-- @ Mention Autocomplete Menu -->
                     <div x-show="showMentions" class="absolute bottom-full left-4 mb-2 bg-[#2b2d31] border border-[#1e1f22] rounded-md shadow-2xl w-64 max-h-48 overflow-y-auto z-50 py-1" style="display:none;">
-                        <div class="px-3 py-1 text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Members</div>
-                        <template x-for="user in filteredMentionUsers" :key="user.uid">
-                            <button @click="insertMention(user.username)" class="w-full flex items-center px-3 py-1.5 hover:bg-[#3f4147] transition group text-left">
+                        <div class="px-3 py-1 text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Members (Tab to select)</div>
+                        <template x-for="(user, index) in filteredMentionUsers" :key="user.uid">
+                            <button @click="insertMention(user.username)" class="w-full flex items-center px-3 py-1.5 hover:bg-[#3f4147] transition group text-left" :class="index === 0 ? 'bg-[#3f4147]/50' : ''">
                                 <img :src="user.avatar" class="w-6 h-6 rounded-full mr-2 object-cover bg-[#1e1f22]">
                                 <span class="text-sm font-medium text-gray-200 group-hover:text-white truncate" x-text="user.displayName"></span>
                                 <span class="text-xs text-gray-500 ml-2 truncate" x-text="'@' + user.username"></span>
@@ -754,7 +756,7 @@
                         <button @click="triggerImageUpload('chat')" x-show="!editingMessageId" class="text-gray-400 hover:text-gray-200 p-1 flex-shrink-0 transition mr-2 bg-[#2b2d31] rounded-full h-7 w-7 flex items-center justify-center hover:bg-[#5865F2] hover:text-white">
                             <i class="ph-fill ph-plus font-bold"></i>
                         </button>
-                        <input type="text" x-model="newMessage" x-ref="chatInput" @input="checkMentions()" @keydown.enter="sendMessage()" :placeholder="editingMessageId ? 'Edit message...' : getChatPlaceholder()" class="flex-1 bg-transparent px-1 focus:outline-none text-gray-100 placeholder-gray-500 text-[15px]">
+                        <input type="text" x-model="newMessage" x-ref="chatInput" @input="checkMentions()" @keydown.tab.prevent="if(showMentions && filteredMentionUsers.length > 0) insertMention(filteredMentionUsers[0].username)" @keydown.enter="sendMessage()" :placeholder="editingMessageId ? 'Edit message...' : getChatPlaceholder()" class="flex-1 bg-transparent px-1 focus:outline-none text-gray-100 placeholder-gray-500 text-[15px]">
                         <button @click="sendMessage()" :disabled="!newMessage.trim() && !pendingImage" class="p-1.5 rounded-md text-gray-400 hover:text-[#5865F2] disabled:opacity-50 disabled:cursor-not-allowed transition flex-shrink-0 ml-2">
                             <i x-show="!editingMessageId" class="ph-fill ph-paper-plane-right text-xl"></i>
                             <i x-show="editingMessageId" class="ph-bold ph-check text-xl text-[#23A559]"></i>
@@ -848,7 +850,6 @@
         </div>
     </template>
 
-    
     <!-- Profile Popout Overlay -->
     <div x-show="showProfilePopout" style="display: none;" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm transition-opacity">
         <div class="bg-[#232428] rounded-xl shadow-2xl w-full max-w-sm overflow-hidden" @click.away="showProfilePopout = false">
@@ -1155,10 +1156,10 @@
             get discoveryServers() { return this.servers.filter(s => s.isPublic && !this.currentUserProfile?.joinedServers?.includes(s.id)); },
             get currentChatId() { return this.activeView === 'server' ? this.activeChannelId : this.activeTarget; },
             
-            // Supabase Active Presence Filtering
+            // Supabase Active Presence Filtering (5 MINUTE TOLERANCE TO PREVENT CLOCK DRIFT DROPS)
             get activePresence() {
                 const now = Date.now();
-                return this.globalPresence.filter(p => (now - p.lastActive < 60000) && p.status === 'online');
+                return this.globalPresence.filter(p => (now - p.lastActive < 300000) && p.status === 'online');
             },
 
             // Friend Request Logic (Mutual Check)
@@ -1302,7 +1303,7 @@
             // WebRTC State & Hardware
             inVoiceRoom: null, voicePeers: {}, 
             rtcVideoOff: true, isMuted: false, isDeafened: false, isScreenSharing: false,
-            localStream: null, screenStream: null, simplePeers: {},
+            localStream: null, screenStream: null, simplePeers: {}, dummyCanvasInterval: null,
 
             // Supabase Architecture
             supabase: null, heartbeatInterval: null, cleanupInterval: null,
@@ -1893,9 +1894,17 @@
                     const micTrack = stream.getAudioTracks()[0];
                     micTrack.enabled = !this.isMuted;
                     
-                    const canvas = document.createElement('canvas'); canvas.width = 1; canvas.height = 1;
-                    const ctx = canvas.getContext('2d'); ctx.fillStyle = 'black'; ctx.fillRect(0,0,1,1); // Prevent 0-frame hang
-                    const dummyVideo = canvas.captureStream().getVideoTracks()[0];
+                    if (this.dummyCanvasInterval) clearInterval(this.dummyCanvasInterval);
+                    const canvas = document.createElement('canvas'); canvas.width = 2; canvas.height = 2;
+                    const ctx = canvas.getContext('2d'); ctx.fillStyle = '#000000'; ctx.fillRect(0,0,2,2); 
+                    
+                    const dummyStream = canvas.captureStream(15);
+                    const dummyVideo = dummyStream.getVideoTracks()[0];
+                    
+                    // Critical: Keep painting to prevent browser from freezing track
+                    this.dummyCanvasInterval = setInterval(() => {
+                        if(ctx) { ctx.fillStyle = ctx.fillStyle === '#000000' ? '#000001' : '#000000'; ctx.fillRect(0,0,2,2); }
+                    }, 100);
                     
                     this.localStream = new MediaStream([dummyVideo, micTrack]);
                     
@@ -1914,6 +1923,7 @@
             leaveVoiceRoom() {
                 if (this.localStream) this.localStream.getTracks().forEach(t => t.stop());
                 if (this.screenStream) this.stopScreenShare();
+                if (this.dummyCanvasInterval) { clearInterval(this.dummyCanvasInterval); this.dummyCanvasInterval = null; }
                 
                 Object.values(this.simplePeers).forEach(p => p.destroy());
                 this.simplePeers = {}; this.voicePeers = {}; 
@@ -1954,23 +1964,41 @@
                         
                         this.localStream.removeTrack(oldTrack);
                         this.localStream.addTrack(vidTrack);
-                        Object.values(this.simplePeers).forEach(p => p.replaceTrack(oldTrack, vidTrack, this.localStream));
+                        
+                        Object.values(this.simplePeers).forEach(p => {
+                            try { p.replaceTrack(oldTrack, vidTrack, this.localStream); } catch(e){}
+                        });
                         
                         this.rtcVideoOff = false; this.viewingVoice = true; 
                         this.updatePresence();
+
+                        // Force rebind local video source
+                        const localVid = document.getElementById('local-video');
+                        if (localVid) { localVid.srcObject = null; localVid.srcObject = this.localStream; }
+                        
                     } catch(e) { this.showToast("Camera access denied.", true); }
                 } else {
                     const vidTrack = this.localStream.getVideoTracks()[0];
                     if (vidTrack) {
                         vidTrack.stop();
-                        const canvas = document.createElement('canvas'); canvas.width = 1; canvas.height = 1;
-                        const ctx = canvas.getContext('2d'); ctx.fillStyle = 'black'; ctx.fillRect(0,0,1,1);
-                        const dummyVideo = canvas.captureStream().getVideoTracks()[0];
+                        
+                        const canvas = document.createElement('canvas'); canvas.width = 2; canvas.height = 2;
+                        const ctx = canvas.getContext('2d'); ctx.fillStyle = '#000000'; ctx.fillRect(0,0,2,2);
+                        const dummyStream = canvas.captureStream(15);
+                        const dummyVideo = dummyStream.getVideoTracks()[0];
+                        
                         this.localStream.removeTrack(vidTrack);
                         this.localStream.addTrack(dummyVideo);
-                        Object.values(this.simplePeers).forEach(p => p.replaceTrack(vidTrack, dummyVideo, this.localStream));
+                        
+                        Object.values(this.simplePeers).forEach(p => {
+                            try { p.replaceTrack(vidTrack, dummyVideo, this.localStream); } catch(e){}
+                        });
+                        
                         this.rtcVideoOff = true;
                         this.updatePresence();
+
+                        const localVid = document.getElementById('local-video');
+                        if (localVid) { localVid.srcObject = null; localVid.srcObject = this.localStream; }
                     }
                 }
             },
@@ -1981,7 +2009,7 @@
                     try {
                         this.screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
                         
-                        Object.values(this.simplePeers).forEach(p => p.addStream(this.screenStream));
+                        Object.values(this.simplePeers).forEach(p => { try { p.addStream(this.screenStream); } catch(e){} });
                         this.isScreenSharing = true; this.viewingVoice = true;
                         this.updatePresence();
 
@@ -2000,7 +2028,7 @@
                         v.className = "w-full h-full bg-black object-contain";
                         
                         const overlay = document.createElement('div');
-                        overlay.className = "absolute bottom-3 left-3 bg-black/60 px-2.5 py-1.5 rounded text-[13px] text-white font-bold backdrop-blur-sm flex items-center gap-2";
+                        overlay.className = "absolute bottom-3 left-3 bg-black/60 px-2.5 py-1.5 rounded text-[13px] text-white font-bold backdrop-blur-sm flex items-center gap-2 z-10";
                         overlay.innerHTML = `<i class="ph-fill ph-screencast text-[#5865F2]"></i> <span>${this.currentUserProfile.displayName} (Screen)</span>`;
                         
                         wrapper.appendChild(v); wrapper.appendChild(overlay); grid.appendChild(wrapper);
@@ -2039,7 +2067,7 @@
                 });
                 
                 if(this.isScreenSharing && this.screenStream) {
-                    peer.addStream(this.screenStream);
+                    try { peer.addStream(this.screenStream); } catch(e){}
                 }
 
                 peer.on('signal', data => {
@@ -2073,6 +2101,9 @@
                             const v = document.createElement('video');
                             v.id = `vid_${vId}`; v.autoplay = true; v.playsInline = true; 
                             v.className = "remote-vid w-full h-full bg-black object-contain"; v.muted = this.isDeafened;
+                            
+                            // Force play to fix screenshare black screens
+                            v.onloadedmetadata = () => { v.play().catch(e=>console.warn("Autoplay blocked:", e)); };
                             
                             const overlay = document.createElement('div');
                             overlay.className = "absolute bottom-3 left-3 bg-black/60 px-2.5 py-1.5 rounded text-[13px] text-white font-bold backdrop-blur-sm z-10";
