@@ -656,7 +656,6 @@
                     <div id="fullscreen-video-grid">
                         <!-- Local Camera Video (Always exists if in room) -->
                         <div class="video-wrapper group" :class="fullscreenVideoId === 'local' ? 'video-fullscreen-mode' : ''" @click="toggleFullscreenVideo('local')">
-                            <!-- ADDED x-ignore and removed :class to prevent Alpine from destroying the video tag -->
                             <video id="local-video" x-ignore autoplay playsinline muted class="w-full h-full bg-black object-cover transition-opacity duration-300"></video>
                             
                             <!-- Avatar overlay when cam is off (Correctly pulls color) -->
@@ -1982,7 +1981,7 @@
                 
                 if (this.rtcVideoOff) {
                     try {
-                        const vidStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                        const vidStream = await navigator.mediaDevices.getUserMedia({ video: { aspectRatio: 16/9 } });
                         const vidTrack = vidStream.getVideoTracks()[0];
                         const oldTrack = this.localStream.getVideoTracks()[0];
                         
