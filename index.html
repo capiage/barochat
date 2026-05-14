@@ -1486,22 +1486,31 @@
                 window.location.reload();
             },
 
-            async startGlobalListeners() {
+            startGlobalListeners() {
                 // 1. Initial Load of entire DB into local state
-                const { data: allData, error } = await this.supabase.from('lebarochat_data_v4').select('*');
-                if (error) { console.error("Cache load failed:", error); return; }
-                
-                // Reset arrays to prevent duplicate injection
-                this.servers = []; this.dms = []; this.messages = []; this.globalPresence = [];
-                allData.forEach(row => this.handleDbChange('INSERT', row));
+                this.supabase.from('lebarochat_data_v4').select('*').then(({ data: allData, error }) => {
+                    if (error) { console.error("Cache load failed:", error); return; }
+                    this.servers = []; this.dms = []; this.messages = []; this.globalPresence = [];
+                    allData.forEach(row => this.handleDbChange('INSERT', row));
+                });
 
-                // 2. Subscribe to live changes using Supabase Realtime Channels
-                this.supabase.channel('public:lebarochat_data_v4')
+                // 2. Subscribe to live changes using Supabase Realtime Channels & Enable WebRTC Broadcast
+                this.globalChannel = this.supabase.channel('public:lebarochat_data_v4', {
+                    config: { broadcast: { self: false } }
+                });
+
+                this.globalChannel
                     .on('postgres_changes', { event: '*', schema: 'public', table: 'lebarochat_data_v4' }, payload => {
                         if (payload.eventType === 'DELETE') {
                             this.handleDbChange('DELETE', payload.old);
                         } else {
                             this.handleDbChange(payload.eventType, payload.new);
+                        }
+                    })
+                    .on('broadcast', { event: 'webrtc_signal' }, payload => {
+                        const data = payload.payload;
+                        if (data.to === this.logicalUid && data.room === this.inVoiceRoom) {
+                            this.handleIncomingSignal(data.from, data.signal);
                         }
                     })
                     .subscribe();
@@ -1530,12 +1539,6 @@
                     else if (c === 'presence') { 
                         const idx = this.globalPresence.findIndex(p=>p.uid===id); if(idx>=0) this.globalPresence[idx]=d; else this.globalPresence.push(d);
                         this.checkPresenceSideEffects(); 
-                    }
-                    else if (c === 'signaling') {
-                        if (d.to === this.logicalUid && d.room === this.inVoiceRoom) {
-                            this.handleIncomingSignal(d.from, d.signal);
-                            this.apiDelete('signaling', id); // auto cleanup signaling after receive
-                        }
                     }
                 }
             },
@@ -2026,6 +2029,7 @@
                     config: {
                         iceServers: [
                             { urls: 'stun:stun.l.google.com:19302' },
+                            { urls: 'stun:stun1.l.google.com:19302' },
                             { urls: 'stun:openrelay.metered.ca:80' },
                             { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
                             { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' }
@@ -2038,8 +2042,10 @@
                 }
 
                 peer.on('signal', data => {
-                    this.apiAdd('signaling', {
-                        to: targetUid, from: this.logicalUid, room: this.inVoiceRoom, signal: JSON.stringify(data)
+                    this.globalChannel.send({
+                        type: 'broadcast',
+                        event: 'webrtc_signal',
+                        payload: { to: targetUid, from: this.logicalUid, room: this.inVoiceRoom, signal: JSON.stringify(data) }
                     });
                 });
                 
