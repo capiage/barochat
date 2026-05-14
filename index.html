@@ -656,7 +656,8 @@
                     <div id="fullscreen-video-grid">
                         <!-- Local Camera Video (Always exists if in room) -->
                         <div class="video-wrapper group" :class="fullscreenVideoId === 'local' ? 'video-fullscreen-mode' : ''" @click="toggleFullscreenVideo('local')">
-                            <video id="local-video" autoplay playsinline muted class="w-full h-full bg-black object-contain transition-opacity duration-300"></video>
+                            <!-- ADDED x-ignore and removed :class to prevent Alpine from destroying the video tag -->
+                            <video id="local-video" x-ignore autoplay playsinline muted class="w-full h-full bg-black object-contain transition-opacity duration-300"></video>
                             
                             <!-- Avatar overlay when cam is off (Correctly pulls color) -->
                             <div x-show="rtcVideoOff" class="absolute inset-0 flex items-center justify-center z-0" :style="'background-color: ' + getAvatarColor(currentUserProfile?.avatar)">
@@ -1499,7 +1500,7 @@
                     allData.forEach(row => this.handleDbChange('INSERT', row));
                 });
 
-                // 2. Subscribe to live changes using Supabase Realtime Channels
+                // 2. Subscribe to live changes using Supabase Realtime Channels & Enable WebRTC Broadcast
                 this.globalChannel = this.supabase.channel('public:lebarochat_data_v4', {
                     config: { broadcast: { self: false } }
                 });
@@ -1510,6 +1511,12 @@
                             this.handleDbChange('DELETE', payload.old);
                         } else {
                             this.handleDbChange(payload.eventType, payload.new);
+                        }
+                    })
+                    .on('broadcast', { event: 'webrtc_signal' }, payload => {
+                        const data = payload.payload;
+                        if (data.to === this.logicalUid && data.room === this.inVoiceRoom) {
+                            this.handleIncomingSignal(data.from, data.signal);
                         }
                     })
                     .subscribe();
@@ -1527,22 +1534,14 @@
                 } else {
                     d.id = id; 
                     if (c === 'users') { this.cacheUser(d); if(id === this.logicalUid) { this.currentUserProfile = d; } }
-                    else if (c === 'servers') { 
-                        const idx = this.servers.findIndex(s=>s.id===id); 
-                        if(idx>=0) this.servers.splice(idx, 1, d); else this.servers.push(d); 
-                    }
+                    else if (c === 'servers') { const idx = this.servers.findIndex(s=>s.id===id); if(idx>=0) this.servers[idx]=d; else this.servers.push(d); }
                     else if (c === 'dms') {
                         if (d.participants && d.participants.includes(this.logicalUid)) {
                             const mapped = { id: id, partnerUid: d.participants.find(p => p !== this.logicalUid) };
-                            const idx = this.dms.findIndex(x=>x.id===id); 
-                            if(idx>=0) this.dms.splice(idx, 1, mapped); else this.dms.push(mapped);
+                            const idx = this.dms.findIndex(x=>x.id===id); if(idx>=0) this.dms[idx]=mapped; else this.dms.push(mapped);
                         }
                     }
-                    else if (c === 'messages') { 
-                        const idx = this.messages.findIndex(m=>m.id===id); 
-                        if(idx>=0) this.messages.splice(idx, 1, d); else this.messages.push(d); 
-                        this.filterMessages(); 
-                    }
+                    else if (c === 'messages') { const idx = this.messages.findIndex(m=>m.id===id); if(idx>=0) this.messages[idx]=d; else this.messages.push(d); this.filterMessages(); }
                     else if (c === 'presence') { 
                         d._localLastSeen = Date.now(); // Record local time to prevent clock drift issues
                         const idx = this.globalPresence.findIndex(p=>p.uid===id); 
@@ -1912,14 +1911,14 @@
                     const micTrack = stream.getAudioTracks()[0];
                     micTrack.enabled = !this.isMuted;
                     
-                    const canvas = document.createElement('canvas'); canvas.width = 2; canvas.height = 2;
-                    const ctx = canvas.getContext('2d'); ctx.fillStyle = '#000000'; ctx.fillRect(0,0,2,2); 
+                    const canvas = document.createElement('canvas'); canvas.width = 16; canvas.height = 9;
+                    const ctx = canvas.getContext('2d'); ctx.fillStyle = '#000000'; ctx.fillRect(0,0,16,9); 
                     const dummyStream = canvas.captureStream(15);
                     const dummyVideo = dummyStream.getVideoTracks()[0];
                     
                     if (this.dummyCanvasInterval) clearInterval(this.dummyCanvasInterval);
                     this.dummyCanvasInterval = setInterval(() => {
-                        if(ctx) { ctx.fillStyle = ctx.fillStyle === '#000000' ? '#000001' : '#000000'; ctx.fillRect(0,0,2,2); }
+                        if(ctx) { ctx.fillStyle = ctx.fillStyle === '#000000' ? '#000001' : '#000000'; ctx.fillRect(0,0,16,9); }
                     }, 100);
                     
                     this.localStream = new MediaStream([dummyVideo, micTrack]);
@@ -1977,7 +1976,7 @@
                 
                 if (this.rtcVideoOff) {
                     try {
-                        const vidStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                        const vidStream = await navigator.mediaDevices.getUserMedia({ video: { aspectRatio: 16/9 } });
                         const vidTrack = vidStream.getVideoTracks()[0];
                         const oldTrack = this.localStream.getVideoTracks()[0];
                         
@@ -2002,14 +2001,14 @@
                     if (vidTrack) {
                         vidTrack.stop();
                         
-                        const canvas = document.createElement('canvas'); canvas.width = 2; canvas.height = 2;
-                        const ctx = canvas.getContext('2d'); ctx.fillStyle = '#000000'; ctx.fillRect(0,0,2,2);
+                        const canvas = document.createElement('canvas'); canvas.width = 16; canvas.height = 9;
+                        const ctx = canvas.getContext('2d'); ctx.fillStyle = '#000000'; ctx.fillRect(0,0,16,9);
                         const dummyStream = canvas.captureStream(15);
                         const dummyVideo = dummyStream.getVideoTracks()[0];
                         
                         if (this.dummyCanvasInterval) clearInterval(this.dummyCanvasInterval);
                         this.dummyCanvasInterval = setInterval(() => {
-                            if(ctx) { ctx.fillStyle = ctx.fillStyle === '#000000' ? '#000001' : '#000000'; ctx.fillRect(0,0,2,2); }
+                            if(ctx) { ctx.fillStyle = ctx.fillStyle === '#000000' ? '#000001' : '#000000'; ctx.fillRect(0,0,16,9); }
                         }, 100);
                         
                         this.localStream.removeTrack(vidTrack);
@@ -2099,8 +2098,10 @@
                 }
 
                 peer.on('signal', data => {
-                    this.apiAdd('signaling', {
-                        to: targetUid, from: this.logicalUid, room: this.inVoiceRoom, signal: JSON.stringify(data)
+                    this.globalChannel.send({
+                        type: 'broadcast',
+                        event: 'webrtc_signal',
+                        payload: { to: targetUid, from: this.logicalUid, room: this.inVoiceRoom, signal: JSON.stringify(data) }
                     });
                 });
                 
@@ -2112,11 +2113,7 @@
                     setTimeout(() => {
                         const grid = document.getElementById('fullscreen-video-grid'); if(!grid) return;
                         
-                        let isScreen = stream.getAudioTracks().length === 0;
-                        if (document.getElementById(`vid_wrap_${targetUid}_cam`)) {
-                            isScreen = true;
-                        }
-                        
+                        const isScreen = stream.getAudioTracks().length === 0;
                         const vId = isScreen ? `${targetUid}_screenshare` : `${targetUid}_cam`;
                         const wrapperId = `vid_wrap_${vId}`;
                         let wrapper = document.getElementById(wrapperId);
@@ -2130,7 +2127,7 @@
                             
                             const v = document.createElement('video');
                             v.id = `vid_${vId}`; v.autoplay = true; v.playsInline = true; 
-                            v.className = "remote-vid w-full h-full bg-black object-contain"; v.muted = this.isDeafened;
+                            v.className = "remote-vid w-full h-full bg-black object-contain transition-opacity duration-300"; v.muted = this.isDeafened;
                             
                             // Force play to fix screenshare black screens
                             v.onloadedmetadata = () => { v.play().catch(e=>console.warn("Autoplay blocked:", e)); };
@@ -2150,14 +2147,15 @@
                                 img.className = "w-32 h-32 rounded-full object-cover shadow-2xl bg-[#1e1f22]";
                                 fallback.appendChild(img);
 
-                                // Hide fallback if video is actively sending frames
-                                v.addEventListener('playing', () => { fallback.style.opacity = '0'; });
                                 wrapper.appendChild(fallback);
                             }
 
                             wrapper.appendChild(v); 
                             wrapper.appendChild(overlay); 
                             grid.appendChild(wrapper);
+                            
+                            // Trigger initial opacity check based on current known presence
+                            this.checkPresenceSideEffects();
                         }
                         document.getElementById(`vid_${vId}`).srcObject = stream;
                     }, 200);
