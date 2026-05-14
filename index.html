@@ -657,7 +657,7 @@
                         <!-- Local Camera Video (Always exists if in room) -->
                         <div class="video-wrapper group" :class="fullscreenVideoId === 'local' ? 'video-fullscreen-mode' : ''" @click="toggleFullscreenVideo('local')">
                             <!-- ADDED x-ignore and removed :class to prevent Alpine from destroying the video tag -->
-                            <video id="local-video" x-ignore autoplay playsinline muted class="w-full h-full bg-black object-contain transition-opacity duration-300"></video>
+                            <video id="local-video" x-ignore autoplay playsinline muted class="w-full h-full bg-black object-cover transition-opacity duration-300"></video>
                             
                             <!-- Avatar overlay when cam is off (Correctly pulls color) -->
                             <div x-show="rtcVideoOff" class="absolute inset-0 flex items-center justify-center z-0" :style="'background-color: ' + getAvatarColor(currentUserProfile?.avatar)">
@@ -1500,7 +1500,7 @@
                     allData.forEach(row => this.handleDbChange('INSERT', row));
                 });
 
-                // 2. Subscribe to live changes using Supabase Realtime Channels & Enable WebRTC Broadcast
+                // 2. Subscribe to live changes using Supabase Realtime Channels
                 this.globalChannel = this.supabase.channel('public:lebarochat_data_v4', {
                     config: { broadcast: { self: false } }
                 });
@@ -1534,30 +1534,32 @@
                 } else {
                     d.id = id; 
                     if (c === 'users') { this.cacheUser(d); if(id === this.logicalUid) { this.currentUserProfile = d; } }
-                    else if (c === 'servers') { const idx = this.servers.findIndex(s=>s.id===id); if(idx>=0) this.servers[idx]=d; else this.servers.push(d); }
+                    else if (c === 'servers') { 
+                        const idx = this.servers.findIndex(s=>s.id===id); 
+                        if(idx>=0) this.servers.splice(idx, 1, d); else this.servers.push(d); 
+                    }
                     else if (c === 'dms') {
                         if (d.participants && d.participants.includes(this.logicalUid)) {
                             const mapped = { id: id, partnerUid: d.participants.find(p => p !== this.logicalUid) };
-                            const idx = this.dms.findIndex(x=>x.id===id); if(idx>=0) this.dms[idx]=mapped; else this.dms.push(mapped);
+                            const idx = this.dms.findIndex(x=>x.id===id); 
+                            if(idx>=0) this.dms.splice(idx, 1, mapped); else this.dms.push(mapped);
                         }
                     }
-                    else if (c === 'messages') { const idx = this.messages.findIndex(m=>m.id===id); if(idx>=0) this.messages[idx]=d; else this.messages.push(d); this.filterMessages(); }
+                    else if (c === 'messages') { 
+                        const idx = this.messages.findIndex(m=>m.id===id); 
+                        if(idx>=0) this.messages.splice(idx, 1, d); else this.messages.push(d); 
+                        this.filterMessages(); 
+                    }
                     else if (c === 'presence') { 
                         d._localLastSeen = Date.now(); // Record local time to prevent clock drift issues
                         const idx = this.globalPresence.findIndex(p=>p.uid===id); 
                         if(idx>=0) {
-                            if (d.lastActive < this.globalPresence[idx].lastActive) return; // Prevent old packets from resetting state
+                            if (d.lastActive < this.globalPresence[idx].lastActive) return; // FIX FLAPPING
                             this.globalPresence.splice(idx, 1, d); 
                         } else {
                             this.globalPresence.push(d);
                         }
                         this.checkPresenceSideEffects(); 
-                    }
-                    else if (c === 'signaling') {
-                        if (d.to === this.logicalUid && d.room === this.inVoiceRoom) {
-                            this.handleIncomingSignal(d.from, d.signal);
-                            this.apiDelete('signaling', id); // Consume and wipe candidate
-                        }
                     }
                 }
             },
@@ -1578,8 +1580,13 @@
                         }
                     });
 
-                    // Cleanup stuck screenshares in DOM
+                    // Update Camera Fallback Overlays & Cleanup stuck screenshares
                     this.activePresence.forEach(p => {
+                        const fallback = document.getElementById(`fallback_${p.uid}_cam`);
+                        if (fallback) {
+                            fallback.style.opacity = p.isCameraOff ? '1' : '0';
+                        }
+
                         if (p.currentVoice === this.inVoiceRoom && !p.isScreenSharing) {
                             const screenshareWrap = document.getElementById(`vid_wrap_${p.uid}_screenshare`);
                             if (screenshareWrap) {
@@ -1906,16 +1913,18 @@
             async joinVoiceRoom(channelId) {
                 if (this.inVoiceRoom) this.leaveVoiceRoom();
                 try {
-                    // FIX: Pre-fetch and await mic permission explicitly first
+                    // Pre-fetch permissions strictly FIRST to prevent hanging blank canvas loops
                     const stream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
                     const micTrack = stream.getAudioTracks()[0];
                     micTrack.enabled = !this.isMuted;
                     
                     const canvas = document.createElement('canvas'); canvas.width = 16; canvas.height = 9;
                     const ctx = canvas.getContext('2d'); ctx.fillStyle = '#000000'; ctx.fillRect(0,0,16,9); 
+                    
                     const dummyStream = canvas.captureStream(15);
                     const dummyVideo = dummyStream.getVideoTracks()[0];
                     
+                    // Critical: Keep painting to prevent browser from freezing track
                     if (this.dummyCanvasInterval) clearInterval(this.dummyCanvasInterval);
                     this.dummyCanvasInterval = setInterval(() => {
                         if(ctx) { ctx.fillStyle = ctx.fillStyle === '#000000' ? '#000001' : '#000000'; ctx.fillRect(0,0,16,9); }
@@ -1929,10 +1938,7 @@
 
                     setTimeout(() => {
                         const localVid = document.getElementById('local-video');
-                        if (localVid) {
-                            localVid.srcObject = this.localStream;
-                            localVid.style.opacity = '0'; // hide local canvas explicitly
-                        }
+                        if (localVid) localVid.srcObject = this.localStream;
                     }, 500);
                     
                 } catch(e) { this.showToast("Mic access denied or failed.", true); }
@@ -1976,7 +1982,7 @@
                 
                 if (this.rtcVideoOff) {
                     try {
-                        const vidStream = await navigator.mediaDevices.getUserMedia({ video: { aspectRatio: 16/9 } });
+                        const vidStream = await navigator.mediaDevices.getUserMedia({ video: true });
                         const vidTrack = vidStream.getVideoTracks()[0];
                         const oldTrack = this.localStream.getVideoTracks()[0];
                         
@@ -1990,11 +1996,10 @@
                         this.rtcVideoOff = false; this.viewingVoice = true; 
                         this.updatePresence();
 
+                        // Force rebind local video source
                         const localVid = document.getElementById('local-video');
-                        if (localVid) { 
-                            localVid.srcObject = null; localVid.srcObject = this.localStream; 
-                            localVid.style.opacity = '1';
-                        }
+                        if (localVid) { localVid.srcObject = null; localVid.srcObject = this.localStream; }
+                        
                     } catch(e) { this.showToast("Camera access denied.", true); }
                 } else {
                     const vidTrack = this.localStream.getVideoTracks()[0];
@@ -2022,10 +2027,7 @@
                         this.updatePresence();
 
                         const localVid = document.getElementById('local-video');
-                        if (localVid) { 
-                            localVid.srcObject = null; localVid.srcObject = this.localStream; 
-                            localVid.style.opacity = '0';
-                        }
+                        if (localVid) { localVid.srcObject = null; localVid.srcObject = this.localStream; }
                     }
                 }
             },
@@ -2127,7 +2129,7 @@
                             
                             const v = document.createElement('video');
                             v.id = `vid_${vId}`; v.autoplay = true; v.playsInline = true; 
-                            v.className = "remote-vid w-full h-full bg-black object-contain transition-opacity duration-300"; v.muted = this.isDeafened;
+                            v.className = isScreen ? "remote-vid w-full h-full bg-black object-contain transition-opacity duration-300" : "remote-vid w-full h-full bg-black object-cover transition-opacity duration-300"; v.muted = this.isDeafened;
                             
                             // Force play to fix screenshare black screens
                             v.onloadedmetadata = () => { v.play().catch(e=>console.warn("Autoplay blocked:", e)); };
@@ -2153,9 +2155,6 @@
                             wrapper.appendChild(v); 
                             wrapper.appendChild(overlay); 
                             grid.appendChild(wrapper);
-                            
-                            // Trigger initial opacity check based on current known presence
-                            this.checkPresenceSideEffects();
                         }
                         document.getElementById(`vid_${vId}`).srcObject = stream;
                     }, 200);
@@ -2180,6 +2179,7 @@
                         w.remove();
                     }
                 });
+                setTimeout(() => this.checkPresenceSideEffects(), 1000);
             }
         });
 
