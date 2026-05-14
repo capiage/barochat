@@ -630,7 +630,7 @@
                                     <div x-show="!server.icon" class="w-16 h-16 rounded-2xl absolute -top-8 left-4 border-4 border-[#2b2d31] bg-[#1e1f22] flex items-center justify-center text-xl font-bold text-white shadow-md" x-text="server.name.substring(0,2).toUpperCase()"></div>
                                     
                                     <h3 class="mt-8 text-lg font-bold text-gray-100 truncate" x-text="server.name"></h3>
-                                    <p class="text-sm text-gray-400 mt-1 flex-1 truncate">A public community server.</p>
+                                    <p class="text-sm text-gray-400 mt-1 flex-1 truncate" x-text="server.bio || 'A public community server.'"></p>
                                     
                                     <div class="flex items-center justify-between text-xs text-gray-400 mt-2 font-medium">
                                         <div class="flex items-center">
@@ -656,7 +656,7 @@
                     <div id="fullscreen-video-grid">
                         <!-- Local Camera Video (Always exists if in room) -->
                         <div class="video-wrapper group" :class="fullscreenVideoId === 'local' ? 'video-fullscreen-mode' : ''" @click="toggleFullscreenVideo('local')">
-                            <video id="local-video" autoplay playsinline muted class="transition-opacity duration-300" :class="rtcVideoOff ? 'opacity-0' : 'opacity-100'"></video>
+                            <video x-ignore id="local-video" autoplay playsinline muted class="transition-opacity duration-300" :class="rtcVideoOff ? 'opacity-0' : 'opacity-100'"></video>
                             
                             <!-- Avatar overlay when cam is off (Correctly pulls color) -->
                             <div x-show="rtcVideoOff" class="absolute inset-0 flex items-center justify-center z-0" :style="'background-color: ' + getAvatarColor(currentUserProfile?.avatar)">
@@ -1900,7 +1900,7 @@
             async joinVoiceRoom(channelId) {
                 if (this.inVoiceRoom) this.leaveVoiceRoom();
                 try {
-                    // FIX: Pre-fetch and await mic permission explicitly first
+                    // Pre-fetch permissions strictly FIRST to prevent hanging blank canvas loops
                     const stream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
                     const micTrack = stream.getAudioTracks()[0];
                     micTrack.enabled = !this.isMuted;
@@ -1981,6 +1981,7 @@
                         this.rtcVideoOff = false; this.viewingVoice = true; 
                         this.updatePresence();
 
+                        // Force rebind local video source
                         const localVid = document.getElementById('local-video');
                         if (localVid) { localVid.srcObject = null; localVid.srcObject = this.localStream; }
                         
@@ -1994,11 +1995,6 @@
                         const ctx = canvas.getContext('2d'); ctx.fillStyle = '#000000'; ctx.fillRect(0,0,2,2);
                         const dummyStream = canvas.captureStream(15);
                         const dummyVideo = dummyStream.getVideoTracks()[0];
-                        
-                        if (this.dummyCanvasInterval) clearInterval(this.dummyCanvasInterval);
-                        this.dummyCanvasInterval = setInterval(() => {
-                            if(ctx) { ctx.fillStyle = ctx.fillStyle === '#000000' ? '#000001' : '#000000'; ctx.fillRect(0,0,2,2); }
-                        }, 100);
                         
                         this.localStream.removeTrack(vidTrack);
                         this.localStream.addTrack(dummyVideo);
@@ -2099,12 +2095,7 @@
                     setTimeout(() => {
                         const grid = document.getElementById('fullscreen-video-grid'); if(!grid) return;
                         
-                        // FIX: Collision prevention. If a cam tile already exists, this new stream is their screenshare.
-                        let isScreen = stream.getAudioTracks().length === 0;
-                        if (document.getElementById(`vid_wrap_${targetUid}_cam`) && stream.getAudioTracks().length > 0) {
-                            isScreen = true;
-                        }
-                        
+                        const isScreen = stream.getAudioTracks().length === 0;
                         const vId = isScreen ? `${targetUid}_screenshare` : `${targetUid}_cam`;
                         const wrapperId = `vid_wrap_${vId}`;
                         let wrapper = document.getElementById(wrapperId);
@@ -2120,27 +2111,28 @@
                             v.id = `vid_${vId}`; v.autoplay = true; v.playsInline = true; 
                             v.className = "remote-vid w-full h-full bg-black object-contain"; v.muted = this.isDeafened;
                             
-                            // FIX: Force play to prevent screenshare/camera freezing on black frame
+                            // Force play to fix screenshare black screens
                             v.onloadedmetadata = () => { v.play().catch(e=>console.warn("Autoplay blocked:", e)); };
                             
                             const overlay = document.createElement('div');
                             overlay.className = "absolute bottom-3 left-3 bg-black/60 px-2.5 py-1.5 rounded text-[13px] text-white font-bold backdrop-blur-sm z-10";
                             overlay.innerText = this.getUser(targetUid).displayName + (isScreen ? " (Screen)" : "");
 
+                            // Avatar fallback block
+                            const fallback = document.createElement('div');
                             if (!isScreen) {
-                                const fallback = document.createElement('div');
-                                fallback.id = `fallback_${targetUid}_cam`; // Bind ID for dynamic opacity updates
                                 fallback.className = "absolute inset-0 flex items-center justify-center transition-opacity duration-300 z-0";
                                 fallback.style.backgroundColor = this.getAvatarColor(this.getUser(targetUid).avatar);
-                                
                                 const img = document.createElement('img');
                                 img.src = this.getUser(targetUid).avatar;
                                 img.className = "w-32 h-32 rounded-full object-cover shadow-2xl bg-[#1e1f22]";
                                 fallback.appendChild(img);
 
-                                wrapper.appendChild(fallback);
+                                // Hide fallback if video is actively sending frames
+                                v.addEventListener('playing', () => { fallback.style.opacity = '0'; });
                             }
 
+                            if(!isScreen) wrapper.appendChild(fallback);
                             wrapper.appendChild(v); 
                             wrapper.appendChild(overlay); 
                             grid.appendChild(wrapper);
