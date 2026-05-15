@@ -195,7 +195,7 @@
                 <!-- Home Button -->
                 <button @click="openHome()" class="w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-[#313338] text-gray-100 flex items-center justify-center transition-all duration-200 relative group" :class="{'rounded-[16px] bg-[#5865F2] text-white': activeView === 'home'}">
                     <img :src="defaultAvatars[0].data" class="w-8 h-8 object-contain drop-shadow-md">
-                    <div class="absolute -left-3 w-1 bg-white rounded-r-md transition-all duration-200" :class="activeView === 'home' ? 'h-10' : 'h-0 group-hover:h-5'"></div>
+                    <div class="absolute -left-3 w-1 bg-white rounded-r-md transition-all duration-200" :class="activeView === 'home' ? 'h-10 top-1' : 'h-0 top-[24px] group-hover:h-5 group-hover:top-[14px]'"></div>
                     <!-- Home DM Notification Badge -->
                     <div x-show="totalUnreadDms > 0" class="absolute -bottom-1 -right-1 bg-red-500 rounded-full border-[3px] border-[#1e1f22] text-[10px] font-bold text-white flex items-center justify-center min-w-[20px] h-[20px] px-1 z-10" x-text="totalUnreadDms > 99 ? '99+' : totalUnreadDms"></div>
                 </button>
@@ -221,9 +221,14 @@
                         <template x-if="!server.icon">
                             <span x-text="server.name.substring(0,2).toUpperCase()" class="font-bold text-sm"></span>
                         </template>
-                        <div class="absolute -left-3 w-1 bg-white rounded-r-md transition-all duration-200" :class="activeTarget === server.id && activeView === 'server' ? 'h-10' : 'h-0 group-hover:h-5'"></div>
-                        <!-- Unread Dot -->
-                        <div x-show="getServerUnreadState(server.id)" class="absolute -left-3 w-1 h-2 bg-white rounded-r-md"></div>
+                        
+                        <!-- Morphing Discord Pill -->
+                        <div class="absolute -left-3 w-1 bg-white rounded-r-md transition-all duration-200" 
+                             :class="activeTarget === server.id && activeView === 'server' ? 'h-10 top-1' : (getServerUnreadState(server.id) ? 'h-2 top-[20px] group-hover:h-5 group-hover:top-[14px]' : 'h-0 top-[24px] group-hover:h-5 group-hover:top-[14px]')">
+                        </div>
+
+                        <!-- Ping Badge -->
+                        <div x-show="getServerMentionCount(server.id) > 0" class="absolute -bottom-1 -right-1 bg-red-500 rounded-full border-[3px] border-[#1e1f22] text-[10px] font-bold text-white flex items-center justify-center min-w-[20px] h-[20px] px-1 z-10" x-text="getServerMentionCount(server.id) > 99 ? '99+' : getServerMentionCount(server.id)"></div>
                     </button>
                 </template>
 
@@ -233,7 +238,7 @@
                 </button>
                 <button @click="openDiscovery()" class="w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-[#313338] hover:bg-[#5865F2] text-gray-300 hover:text-white flex items-center justify-center transition-all duration-200 mt-2 relative group" :class="{'rounded-[16px] bg-[#5865F2] text-white': activeView === 'discovery'}" title="Discover Servers">
                     <i class="ph-fill ph-compass text-2xl"></i>
-                    <div class="absolute -left-3 w-1 bg-white rounded-r-md transition-all duration-200" :class="activeView === 'discovery' ? 'h-10' : 'h-0 group-hover:h-5'"></div>
+                    <div class="absolute -left-3 w-1 bg-white rounded-r-md transition-all duration-200" :class="activeView === 'discovery' ? 'h-10 top-1' : 'h-0 top-[24px] group-hover:h-5 group-hover:top-[14px]'"></div>
                 </button>
             </div>
 
@@ -321,10 +326,17 @@
                                 </template>
                             </div>
                             <template x-for="channel in (getServer()?.channels || []).filter(c => c.type === 'text')" :key="channel.id">
-                                <button @click="activeChannelId = channel.id; viewingVoice = false; markRead(channel.id)" class="w-full flex items-center px-2 py-1.5 rounded-md transition" :class="activeChannelId === channel.id && !viewingVoice ? 'bg-[#3f4147] text-white' : 'text-gray-400 hover:bg-[#35373c] hover:text-gray-200'">
+                                <button @click="selectChannel(channel.id)" class="w-full flex items-center px-2 py-1.5 rounded-md transition" :class="activeChannelId === channel.id && !viewingVoice ? 'bg-[#3f4147] text-white' : 'text-gray-400 hover:bg-[#35373c] hover:text-gray-200'">
                                     <i class="ph ph-hash mr-2 text-lg" :class="hasUnread(channel.id) ? 'text-gray-200' : ''"></i>
                                     <span class="font-medium text-[15px] truncate flex-1 text-left" :class="hasUnread(channel.id) ? 'text-gray-100 font-bold' : ''" x-text="channel.name"></span>
-                                    <template x-if="hasUnread(channel.id) && activeChannelId !== channel.id">
+                                    
+                                    <!-- Mention Ping Badge inside channel -->
+                                    <template x-if="getMentionCount(channel.id) > 0">
+                                        <div class="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0" x-text="getMentionCount(channel.id) > 99 ? '99+' : getMentionCount(channel.id)"></div>
+                                    </template>
+                                    
+                                    <!-- Standard Unread Dot -->
+                                    <template x-if="hasUnread(channel.id) && getMentionCount(channel.id) === 0 && activeChannelId !== channel.id">
                                         <div class="w-1.5 h-1.5 bg-white rounded-full flex-shrink-0"></div>
                                     </template>
                                 </button>
@@ -742,6 +754,15 @@
                                     <div class="flex-1 h-px bg-[#3f4147]"></div>
                                     <span class="px-3 text-xs font-bold text-gray-400" x-text="group.dateSeparator"></span>
                                     <div class="flex-1 h-px bg-[#3f4147]"></div>
+                                </div>
+                            </template>
+
+                            <!-- New Messages Red Line -->
+                            <template x-if="group.messages[0].isFirstUnread">
+                                <div class="flex items-center justify-center mt-4 mb-1 px-2">
+                                    <div class="flex-1 h-[1px] bg-red-500"></div>
+                                    <span class="px-2 text-[10px] font-bold text-red-500 uppercase tracking-wider">New Messages</span>
+                                    <div class="flex-1 h-[1px] bg-red-500"></div>
                                 </div>
                             </template>
 
@@ -1270,6 +1291,7 @@
             activeView: 'home',
             activeTarget: null, 
             activeChannelId: null, 
+            activeRoomReadMarker: { roomId: null, timestamp: 0 },
             showMembersList: true,
             viewingVoice: false,
             friendsTab: 'online', 
@@ -1370,9 +1392,19 @@
                 }, 0);
             },
             getUnreadCount(roomId) {
-                if (!roomId || !this.messages) return 0;
+                if (!roomId || !this.messages || !this.currentUserProfile) return 0;
                 const lastRead = this.currentUserProfile?.lastRead?.[roomId] || 0;
                 return this.messages.filter(m => m.roomId === roomId && m.senderId !== this.logicalUid && m.timestamp > lastRead).length;
+            },
+            getMentionCount(roomId) {
+                if (!roomId || !this.messages || !this.currentUserProfile) return 0;
+                const lastRead = this.currentUserProfile?.lastRead?.[roomId] || 0;
+                return this.messages.filter(m => m.roomId === roomId && m.senderId !== this.logicalUid && m.timestamp > lastRead && this.isMentioned(m.text)).length;
+            },
+            getServerMentionCount(serverId) {
+                const s = this.servers.find(srv => srv.id === serverId);
+                if(!s || !s.channels) return 0;
+                return s.channels.reduce((sum, c) => sum + this.getMentionCount(c.id), 0);
             },
             hasUnread(roomId) {
                 return this.getUnreadCount(roomId) > 0;
@@ -1402,6 +1434,7 @@
                 const groups = [];
                 let currentGroup = null;
                 let lastDateStr = null;
+                let foundUnread = false;
 
                 for (const msg of this.filteredMessages) {
                     const dateObj = new Date(msg.timestamp);
@@ -1413,6 +1446,13 @@
                         lastDateStr = dateStr;
                         currentGroup = null; 
                     }
+                    
+                    let isFirstUnread = false;
+                    if (!foundUnread && this.activeRoomReadMarker && msg.roomId === this.activeRoomReadMarker.roomId && msg.timestamp > this.activeRoomReadMarker.timestamp && msg.senderId !== this.logicalUid) {
+                        isFirstUnread = true;
+                        foundUnread = true;
+                        currentGroup = null; 
+                    }
 
                     if (!currentGroup || currentGroup.senderId !== msg.senderId || (msg.timestamp - currentGroup.lastTimestamp) > 300000) {
                         currentGroup = {
@@ -1420,12 +1460,12 @@
                             senderId: msg.senderId,
                             timestamp: msg.timestamp,
                             lastTimestamp: msg.timestamp,
-                            messages: [msg],
+                            messages: [{...msg, isFirstUnread}],
                             dateSeparator: showDateSeparator ? dateStr : null
                         };
                         groups.push(currentGroup);
                     } else {
-                        currentGroup.messages.push(msg);
+                        currentGroup.messages.push({...msg, isFirstUnread});
                         currentGroup.lastTimestamp = msg.timestamp;
                     }
                 }
@@ -1584,7 +1624,7 @@
                         }
                     });
                     this.$watch('currentChatId', (newVal) => { 
-                        this.filterMessages(); this.markRead(newVal); 
+                        this.filterMessages();
                     });
                     
                     this.$watch('dms', () => this.updateFavicon());
@@ -1755,6 +1795,7 @@
                     if (!this.currentUserProfile.joinedServers) this.currentUserProfile.joinedServers = [];
                     if (!this.currentUserProfile.friends) this.currentUserProfile.friends = [];
                     if (!this.currentUserProfile.lastRead) this.currentUserProfile.lastRead = {};
+                    if (!this.currentUserProfile.lastChannel) this.currentUserProfile.lastChannel = {};
                     if (!this.currentUserProfile.username) {
                         this.currentUserProfile.username = "user" + Math.floor(Math.random()*9999);
                     }
@@ -2049,16 +2090,39 @@
                 this.activeView = 'discovery'; this.activeTarget = null; this.activeChannelId = null;
                 this.viewingVoice = false; this.updatePresence();
             },
+            selectChannel(channelId) {
+                const lastRead = this.currentUserProfile?.lastRead?.[channelId] || 0;
+                this.activeRoomReadMarker = { roomId: channelId, timestamp: lastRead };
+                
+                this.activeChannelId = channelId;
+                this.viewingVoice = false;
+                this.markRead(channelId);
+                
+                if (!this.currentUserProfile.lastChannel) this.currentUserProfile.lastChannel = {};
+                this.currentUserProfile.lastChannel[this.activeTarget] = channelId;
+                this.apiUpdate('users', this.logicalUid, { lastChannel: this.currentUserProfile.lastChannel });
+            },
             openServer(id) {
                 this.activeView = 'server'; this.activeTarget = id;
                 const s = this.servers.find(server => server.id === id);
-                if (s && s.channels && !this.activeChannelId) {
-                    const texts = s.channels.filter(c => c.type === 'text');
-                    this.activeChannelId = texts.length > 0 ? texts[0].id : null;
+                
+                let targetCid = this.currentUserProfile?.lastChannel?.[id];
+                if (!targetCid || !s?.channels?.some(c => c.id === targetCid)) {
+                    const texts = s?.channels?.filter(c => c.type === 'text') || [];
+                    targetCid = texts.length > 0 ? texts[0].id : null;
                 }
+                
+                if (targetCid && this.activeChannelId !== targetCid) {
+                    const lastRead = this.currentUserProfile?.lastRead?.[targetCid] || 0;
+                    this.activeRoomReadMarker = { roomId: targetCid, timestamp: lastRead };
+                    this.activeChannelId = targetCid;
+                    this.markRead(targetCid);
+                } else if (!targetCid) {
+                    this.activeChannelId = null;
+                }
+                
                 const voiceChannels = s?.channels?.filter(c => c.type === 'voice').map(c=>c.id) || [];
                 if(!voiceChannels.includes(this.inVoiceRoom)) this.viewingVoice = false;
-                this.markRead(this.activeChannelId);
                 this.updatePresence();
             },
 
@@ -2076,6 +2140,9 @@
                 return null; 
             },
             openDM(id) {
+                const lastRead = this.currentUserProfile?.lastRead?.[id] || 0;
+                this.activeRoomReadMarker = { roomId: id, timestamp: lastRead };
+                
                 this.activeView = 'home'; this.activeTarget = id; this.activeChannelId = null;
                 this.viewingVoice = (this.inVoiceRoom === id);
                 this.markRead(id);
