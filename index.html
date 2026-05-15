@@ -1411,7 +1411,7 @@
                     if (dateStr !== lastDateStr) {
                         showDateSeparator = true;
                         lastDateStr = dateStr;
-                        currentGroup = null; // Force new group on new day
+                        currentGroup = null; 
                     }
 
                     if (!currentGroup || currentGroup.senderId !== msg.senderId || (msg.timestamp - currentGroup.lastTimestamp) > 300000) {
