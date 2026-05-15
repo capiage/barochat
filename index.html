@@ -232,8 +232,9 @@
                 
                 <!-- Home Sidebar (Friends & DMs) -->
                 <template x-if="activeView === 'home' || activeView === 'discovery'">
-                    <div class="flex flex-col h-full">
-                        <div class="h-12 border-b border-[#1e1f22] shadow-sm flex items-center px-4">
+                    <!-- flex-1 min-h-0 strictly prevents overflow from pushing bottom profile strip offscreen -->
+                    <div class="flex flex-col h-full flex-1 min-h-0">
+                        <div class="h-12 border-b border-[#1e1f22] shadow-sm flex items-center px-4 flex-shrink-0">
                             <div class="w-full bg-[#1e1f22] text-gray-400 text-sm py-1.5 px-3 rounded flex items-center justify-center cursor-pointer hover:text-gray-200 transition" @click="friendsTab = 'add'; activeTarget = null;">
                                 Find or start a conversation
                             </div>
@@ -274,9 +275,10 @@
                 
                 <!-- Server Sidebar (Channels) -->
                 <template x-if="activeView === 'server'">
-                    <div class="flex flex-col h-full">
+                    <!-- flex-1 min-h-0 strictly prevents overflow from pushing bottom profile strip offscreen -->
+                    <div class="flex flex-col h-full flex-1 min-h-0">
                         <!-- Server Header w/ Dropdown -->
-                        <div class="h-12 border-b border-[#1e1f22] shadow-sm flex items-center px-4 font-bold text-gray-100 justify-between cursor-pointer hover:bg-[#35373c] transition group relative z-50">
+                        <div class="h-12 border-b border-[#1e1f22] shadow-sm flex items-center px-4 font-bold text-gray-100 justify-between cursor-pointer hover:bg-[#35373c] transition group relative z-50 flex-shrink-0">
                             <span class="truncate pr-2" x-text="getServer()?.name || 'Loading...'"></span>
                             <i class="ph ph-caret-down text-gray-400 group-hover:text-gray-200 transition-transform"></i>
                             
@@ -819,7 +821,7 @@
                         <div class="flex-1">
                             <h2 class="font-extrabold text-gray-100 text-xl mb-4 mt-2">Active Now</h2>
                             
-                            <template x-if="activeNowList.length === 0">
+                            <template x-if="activeNowGroups.length === 0">
                                 <div class="text-center p-4">
                                     <p class="text-sm text-gray-400 font-medium mt-4">It's quiet for now...</p>
                                     <p class="text-[13px] text-gray-500 mt-2">When a friend starts a voice call, it will show up here.</p>
@@ -827,25 +829,18 @@
                             </template>
                             
                             <div class="space-y-3">
-                                <template x-for="friend in activeNowList" :key="friend.uid">
-                                    <div class="bg-[#313338] border border-[#1e1f22] rounded-lg p-3 hover:bg-[#35373c] cursor-pointer transition shadow-md group" @click="handleVoiceChannelClick(activePresence.find(p=>p.uid===friend.uid)?.currentVoice)">
-                                        <div class="flex items-center gap-3 mb-3">
-                                            <div class="relative flex-shrink-0">
-                                                <img :src="friend.avatar" class="w-8 h-8 rounded-full object-cover bg-[#1e1f22]">
-                                                <div class="absolute bottom-0 right-0 w-3 h-3 bg-[#23A559] border-2 border-[#313338] rounded-full"></div>
-                                            </div>
-                                            <span class="font-bold text-gray-100 text-[15px] truncate flex-1 group-hover:underline" x-text="friend.displayName"></span>
-                                        </div>
-                                        <div class="flex flex-col gap-1.5 ml-11">
+                                <template x-for="group in activeNowGroups" :key="group.key">
+                                    <div class="bg-[#313338] border border-[#1e1f22] rounded-lg p-3 hover:bg-[#35373c] cursor-pointer transition shadow-md group" @click="joinActiveCall(group.serverId, group.voiceId)">
+                                        <div class="flex flex-col gap-1 mb-3">
+                                            <span class="font-bold text-gray-100 text-[14px] truncate group-hover:underline" x-text="getServerName(group.serverId) || 'Direct Message'"></span>
                                             <div class="text-xs font-bold text-gray-300 flex items-center gap-1.5">
                                                 <i class="ph-fill ph-speaker-high text-[#23A559] text-sm"></i>
-                                                <span class="truncate" x-text="getChannelName(activePresence.find(p=>p.uid===friend.uid)?.currentVoice)"></span>
+                                                <span class="truncate" x-text="getChannelName(group.voiceId)"></span>
                                             </div>
-                                            <template x-if="activePresence.find(p=>p.uid===friend.uid)?.currentServer">
-                                                <div class="text-[11px] font-medium text-gray-400 truncate flex items-center gap-1.5">
-                                                    <i class="ph-bold ph-hash"></i>
-                                                    <span x-text="getServerName(activePresence.find(p=>p.uid===friend.uid)?.currentServer)"></span>
-                                                </div>
+                                        </div>
+                                        <div class="flex flex-wrap gap-2">
+                                            <template x-for="user in group.users" :key="user.uid">
+                                                <img :src="user.avatar" class="w-8 h-8 rounded-full object-cover bg-[#1e1f22] border border-[#2b2d31]" :title="user.displayName">
                                             </template>
                                         </div>
                                     </div>
@@ -1286,11 +1281,17 @@
             get onlineFriendsList() {
                 return this.myFriendsList.filter(f => this.isUserOnline(f.uid));
             },
-            get activeNowList() {
-                return this.myFriendsList.filter(f => {
+            get activeNowGroups() {
+                const groups = {};
+                this.myFriendsList.forEach(f => {
                     const p = this.activePresence.find(x => x.uid === f.uid);
-                    return p && p.currentVoice;
+                    if (p && p.currentVoice) {
+                        const key = `${p.currentServer || 'dm'}_${p.currentVoice}`;
+                        if (!groups[key]) groups[key] = { key, serverId: p.currentServer, voiceId: p.currentVoice, users: [] };
+                        groups[key].users.push(f);
+                    }
                 });
+                return Object.values(groups);
             },
             get incomingFriendRequests() {
                 const myFriends = this.currentUserProfile?.friends || [];
@@ -1299,6 +1300,17 @@
             get outgoingFriendRequests() {
                 const myFriends = this.currentUserProfile?.friends || [];
                 return Object.values(this.users).filter(u => myFriends.includes(u.uid) && !u.friends?.includes(this.logicalUid));
+            },
+
+            joinActiveCall(serverId, voiceId) {
+                if (serverId && serverId !== 'dm') {
+                    this.openServer(serverId);
+                } else if (serverId === 'dm') {
+                    this.openDM(voiceId);
+                }
+                setTimeout(() => {
+                    this.handleVoiceChannelClick(voiceId);
+                }, 100);
             },
 
             getMutualServers(targetUid) {
@@ -1511,6 +1523,36 @@
                     this.$watch('dms', () => this.updateFavicon());
                     this.$watch('messages', () => this.updateFavicon());
                     
+                    // Forcefully re-attach cameras when returning to grid view to prevent local missing preview
+                    this.$watch('viewingVoice', (isViewing) => {
+                        this.$nextTick(() => {
+                            if (isViewing) {
+                                const localVid = document.getElementById('local-video');
+                                if (localVid && this.localStream) {
+                                    localVid.srcObject = null;
+                                    localVid.srcObject = this.localStream;
+                                    localVid.play().catch(()=>{});
+                                }
+                                Object.keys(this.simplePeers).forEach(uid => {
+                                    const peer = this.simplePeers[uid];
+                                    if (peer && peer._remoteStreams && peer._remoteStreams[0]) {
+                                        const v = document.getElementById(`vid_${uid}_cam`) || document.getElementById(`vid_${uid}_screenshare`);
+                                        if (v) {
+                                            v.srcObject = null;
+                                            v.srcObject = peer._remoteStreams[0];
+                                            v.play().catch(()=>{});
+                                        }
+                                    }
+                                });
+                                this.updateVideoCount();
+                            } else {
+                                // Auto scroll down when returning to chat UI
+                                const c = document.getElementById('chatContainer');
+                                if(c) c.scrollTop = c.scrollHeight;
+                            }
+                        });
+                    });
+
                     window.addEventListener('beforeunload', () => {
                         if(this.logicalUid) {
                             const payload = {
@@ -1667,7 +1709,6 @@
                         this.heartbeatInterval = setInterval(() => this.updatePresence(), 15000);
                         this.presenceSyncInterval = setInterval(() => this.syncPresence(), 30000);
                         
-                        // Strict Ghost Presence Cull
                         this.cleanupInterval = setInterval(() => {
                             const now = Date.now();
                             let changed = false;
@@ -1945,7 +1986,7 @@
             openServer(id) {
                 this.activeView = 'server'; this.activeTarget = id;
                 const s = this.servers.find(server => server.id === id);
-                if (s && s.channels && !this.activeChannelId) {
+                if (s && s.channels) {
                     const texts = s.channels.filter(c => c.type === 'text');
                     this.activeChannelId = texts.length > 0 ? texts[0].id : null;
                 }
@@ -2196,6 +2237,7 @@
                     setTimeout(() => {
                         const localVid = document.getElementById('local-video');
                         if (localVid) {
+                            localVid.srcObject = null;
                             localVid.srcObject = this.localStream;
                             localVid.style.opacity = '0';
                         }
@@ -2356,7 +2398,7 @@
             createPeer(targetUid, initiator) {
                 const peer = new SimplePeer({
                     initiator: initiator, 
-                    trickle: false, 
+                    trickle: true, 
                     stream: this.localStream,
                     config: {
                         iceServers: [
@@ -2377,7 +2419,6 @@
                     });
                 });
                 
-                // Show Reconnecting UI instead of instantly destroying cell
                 peer.on('error', err => { 
                     this.removePeer(targetUid, false); 
                     setTimeout(() => this.checkPresenceSideEffects(), 2500);
@@ -2433,7 +2474,6 @@
                                 img.className = "w-32 h-32 rounded-full object-cover shadow-2xl bg-[#1e1f22]";
                                 fallback.appendChild(img);
 
-                                // The reconnecting spinner overlay
                                 const reconnect = document.createElement('div');
                                 reconnect.id = `reconnect_${targetUid}_cam`;
                                 reconnect.className = "absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-20 transition-opacity duration-300 opacity-0 pointer-events-none";
@@ -2449,11 +2489,12 @@
                             this.updateVideoCount();
                         }
                         
-                        const reconnectUI = document.getElementById(`reconnect_${vId}`);
+                        const reconnectUI = document.getElementById(`reconnect_${targetUid}_cam`);
                         if(reconnectUI) reconnectUI.style.opacity = '0';
                         
                         const vElem = document.getElementById(`vid_${vId}`);
                         if (vElem) {
+                            vElem.srcObject = null;
                             vElem.srcObject = stream;
                             vElem.play().catch(e=>{});
                         }
