@@ -197,10 +197,20 @@
                     <img :src="defaultAvatars[0].data" class="w-8 h-8 object-contain drop-shadow-md">
                     <div class="absolute -left-3 w-1 bg-white rounded-r-md transition-all duration-200" :class="activeView === 'home' ? 'h-10' : 'h-0 group-hover:h-5'"></div>
                     <!-- Home DM Notification Badge -->
-                    <div x-show="totalUnreadDms > 0" class="absolute -top-1 -right-1 bg-red-500 rounded-full border-[3px] border-[#1e1f22] text-[10px] font-bold text-white flex items-center justify-center min-w-[20px] h-[20px] px-1" x-text="totalUnreadDms"></div>
+                    <div x-show="totalUnreadDms > 0" class="absolute -bottom-1 -right-1 bg-red-500 rounded-full border-[3px] border-[#1e1f22] text-[10px] font-bold text-white flex items-center justify-center min-w-[20px] h-[20px] px-1 z-10" x-text="totalUnreadDms > 99 ? '99+' : totalUnreadDms"></div>
                 </button>
 
                 <div class="w-8 h-[2px] bg-[#313338] rounded-full my-1"></div>
+
+                <!-- Unread DMs floating in the primary sidebar like Discord -->
+                <template x-for="dm in dms.filter(d => getUnreadCount(d.id) > 0 && activeTarget !== d.id)" :key="dm.id">
+                    <button @click="openDM(dm.id)" class="w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-[#313338] flex items-center justify-center transition-all duration-200 relative group overflow-hidden mt-1" title="Direct Message">
+                        <img :src="getUser(dm.partnerUid)?.avatar" class="w-full h-full object-cover">
+                        <!-- Notification Badge -->
+                        <div class="absolute -bottom-1 -right-1 bg-red-500 rounded-full border-[3px] border-[#1e1f22] text-[10px] font-bold text-white flex items-center justify-center min-w-[20px] h-[20px] px-1 z-10" x-text="getUnreadCount(dm.id) > 99 ? '99+' : getUnreadCount(dm.id)"></div>
+                    </button>
+                </template>
+                <div x-show="dms.filter(d => getUnreadCount(d.id) > 0 && activeTarget !== d.id).length > 0" class="w-8 h-[2px] bg-[#313338] rounded-full my-1"></div>
 
                 <!-- Mapped Servers -->
                 <template x-for="server in myServers" :key="server.id">
@@ -232,7 +242,6 @@
                 
                 <!-- Home Sidebar (Friends & DMs) -->
                 <template x-if="activeView === 'home' || activeView === 'discovery'">
-                    <!-- flex-1 min-h-0 strictly prevents overflow from pushing bottom profile strip offscreen -->
                     <div class="flex flex-col h-full flex-1 min-h-0">
                         <div class="h-12 border-b border-[#1e1f22] shadow-sm flex items-center px-4 flex-shrink-0">
                             <div class="w-full bg-[#1e1f22] text-gray-400 text-sm py-1.5 px-3 rounded flex items-center justify-center cursor-pointer hover:text-gray-200 transition" @click="friendsTab = 'add'; activeTarget = null;">
@@ -263,9 +272,9 @@
                                     <div class="flex-1 text-left truncate">
                                         <div class="font-medium text-[15px] truncate" :class="hasUnread(dm.id) ? 'text-gray-100 font-bold' : ''" x-text="getUser(dm.partnerUid)?.displayName || 'Unknown'"></div>
                                     </div>
-                                    <!-- DM Unread Badge -->
-                                    <template x-if="hasUnread(dm.id) && activeTarget !== dm.id">
-                                        <div class="w-2.5 h-2.5 bg-red-500 rounded-full flex-shrink-0 shadow"></div>
+                                    <!-- DM Unread Number Badge -->
+                                    <template x-if="getUnreadCount(dm.id) > 0 && activeTarget !== dm.id">
+                                        <div class="bg-red-500 rounded-full text-white text-[10px] font-bold px-1.5 h-4 min-w-[16px] flex items-center justify-center flex-shrink-0 shadow" x-text="getUnreadCount(dm.id) > 99 ? '99+' : getUnreadCount(dm.id)"></div>
                                     </template>
                                 </button>
                             </template>
@@ -275,7 +284,6 @@
                 
                 <!-- Server Sidebar (Channels) -->
                 <template x-if="activeView === 'server'">
-                    <!-- flex-1 min-h-0 strictly prevents overflow from pushing bottom profile strip offscreen -->
                     <div class="flex flex-col h-full flex-1 min-h-0">
                         <!-- Server Header w/ Dropdown -->
                         <div class="h-12 border-b border-[#1e1f22] shadow-sm flex items-center px-4 font-bold text-gray-100 justify-between cursor-pointer hover:bg-[#35373c] transition group relative z-50 flex-shrink-0">
@@ -1342,16 +1350,20 @@
                 return msgs[msgs.length - 1].timestamp;
             },
             get totalUnreadDms() {
-                return this.dms.filter(dm => this.hasUnread(dm.id) && this.activeTarget !== dm.id).length;
+                return this.dms.reduce((sum, dm) => {
+                    if (this.activeTarget !== dm.id) {
+                        return sum + this.getUnreadCount(dm.id);
+                    }
+                    return sum;
+                }, 0);
+            },
+            getUnreadCount(roomId) {
+                if (!roomId || !this.messages) return 0;
+                const lastRead = this.currentUserProfile?.lastRead?.[roomId] || 0;
+                return this.messages.filter(m => m.roomId === roomId && m.senderId !== this.logicalUid && m.timestamp > lastRead).length;
             },
             hasUnread(roomId) {
-                if (!roomId || !this.messages) return false;
-                const msgs = this.messages.filter(m => m.roomId === roomId);
-                if (msgs.length === 0) return false;
-                const lastMsg = msgs[msgs.length - 1];
-                if (lastMsg.senderId === this.logicalUid) return false; 
-                const lastRead = this.currentUserProfile?.lastRead?.[roomId] || 0;
-                return lastMsg.timestamp > lastRead;
+                return this.getUnreadCount(roomId) > 0;
             },
             getServerUnreadState(serverId) {
                 const s = this.servers.find(srv => srv.id === serverId);
@@ -1523,7 +1535,6 @@
                     this.$watch('dms', () => this.updateFavicon());
                     this.$watch('messages', () => this.updateFavicon());
                     
-                    // Forcefully re-attach cameras when returning to grid view to prevent local missing preview
                     this.$watch('viewingVoice', (isViewing) => {
                         this.$nextTick(() => {
                             if (isViewing) {
@@ -1546,7 +1557,6 @@
                                 });
                                 this.updateVideoCount();
                             } else {
-                                // Auto scroll down when returning to chat UI
                                 const c = document.getElementById('chatContainer');
                                 if(c) c.scrollTop = c.scrollHeight;
                             }
@@ -1946,7 +1956,8 @@
             getServer() { return this.servers.find(s => s.id === this.activeTarget); },
             getServerName(sid) { const s = this.servers.find(srv => srv.id === sid); return s ? s.name : 'Unknown Server'; },
             getChannelName(cid) {
-                if (cid && cid.includes('_')) {
+                if (!cid) return '';
+                if (cid.startsWith('user_')) {
                     const partner = this.getDmPartner(cid);
                     return this.getUser(partner)?.displayName || 'Direct Message';
                 }
@@ -1986,7 +1997,7 @@
             openServer(id) {
                 this.activeView = 'server'; this.activeTarget = id;
                 const s = this.servers.find(server => server.id === id);
-                if (s && s.channels) {
+                if (s && s.channels && !this.activeChannelId) {
                     const texts = s.channels.filter(c => c.type === 'text');
                     this.activeChannelId = texts.length > 0 ? texts[0].id : null;
                 }
@@ -1996,7 +2007,19 @@
                 this.updatePresence();
             },
 
-            getDmPartner(dmId) { const dm = this.dms.find(d => d.id === dmId); return dm ? dm.partnerUid : null; },
+            getDmPartner(dmId) { 
+                const dm = this.dms.find(d => d.id === dmId); 
+                if (dm) return dm.partnerUid;
+                if (dmId && dmId.startsWith('user_')) {
+                    const parts = dmId.split('_user_');
+                    if (parts.length === 2) {
+                        const u1 = parts[0];
+                        const u2 = 'user_' + parts[1];
+                        return u1 === this.logicalUid ? u2 : u1;
+                    }
+                }
+                return null; 
+            },
             openDM(id) {
                 this.activeView = 'home'; this.activeTarget = id; this.activeChannelId = null;
                 this.viewingVoice = (this.inVoiceRoom === id);
@@ -2237,7 +2260,6 @@
                     setTimeout(() => {
                         const localVid = document.getElementById('local-video');
                         if (localVid) {
-                            localVid.srcObject = null;
                             localVid.srcObject = this.localStream;
                             localVid.style.opacity = '0';
                         }
