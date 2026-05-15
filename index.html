@@ -1312,7 +1312,7 @@
                 const now = Date.now();
                 return this.globalPresence.filter(p => {
                     const elapsed = now - (p._localLastSeen || p.lastActive);
-                    return elapsed < 600000 && p.status === 'online'; 
+                    return elapsed < 120000 && p.status === 'online'; 
                 });
             },
 
@@ -1541,7 +1541,11 @@
             insertMention(username) {
                 this.newMessage = this.newMessage.replace(/@([a-zA-Z0-9_]*)$/, '@' + username + ' ');
                 this.showMentions = false;
-                this.$refs.chatInput.focus();
+                this.$nextTick(() => {
+                    if (this.$refs.chatInput) {
+                        this.$refs.chatInput.focus();
+                    }
+                });
             },
 
             extractProminentColor(base64) {
@@ -1821,7 +1825,7 @@
                             this.globalPresence = this.globalPresence.filter(p => {
                                 if (p.uid === this.logicalUid) return true;
                                 const elapsed = now - (p._localLastSeen || p.lastActive);
-                                if (elapsed > 45000) {
+                                if (elapsed > 120000) {
                                     changed = true;
                                     return false;
                                 }
@@ -1831,7 +1835,7 @@
                                 this.checkPresenceSideEffects();
                                 this.updateVideoFallbacks();
                             }
-                        }, 5000); 
+                        }, 10000); 
                     }
                 } else {
                     this.logout();
@@ -1978,7 +1982,13 @@
                     
                     currentVoiceUsers.forEach(uid => {
                         if (uid !== this.logicalUid && !this.simplePeers[uid]) {
-                            this.createPeer(uid, this.logicalUid < uid);
+                            const amInitiator = this.logicalUid < uid;
+                            if (!amInitiator) {
+                                this.apiAdd('signaling', {
+                                    to: uid, from: this.logicalUid, room: this.inVoiceRoom, signal: JSON.stringify({type: 'request_offer'})
+                                });
+                            }
+                            this.createPeer(uid, amInitiator);
                         }
                     });
 
@@ -2364,13 +2374,13 @@
                     canvas.width = 1280; canvas.height = 720;
                     const ctx = canvas.getContext('2d'); 
                     ctx.fillStyle = '#000000'; ctx.fillRect(0,0,1280,720); 
-                    const dummyStream = canvas.captureStream(15);
+                    const dummyStream = canvas.captureStream(1); // Ultra-light 1 FPS fix for chromebook CPU lockups
                     const dummyVideo = dummyStream.getVideoTracks()[0];
                     
                     if (this.dummyCanvasInterval) clearInterval(this.dummyCanvasInterval);
                     this.dummyCanvasInterval = setInterval(() => {
                         if(ctx) { ctx.fillStyle = ctx.fillStyle === '#000000' ? '#000001' : '#000000'; ctx.fillRect(0,0,1280,720); }
-                    }, 100);
+                    }, 1000); // 1 tick per sec
                     
                     this.localStream = new MediaStream([dummyVideo, micTrack]);
                     
@@ -2433,9 +2443,9 @@
                 
                 if (this.rtcVideoOff) {
                     try {
-                        // Enforce native 16:9 ratio hardware request while keeping bandwidth footprint light
+                        // Force 16:9 720p hardware constraints explicitly
                         const vidStream = await navigator.mediaDevices.getUserMedia({ 
-                            video: { aspectRatio: 16/9, width: { ideal: 640, max: 1280 }, height: { ideal: 360, max: 720 }, frameRate: { ideal: 15, max: 24 } } 
+                            video: { aspectRatio: 16/9, width: { ideal: 1280 }, height: { ideal: 720 } } 
                         });
                         const vidTrack = vidStream.getVideoTracks()[0];
                         const oldTrack = this.localStream.getVideoTracks()[0];
@@ -2465,13 +2475,13 @@
                         canvas.width = 1280; canvas.height = 720;
                         const ctx = canvas.getContext('2d'); 
                         ctx.fillStyle = '#000000'; ctx.fillRect(0,0,1280,720);
-                        const dummyStream = canvas.captureStream(15);
+                        const dummyStream = canvas.captureStream(1);
                         const dummyVideo = dummyStream.getVideoTracks()[0];
                         
                         if (this.dummyCanvasInterval) clearInterval(this.dummyCanvasInterval);
                         this.dummyCanvasInterval = setInterval(() => {
                             if(ctx) { ctx.fillStyle = ctx.fillStyle === '#000000' ? '#000001' : '#000000'; ctx.fillRect(0,0,1280,720); }
-                        }, 100);
+                        }, 1000);
                         
                         this.localStream.removeTrack(vidTrack);
                         this.localStream.addTrack(dummyVideo);
@@ -2514,7 +2524,7 @@
                         const v = document.createElement('video');
                         v.autoplay = true; v.playsInline = true; v.muted = true;
                         v.srcObject = this.screenStream;
-                        v.className = "w-full h-full bg-black object-contain";
+                        v.className = "w-full h-full bg-black object-cover";
                         
                         const overlay = document.createElement('div');
                         overlay.className = "absolute bottom-3 left-3 bg-black/60 px-2.5 py-1.5 rounded text-[13px] text-white font-bold backdrop-blur-sm flex items-center gap-2 z-10";
@@ -2551,11 +2561,10 @@
                     config: {
                         iceServers: [
                             { urls: 'stun:stun.l.google.com:19302' },
+                            { urls: 'stun:stun1.l.google.com:19302' },
                             { urls: 'stun:stun.cloudflare.com:3478' },
                             { urls: 'turn:openrelay.metered.ca:80?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
-                            { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
-                            // DPI/Firewall Obliterator 
-                            { urls: 'turns:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
+                            { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
                         ]
                     }
                 });
@@ -2585,9 +2594,14 @@
                     setTimeout(() => {
                         const grid = document.getElementById('fullscreen-video-grid'); if(!grid) return;
                         
-                        let isScreen = stream.getAudioTracks().length === 0;
+                        let isScreen = false;
                         if (document.getElementById(`vid_wrap_${targetUid}_cam`)) {
-                            isScreen = true;
+                            isScreen = true; // If they already have a cam, this stream must be their screen
+                        } else {
+                            const pState = this.activePresence.find(p => p.uid === targetUid);
+                            if (pState && pState.isScreenSharing && !document.getElementById(`vid_wrap_${targetUid}_screenshare`)) {
+                                isScreen = stream.getAudioTracks().length === 0;
+                            }
                         }
                         
                         const vId = isScreen ? `${targetUid}_screenshare` : `${targetUid}_cam`;
@@ -2612,9 +2626,8 @@
                             overlay.innerText = this.getUser(targetUid).displayName + (isScreen ? " (Screen)" : "");
 
                             if (!isScreen) {
-                                // Camera Off Profile Setup (No hacky 'playing' override needed anymore)
                                 const fallback = document.createElement('div');
-                                fallback.id = `fallback_${targetUid}_cam`;
+                                fallback.id = `fallback_${vId}`;
                                 fallback.className = "absolute inset-0 flex items-center justify-center transition-opacity duration-300 z-0";
                                 fallback.style.backgroundColor = this.getUser(targetUid).dominantColor || '#5865F2';
                                 
@@ -2629,7 +2642,7 @@
 
                                 // The reconnecting spinner overlay
                                 const reconnect = document.createElement('div');
-                                reconnect.id = `reconnect_${targetUid}_cam`;
+                                reconnect.id = `reconnect_${vId}`;
                                 reconnect.className = "absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-20 transition-opacity duration-300 opacity-0 pointer-events-none";
                                 reconnect.innerHTML = `<i class="ph ph-spinner-gap animate-spin text-3xl text-[#5865F2] mb-2"></i><span class="text-xs font-bold text-gray-300">Reconnecting...</span>`;
 
@@ -2641,6 +2654,14 @@
                             wrapper.appendChild(overlay); 
                             grid.appendChild(wrapper);
                             this.updateVideoCount();
+                        } else {
+                            // Wrapper already exists (we are just recycling after a rapid reconnect)
+                            const pState = this.activePresence.find(p => p.uid === targetUid);
+                            const fallback = document.getElementById(`fallback_${vId}`);
+                            if (fallback && !isScreen) {
+                                fallback.style.opacity = pState?.isCameraOff ? '1' : '0';
+                                fallback.style.pointerEvents = pState?.isCameraOff ? 'auto' : 'none';
+                            }
                         }
                         
                         const reconnectUI = document.getElementById(`reconnect_${vId}`);
@@ -2648,6 +2669,7 @@
                         
                         const vElem = document.getElementById(`vid_${vId}`);
                         if (vElem) {
+                            vElem.srcObject = null;
                             vElem.srcObject = stream;
                             vElem.play().catch(e=>{});
                         }
@@ -2659,9 +2681,28 @@
 
             handleIncomingSignal(fromUid, signalStr) {
                 if (!this.inVoiceRoom) return;
+                const signalData = JSON.parse(signalStr);
+
+                // Handshake hook for asymmetric drops
+                if (signalData.type === 'request_offer') {
+                    this.removePeer(fromUid, false); 
+                    this.createPeer(fromUid, this.logicalUid < fromUid);
+                    return;
+                }
+
                 let peer = this.simplePeers[fromUid];
-                if (!peer) { this.createPeer(fromUid, false); peer = this.simplePeers[fromUid]; }
-                peer.signal(JSON.parse(signalStr));
+                
+                // If they restart and send an offer, we must restart our peer to accept it cleanly
+                if (signalData.type === 'offer') {
+                    if (peer) this.removePeer(fromUid, false);
+                    this.createPeer(fromUid, false); 
+                    peer = this.simplePeers[fromUid];
+                } else if (!peer) {
+                    this.createPeer(fromUid, this.logicalUid < fromUid); 
+                    peer = this.simplePeers[fromUid]; 
+                }
+
+                try { peer.signal(signalData); } catch(e) {}
             },
 
             removePeer(uid, permanent = true) {
