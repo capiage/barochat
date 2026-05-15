@@ -1,30 +1,3 @@
-This update contains the definitive, permanent fixes for the networking,
-presence, and grid scaling issues you've been seeing.
-
-The Permanent Fixes Implemented:
-
-1.  The "Ghost User" Fix (keepalive Beacon & Hard Cull): When a user closes the
-    tab mid-call, the browser usually kills all WebSocket disconnection messages
-    instantly. I have implemented a modern keepalive: true API beacon that
-    guarantees the "Offline" packet reaches the database even as the browser is
-    closing. Furthermore, I added an active cleanupInterval that forcefully
-    culls any user whose heartbeat is missing for 45 seconds, perfectly
-    eradicating ghost users.
-2.  Dynamic 16:9 Grid Mathematical Clamping: The grid overflowing issue at 5+
-    people occurred because the aspect-ratio: 16/9 was forcing the height to
-    expand past the screen to maintain the width. I have rewritten the CSS
-    flexbox logic with explicit max-width math constraints (e.g., max-width:
-    calc((50vh - 1.5rem) * 16 / 9);). This guarantees 3-top, 2-bottom layouts
-    perfectly scale down and never push off-screen, supporting up to 16+ people
-    cleanly.
-3.  PFP Prominent Color Extraction: I've written a lightning-fast canvas
-    quantizer extractProminentColor() that runs whenever someone's profile
-    picture loads. It scans the pixels, filters out greyscales, finds the most
-    prominent colorful bucket, and converts it to a hex code. The camera-off
-    grids now beautifully inherit the theme of each user's specific avatar.
-
-Here is the complete, finished code.
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
