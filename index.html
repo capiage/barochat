@@ -247,7 +247,7 @@
                 
                 <!-- Home Sidebar (Friends & DMs) -->
                 <template x-if="activeView === 'home' || activeView === 'discovery'">
-                    <div class="flex flex-col h-full flex-1 min-h-0">
+                    <div class="flex flex-col flex-1 min-h-0">
                         <div class="h-12 border-b border-[#1e1f22] shadow-sm flex items-center px-4 flex-shrink-0">
                             <div class="w-full bg-[#1e1f22] text-gray-400 text-sm py-1.5 px-3 rounded flex items-center justify-center cursor-pointer hover:text-gray-200 transition" @click="friendsTab = 'add'; activeTarget = null;">
                                 Find or start a conversation
@@ -291,7 +291,7 @@
                 
                 <!-- Server Sidebar (Channels) -->
                 <template x-if="activeView === 'server'">
-                    <div class="flex flex-col h-full flex-1 min-h-0">
+                    <div class="flex flex-col flex-1 min-h-0">
                         <!-- Server Header w/ Dropdown -->
                         <div class="h-12 border-b border-[#1e1f22] shadow-sm flex items-center px-4 font-bold text-gray-100 justify-between cursor-pointer hover:bg-[#35373c] transition group relative z-50 flex-shrink-0">
                             <span class="truncate pr-2" x-text="getServer()?.name || 'Loading...'"></span>
@@ -822,7 +822,7 @@
                     <div x-show="showMentions" class="absolute bottom-full left-4 mb-2 bg-[#2b2d31] border border-[#1e1f22] rounded-md shadow-2xl w-64 max-h-48 overflow-y-auto z-50 py-1" style="display:none;">
                         <div class="px-3 py-1 text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Members (Tab to select)</div>
                         <template x-for="(user, index) in filteredMentionUsers" :key="user.uid">
-                            <button @click.prevent="insertMention(user.username)" class="w-full flex items-center px-3 py-1.5 hover:bg-[#3f4147] transition group text-left" :class="index === 0 ? 'bg-[#3f4147]/50' : ''">
+                            <button @click="insertMention(user.username)" class="w-full flex items-center px-3 py-1.5 hover:bg-[#3f4147] transition group text-left" :class="index === 0 ? 'bg-[#3f4147]/50' : ''">
                                 <img :src="user.avatar" class="w-6 h-6 rounded-full mr-2 object-cover bg-[#1e1f22]">
                                 <span class="text-sm font-medium text-gray-200 group-hover:text-white truncate" x-text="user.displayName"></span>
                                 <span class="text-xs text-gray-500 ml-2 truncate" x-text="'@' + user.username"></span>
@@ -1768,7 +1768,7 @@
                         const profile = {
                             uid: newProfileId, username: usernameNormalized, displayName: this.authDisplayName.trim() || usernameNormalized,
                             avatar: this.authAvatar, bio: "Ready to chat on Le BaroChat™!", banner: null, bannerColor: '#5865F2',
-                            joinedServers: [], friends: [], lastRead: {}, lastChannel: {}
+                            joinedServers: [], friends: [], lastRead: {}
                         };
                         await this.apiSet('users', newProfileId, profile);
 
@@ -2356,20 +2356,25 @@
             async joinVoiceRoom(channelId) {
                 if (this.inVoiceRoom) this.leaveVoiceRoom();
                 try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+                    // Highly Optimized bandwidth request for aggressive NAT/School Firewalls
+                    const stream = await navigator.mediaDevices.getUserMedia({ 
+                        video: false, 
+                        audio: { echoCancellation: true, noiseSuppression: true } 
+                    });
                     const micTrack = stream.getAudioTracks()[0];
                     micTrack.enabled = !this.isMuted;
                     
                     const canvas = document.createElement('canvas'); 
-                    canvas.width = 1280; canvas.height = 720;
+                    canvas.width = 640; canvas.height = 360;
                     const ctx = canvas.getContext('2d'); 
-                    ctx.fillStyle = '#000000'; ctx.fillRect(0,0,1280,720); 
+                    ctx.fillStyle = '#000000'; ctx.fillRect(0,0,640,360); 
+                    // Lower frame rate drastically reduces bandwidth overhead during network jitter
                     const dummyStream = canvas.captureStream(15);
                     const dummyVideo = dummyStream.getVideoTracks()[0];
                     
                     if (this.dummyCanvasInterval) clearInterval(this.dummyCanvasInterval);
                     this.dummyCanvasInterval = setInterval(() => {
-                        if(ctx) { ctx.fillStyle = ctx.fillStyle === '#000000' ? '#000001' : '#000000'; ctx.fillRect(0,0,1280,720); }
+                        if(ctx) { ctx.fillStyle = ctx.fillStyle === '#000000' ? '#000001' : '#000000'; ctx.fillRect(0,0,640,360); }
                     }, 100);
                     
                     this.localStream = new MediaStream([dummyVideo, micTrack]);
@@ -2430,8 +2435,9 @@
                 
                 if (this.rtcVideoOff) {
                     try {
+                        // Highly Optimized bandwidth request for aggressive NAT/School Firewalls
                         const vidStream = await navigator.mediaDevices.getUserMedia({ 
-                            video: { aspectRatio: 16/9, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 24, max: 30 } } 
+                            video: { aspectRatio: 16/9, width: { ideal: 640, max: 1280 }, height: { ideal: 360, max: 720 }, frameRate: { ideal: 15, max: 24 } } 
                         });
                         const vidTrack = vidStream.getVideoTracks()[0];
                         const oldTrack = this.localStream.getVideoTracks()[0];
@@ -2458,15 +2464,15 @@
                         vidTrack.stop();
                         
                         const canvas = document.createElement('canvas'); 
-                        canvas.width = 1280; canvas.height = 720;
+                        canvas.width = 640; canvas.height = 360;
                         const ctx = canvas.getContext('2d'); 
-                        ctx.fillStyle = '#000000'; ctx.fillRect(0,0,1280,720);
+                        ctx.fillStyle = '#000000'; ctx.fillRect(0,0,640,360);
                         const dummyStream = canvas.captureStream(15);
                         const dummyVideo = dummyStream.getVideoTracks()[0];
                         
                         if (this.dummyCanvasInterval) clearInterval(this.dummyCanvasInterval);
                         this.dummyCanvasInterval = setInterval(() => {
-                            if(ctx) { ctx.fillStyle = ctx.fillStyle === '#000000' ? '#000001' : '#000000'; ctx.fillRect(0,0,1280,720); }
+                            if(ctx) { ctx.fillStyle = ctx.fillStyle === '#000000' ? '#000001' : '#000000'; ctx.fillRect(0,0,640,360); }
                         }, 100);
                         
                         this.localStream.removeTrack(vidTrack);
@@ -2540,15 +2546,19 @@
             },
 
             createPeer(targetUid, initiator) {
+                // Brutally purge any ghost DOM elements before creating a new peer to fix "Fake Screenshare" overlaps
+                document.querySelectorAll('.video-wrapper').forEach(w => {
+                    if (w.id.startsWith(`vid_wrap_${targetUid}_`)) w.remove();
+                });
+                
                 const peer = new SimplePeer({
                     initiator: initiator, 
                     trickle: true, 
                     stream: this.localStream,
                     config: {
                         iceServers: [
-                            { urls: 'stun:stun.cloudflare.com:3478' },
                             { urls: 'stun:stun.l.google.com:19302' },
-                            { urls: 'turns:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+                            { urls: 'turn:openrelay.metered.ca:80?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
                             { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
                         ]
                     }
@@ -2565,12 +2575,10 @@
                 });
                 
                 peer.on('error', err => { 
-                    this.apiAdd('signaling', { to: targetUid, from: this.logicalUid, room: this.inVoiceRoom, signal: JSON.stringify({ type: 'force_reconnect' }) });
                     this.removePeer(targetUid, false); 
                     setTimeout(() => this.checkPresenceSideEffects(), 2500);
                 });
                 peer.on('close', () => { 
-                    this.apiAdd('signaling', { to: targetUid, from: this.logicalUid, room: this.inVoiceRoom, signal: JSON.stringify({ type: 'force_reconnect' }) });
                     this.removePeer(targetUid, false); 
                     setTimeout(() => this.checkPresenceSideEffects(), 2500); 
                 });
@@ -2580,8 +2588,9 @@
                     setTimeout(() => {
                         const grid = document.getElementById('fullscreen-video-grid'); if(!grid) return;
                         
-                        let isScreen = stream.getAudioTracks().length === 0;
-                        if (document.getElementById(`vid_wrap_${targetUid}_cam`)) {
+                        // Mathematically certain way to tell if it's a screenshare instead of relying on DOM presence
+                        let isScreen = false;
+                        if (peer._remoteStreams && peer._remoteStreams.length > 1 && stream === peer._remoteStreams[1]) {
                             isScreen = true;
                         }
                         
@@ -2653,17 +2662,9 @@
 
             handleIncomingSignal(fromUid, signalStr) {
                 if (!this.inVoiceRoom) return;
-                
-                const sig = JSON.parse(signalStr);
-                if (sig.type === 'force_reconnect') {
-                    this.removePeer(fromUid, false);
-                    setTimeout(() => this.checkPresenceSideEffects(), 1000);
-                    return;
-                }
-
                 let peer = this.simplePeers[fromUid];
                 if (!peer) { this.createPeer(fromUid, false); peer = this.simplePeers[fromUid]; }
-                peer.signal(sig);
+                peer.signal(JSON.parse(signalStr));
             },
 
             removePeer(uid, permanent = true) {
