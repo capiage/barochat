@@ -77,7 +77,6 @@
             max-width: none !important; max-height: none !important;
         }
 
-        /* Zoomed Image Lightbox */
         .image-lightbox {
             position: fixed; inset: 0; z-index: 9999;
             background: rgba(0,0,0,0.85); backdrop-filter: blur(5px);
@@ -104,14 +103,12 @@
 
     <!-- Onboarding / Auth Overlay -->
     <div x-show="!isReady" class="fixed inset-0 z-50 flex items-center justify-center bg-[#1e1f22] overflow-y-auto py-10" style="display: none;">
-        
         <div x-show="authLoading" class="flex flex-col items-center text-gray-300">
             <i class="ph ph-spinner-gap animate-spin text-5xl mb-4 text-[#5865F2]"></i>
             <h1 class="text-xl font-bold tracking-tight">Connecting to Le BaroChat™...</h1>
         </div>
 
         <div x-show="!authLoading" class="flex flex-col md:flex-row gap-8 items-start max-w-5xl w-full px-6">
-            
             <div class="bg-[#313338] p-8 rounded-xl shadow-2xl w-full max-w-md">
                 <div class="text-center mb-8">
                     <h2 class="text-2xl font-bold text-gray-100" x-text="authMode === 'login' ? 'Welcome Back!' : 'Create an Account'"></h2>
@@ -236,7 +233,6 @@
                 <!-- Home Sidebar (Friends & DMs) -->
                 <template x-if="activeView === 'home' || activeView === 'discovery'">
                     <div class="flex flex-col h-full">
-                        <!-- Clean header for Home -->
                         <div class="h-12 border-b border-[#1e1f22] shadow-sm flex items-center px-4">
                             <div class="w-full bg-[#1e1f22] text-gray-400 text-sm py-1.5 px-3 rounded flex items-center justify-center cursor-pointer hover:text-gray-200 transition" @click="friendsTab = 'add'; activeTarget = null;">
                                 Find or start a conversation
@@ -1429,7 +1425,6 @@
                 this.$refs.chatInput.focus();
             },
 
-            // High Performance Image Prominent Color Quantizer
             extractProminentColor(base64) {
                 return new Promise(resolve => {
                     if (!base64 || !base64.startsWith('data:image')) return resolve('#5865F2');
@@ -1448,12 +1443,11 @@
                         let prominentRGB = {r:88, g:101, b:242};
 
                         for (let i = 0; i < data.length; i += 16) {
-                            if (data[i+3] < 128) continue; // Skip transparent
+                            if (data[i+3] < 128) continue; 
                             const r = Math.round(data[i] / 16) * 16;
                             const g = Math.round(data[i+1] / 16) * 16;
                             const b = Math.round(data[i+2] / 16) * 16;
                             
-                            // Prioritize colors over greyscales to make it punchy
                             if (Math.abs(r-g) > 20 || Math.abs(g-b) > 20 || Math.abs(r-b) > 20) {
                                 const key = `${r},${g},${b}`;
                                 colorCounts[key] = (colorCounts[key] || 0) + 1;
@@ -1463,7 +1457,7 @@
                                 }
                             }
                         }
-                        if (maxCount === 0) return resolve('#5865F2'); // fallback if totally black/white
+                        if (maxCount === 0) return resolve('#5865F2'); 
                         const hex = `#${((1 << 24) + (prominentRGB.r << 16) + (prominentRGB.g << 8) + prominentRGB.b).toString(16).slice(1)}`;
                         this._colorCache[base64] = hex;
                         resolve(hex);
@@ -1517,7 +1511,6 @@
                     this.$watch('dms', () => this.updateFavicon());
                     this.$watch('messages', () => this.updateFavicon());
                     
-                    // True Keep-Alive Beacon on Unload to permanently fix ghost users
                     window.addEventListener('beforeunload', () => {
                         if(this.logicalUid) {
                             const payload = {
@@ -1826,7 +1819,7 @@
                     
                     let domChanged = false;
                     document.querySelectorAll('.video-wrapper').forEach(w => {
-                        const match = w.id.match(/vid_wrap_(user_[a-z0-9]+)_(cam|screenshare)/);
+                        const match = w.id.match(/^vid_wrap_(.+)_(cam|screenshare)$/);
                         if (match) {
                             const uid = match[1];
                             if (uid !== this.logicalUid && !currentVoiceUsers.includes(uid)) {
@@ -2197,9 +2190,7 @@
                     
                     this.inVoiceRoom = channelId; this.rtcVideoOff = true; this.isScreenSharing = false; this.viewingVoice = true; 
                     
-                    // Explicitly wipe ghost presence payload manually before re-connecting logic
-                    await this.apiUpdate('presence', this.logicalUid, { status: 'online', currentServer: this.activeView === 'server' ? this.activeTarget : null, currentVoice: this.inVoiceRoom, isScreenSharing: false, isCameraOff: true, isMuted: this.isMuted, lastActive: Date.now() });
-
+                    this.updatePresence();
                     this.updateVideoCount();
 
                     setTimeout(() => {
@@ -2231,7 +2222,6 @@
                 this.inVoiceRoom = null; this.localStream = null; this.viewingVoice = false; this.fullscreenVideoId = null;
                 this.updateVideoCount();
                 
-                // Clear Voice State on leave perfectly
                 this.apiUpdate('presence', this.logicalUid, { status: 'online', currentVoice: null, isScreenSharing: false, isCameraOff: true, lastActive: Date.now() });
             },
 
@@ -2387,6 +2377,7 @@
                     });
                 });
                 
+                // Show Reconnecting UI instead of instantly destroying cell
                 peer.on('error', err => { 
                     this.removePeer(targetUid, false); 
                     setTimeout(() => this.checkPresenceSideEffects(), 2500);
@@ -2442,7 +2433,14 @@
                                 img.className = "w-32 h-32 rounded-full object-cover shadow-2xl bg-[#1e1f22]";
                                 fallback.appendChild(img);
 
+                                // The reconnecting spinner overlay
+                                const reconnect = document.createElement('div');
+                                reconnect.id = `reconnect_${targetUid}_cam`;
+                                reconnect.className = "absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-20 transition-opacity duration-300 opacity-0 pointer-events-none";
+                                reconnect.innerHTML = `<i class="ph ph-spinner-gap animate-spin text-3xl text-[#5865F2] mb-2"></i><span class="text-xs font-bold text-gray-300">Reconnecting...</span>`;
+
                                 wrapper.appendChild(fallback);
+                                wrapper.appendChild(reconnect);
                             }
 
                             wrapper.appendChild(v); 
@@ -2450,7 +2448,15 @@
                             grid.appendChild(wrapper);
                             this.updateVideoCount();
                         }
-                        document.getElementById(`vid_${vId}`).srcObject = stream;
+                        
+                        const reconnectUI = document.getElementById(`reconnect_${vId}`);
+                        if(reconnectUI) reconnectUI.style.opacity = '0';
+                        
+                        const vElem = document.getElementById(`vid_${vId}`);
+                        if (vElem) {
+                            vElem.srcObject = stream;
+                            vElem.play().catch(e=>{});
+                        }
                     }, 200);
                 });
 
@@ -2468,13 +2474,16 @@
                 if (this.simplePeers[uid]) { this.simplePeers[uid].destroy(); delete this.simplePeers[uid]; }
                 if (permanent) {
                     document.querySelectorAll('.video-wrapper').forEach(w => {
-                        if (w.id.startsWith(`vid_wrap_${uid}_`)) {
-                            const vidId = w.id.replace('vid_wrap_', '');
-                            if(this.fullscreenVideoId === vidId) this.fullscreenVideoId = null;
+                        const match = w.id.match(/^vid_wrap_(.+)_(cam|screenshare)$/);
+                        if (match && match[1] === uid) {
+                            if(this.fullscreenVideoId === `${uid}_${match[2]}`) this.fullscreenVideoId = null;
                             w.remove();
                         }
                     });
                     this.updateVideoCount();
+                } else {
+                    const reconnectUI = document.getElementById(`reconnect_${uid}_cam`);
+                    if(reconnectUI) reconnectUI.style.opacity = '1';
                 }
             }
         });
