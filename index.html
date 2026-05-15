@@ -262,20 +262,22 @@
                                 <i class="ph ph-plus"></i>
                             </div>
                             
-                            <!-- DM List (Sorted by recent) -->
+                            <!-- DM List (Sorted by recent) w/ Date Times -->
                             <template x-for="dm in sortedDms" :key="dm.id">
                                 <button @click="openDM(dm.id)" class="w-full flex items-center px-2 py-1.5 rounded-md transition group" :class="activeTarget === dm.id && activeView === 'home' ? 'bg-[#3f4147] text-white' : 'hover:bg-[#35373c] text-gray-400 hover:text-gray-200'">
                                     <div class="relative flex-shrink-0 mr-3">
                                         <img :src="getUser(dm.partnerUid)?.avatar" class="w-8 h-8 rounded-full object-cover bg-[#1e1f22]">
                                         <div class="absolute bottom-0 right-0 w-3 h-3 border-2 border-[#2b2d31] rounded-full" :class="isUserOnline(dm.partnerUid) ? 'bg-[#23A559]' : 'bg-gray-500'"></div>
                                     </div>
-                                    <div class="flex-1 text-left truncate">
+                                    <div class="flex-1 min-w-0 flex items-center justify-between">
                                         <div class="font-medium text-[15px] truncate" :class="hasUnread(dm.id) ? 'text-gray-100 font-bold' : ''" x-text="getUser(dm.partnerUid)?.displayName || 'Unknown'"></div>
+                                        <div class="flex items-center gap-1.5 pl-2 flex-shrink-0">
+                                            <template x-if="getUnreadCount(dm.id) > 0 && activeTarget !== dm.id">
+                                                <div class="bg-red-500 rounded-full text-white text-[10px] font-bold px-1.5 h-4 min-w-[16px] flex items-center justify-center shadow" x-text="getUnreadCount(dm.id) > 99 ? '99+' : getUnreadCount(dm.id)"></div>
+                                            </template>
+                                            <div class="text-[10px] font-medium" :class="hasUnread(dm.id) && activeTarget !== dm.id ? 'text-gray-300' : 'text-gray-500'" x-show="getLastMessageTimestamp(dm.id) > 0" x-text="formatSidebarTime(getLastMessageTimestamp(dm.id))"></div>
+                                        </div>
                                     </div>
-                                    <!-- DM Unread Number Badge -->
-                                    <template x-if="getUnreadCount(dm.id) > 0 && activeTarget !== dm.id">
-                                        <div class="bg-red-500 rounded-full text-white text-[10px] font-bold px-1.5 h-4 min-w-[16px] flex items-center justify-center flex-shrink-0 shadow" x-text="getUnreadCount(dm.id) > 99 ? '99+' : getUnreadCount(dm.id)"></div>
-                                    </template>
                                 </button>
                             </template>
                         </div>
@@ -379,10 +381,9 @@
                 </template>
 
                 <!-- Current User Profile Strip (Bottom Left) -->
-                <!-- Moved above the Voice Strip so voice strip stays at absolute bottom -->
                 <div class="mt-auto flex flex-col w-full z-30 flex-shrink-0">
                     
-                    <!-- Global Active Voice Connection Strip (Shows on all pages if connected) -->
+                    <!-- Global Active Voice Connection Strip -->
                     <div x-show="inVoiceRoom" class="bg-[#111214] p-2 border-t border-[#1e1f22] flex flex-col gap-2 relative z-20" style="display: none;">
                         <div class="flex items-center justify-between text-[#23A559] px-1 pt-1">
                             <div class="flex flex-col cursor-pointer hover:underline" @click="viewingVoice = true; if(activeView !== 'server' && activeView !== 'home') activeView = 'server';">
@@ -734,42 +735,53 @@
 
                     <!-- Discord-Style Grouped Messages -->
                     <template x-for="group in groupedMessages" :key="group.id">
-                        <div class="flex mt-4 px-2 group">
-                            <!-- Group Header (PFP) -->
-                            <div class="flex-shrink-0 mr-4 w-10">
-                                <img :src="getUser(group.senderId)?.avatar" @click="openProfilePopout(group.senderId)" class="w-10 h-10 rounded-full mt-0.5 object-cover cursor-pointer bg-[#1e1f22]">
-                            </div>
-                            <div class="flex-1 min-w-0 flex flex-col">
-                                <div class="flex items-baseline mb-1">
-                                    <span class="font-medium text-gray-100 mr-2 cursor-pointer hover:underline text-[15px]" @click="openProfilePopout(group.senderId)" x-text="getUser(group.senderId)?.displayName || 'Unknown'"></span>
-                                    <i x-show="activeView === 'server' && getServer()?.owner === group.senderId" class="ph-fill ph-crown text-[#F1C40F] mr-2 text-sm" title="Server Owner"></i>
-                                    <span class="text-[11px] text-gray-400 font-medium" x-text="formatTime(group.timestamp)"></span>
+                        <div class="flex flex-col w-full">
+                            <!-- Day Separator -->
+                            <template x-if="group.dateSeparator">
+                                <div class="flex items-center justify-center mt-6 mb-2 px-2">
+                                    <div class="flex-1 h-px bg-[#3f4147]"></div>
+                                    <span class="px-3 text-xs font-bold text-gray-400" x-text="group.dateSeparator"></span>
+                                    <div class="flex-1 h-px bg-[#3f4147]"></div>
                                 </div>
-                                
-                                <!-- Messages in this Group -->
-                                <div class="space-y-0.5">
-                                    <template x-for="msg in group.messages" :key="msg.id">
-                                        <div class="group/msg relative flex flex-col items-start py-0.5 hover:bg-[#2b2d31] transition -ml-14 pl-14 rounded-r" :class="isMentioned(msg.text) ? 'bg-[#5865F2]/10 border-l-2 border-[#5865F2]' : 'border-l-2 border-transparent'">
-                                            
-                                            <!-- Message Content -->
-                                            <div class="w-full text-gray-300 break-words leading-snug text-[15px]" x-show="msg.text"><span class="whitespace-pre-wrap" x-html="formatMessage(msg.text)"></span><span x-show="msg.edited" class="text-[10px] text-gray-500 ml-1">(edited)</span></div>
-                                            
-                                            <!-- Image Attachments -->
-                                            <template x-if="msg.image">
-                                                <img :src="msg.image" class="mt-1 max-w-md w-full rounded-md object-contain border border-[#1e1f22] bg-[#2b2d31] cursor-pointer block" @click="zoomedImage = msg.image">
-                                            </template>
-                                            
-                                            <!-- Edit/Delete Controls (Right aligned) -->
-                                            <div x-show="msg.senderId === logicalUid" class="absolute right-2 -top-3 bg-[#313338] border border-[#1e1f22] rounded shadow-md hidden group-hover/msg:flex items-center z-10 overflow-hidden">
-                                                <button @click="startEditMessage(msg)" class="p-1.5 text-gray-400 hover:bg-[#3f4147] hover:text-gray-200 transition" title="Edit">
-                                                    <i class="ph-fill ph-pencil-simple text-sm"></i>
-                                                </button>
-                                                <button @click="deleteMessage(msg.id)" class="p-1.5 text-gray-400 hover:bg-red-500 hover:text-white transition" title="Delete">
-                                                    <i class="ph-fill ph-trash text-sm"></i>
-                                                </button>
+                            </template>
+
+                            <div class="flex mt-2 px-2 group">
+                                <!-- Group Header (PFP) -->
+                                <div class="flex-shrink-0 mr-4 w-10">
+                                    <img :src="getUser(group.senderId)?.avatar" @click="openProfilePopout(group.senderId)" class="w-10 h-10 rounded-full mt-0.5 object-cover cursor-pointer bg-[#1e1f22]">
+                                </div>
+                                <div class="flex-1 min-w-0 flex flex-col">
+                                    <div class="flex items-baseline mb-1">
+                                        <span class="font-medium text-gray-100 mr-2 cursor-pointer hover:underline text-[15px]" @click="openProfilePopout(group.senderId)" x-text="getUser(group.senderId)?.displayName || 'Unknown'"></span>
+                                        <i x-show="activeView === 'server' && getServer()?.owner === group.senderId" class="ph-fill ph-crown text-[#F1C40F] mr-2 text-sm" title="Server Owner"></i>
+                                        <span class="text-[11px] text-gray-400 font-medium" x-text="formatChatTime(group.timestamp)"></span>
+                                    </div>
+                                    
+                                    <!-- Messages in this Group -->
+                                    <div class="space-y-0.5">
+                                        <template x-for="msg in group.messages" :key="msg.id">
+                                            <div class="group/msg relative flex flex-col items-start py-0.5 hover:bg-[#2b2d31] transition -ml-14 pl-14 rounded-r" :class="isMentioned(msg.text) ? 'bg-[#5865F2]/10 border-l-2 border-[#5865F2]' : 'border-l-2 border-transparent'">
+                                                
+                                                <!-- Message Content -->
+                                                <div class="w-full text-gray-300 break-words leading-snug text-[15px]" x-show="msg.text"><span class="whitespace-pre-wrap" x-html="formatMessage(msg.text)"></span><span x-show="msg.edited" class="text-[10px] text-gray-500 ml-1">(edited)</span></div>
+                                                
+                                                <!-- Image Attachments -->
+                                                <template x-if="msg.image">
+                                                    <img :src="msg.image" class="mt-1 max-w-md w-full rounded-md object-contain border border-[#1e1f22] bg-[#2b2d31] cursor-pointer block" @click="zoomedImage = msg.image">
+                                                </template>
+                                                
+                                                <!-- Edit/Delete Controls (Right aligned) -->
+                                                <div x-show="msg.senderId === logicalUid" class="absolute right-2 -top-3 bg-[#313338] border border-[#1e1f22] rounded shadow-md hidden group-hover/msg:flex items-center z-10 overflow-hidden">
+                                                    <button @click="startEditMessage(msg)" class="p-1.5 text-gray-400 hover:bg-[#3f4147] hover:text-gray-200 transition" title="Edit">
+                                                        <i class="ph-fill ph-pencil-simple text-sm"></i>
+                                                    </button>
+                                                    <button @click="deleteMessage(msg.id)" class="p-1.5 text-gray-400 hover:bg-red-500 hover:text-white transition" title="Delete">
+                                                        <i class="ph-fill ph-trash text-sm"></i>
+                                                    </button>
+                                                </div>
                                             </div>
-                                        </div>
-                                    </template>
+                                        </template>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1389,14 +1401,27 @@
                 if (!this.filteredMessages || this.filteredMessages.length === 0) return [];
                 const groups = [];
                 let currentGroup = null;
+                let lastDateStr = null;
+
                 for (const msg of this.filteredMessages) {
+                    const dateObj = new Date(msg.timestamp);
+                    const dateStr = dateObj.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+                    let showDateSeparator = false;
+
+                    if (dateStr !== lastDateStr) {
+                        showDateSeparator = true;
+                        lastDateStr = dateStr;
+                        currentGroup = null; // Force new group on new day
+                    }
+
                     if (!currentGroup || currentGroup.senderId !== msg.senderId || (msg.timestamp - currentGroup.lastTimestamp) > 300000) {
                         currentGroup = {
                             id: msg.id + '_grp',
                             senderId: msg.senderId,
                             timestamp: msg.timestamp,
                             lastTimestamp: msg.timestamp,
-                            messages: [msg]
+                            messages: [msg],
+                            dateSeparator: showDateSeparator ? dateStr : null
                         };
                         groups.push(currentGroup);
                     } else {
@@ -1407,6 +1432,36 @@
                 return groups;
             },
             
+            formatSidebarTime(ts) { 
+                if(!ts) return '';
+                const d = new Date(ts);
+                const today = new Date();
+                if (d.getDate() === today.getDate() && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear()) {
+                    return d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                }
+                return d.toLocaleDateString('en-US', {month: '2-digit', day: '2-digit', year: 'numeric'});
+            },
+            
+            formatChatTime(ts) {
+                if(!ts) return '';
+                const d = new Date(ts);
+                const today = new Date();
+                const timeStr = d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                
+                if (d.getDate() === today.getDate() && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear()) {
+                    return `Today at ${timeStr}`;
+                }
+                
+                const yesterday = new Date(today);
+                yesterday.setDate(yesterday.getDate() - 1);
+                
+                if (d.getDate() === yesterday.getDate() && d.getMonth() === yesterday.getMonth() && d.getFullYear() === yesterday.getFullYear()) {
+                    return `Yesterday at ${timeStr}`;
+                }
+                
+                return `${d.toLocaleDateString('en-US', {month: '2-digit', day: '2-digit', year: 'numeric'})} ${timeStr}`;
+            },
+
             escapeHTML(str) {
                 if (!str) return '';
                 return str.replace(/[&<>'"]/g, tag => ({
