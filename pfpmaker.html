@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Glove Game - PFP Generator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;700;900&family=Inter:wght@400;700;900&display=swap');
+        
+        body { 
+            margin: 0; 
+            background-color: #030305; 
+            color: white; 
+            font-family: 'Inter', sans-serif; 
+            min-height: 100vh;
+            background-image: radial-gradient(circle at center, rgba(15,15,25,1) 0%, rgba(0,0,0,1) 100%);
+        }
+        
+        h1, h2, h3 { font-family: 'Oswald', sans-serif; text-transform: uppercase; }
+        
+        .glass-panel { 
+            background: linear-gradient(135deg, rgba(15, 15, 20, 0.85) 0%, rgba(5, 5, 10, 0.95) 100%);
+            border: 1px solid rgba(255,255,255,0.08); 
+            backdrop-filter: blur(15px); 
+            box-shadow: 0 30px 60px -15px rgba(0, 0, 0, 1), inset 0 1px 1px rgba(255,255,255,0.1); 
+            border-radius: 24px;
+        }
+
+        .btn { 
+            position: relative; overflow: hidden; padding: 14px 24px; font-weight: 900; 
+            border-radius: 12px; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
+            border: 1px solid transparent; font-size: 16px; letter-spacing: 2px; text-transform: uppercase; 
+            font-family: 'Oswald', sans-serif;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            width: 100%;
+        }
+        
+        .btn-purple { 
+            background: linear-gradient(135deg, #7c3aed 0%, #4c1d95 100%); 
+            border-color: rgba(167, 139, 250, 0.3);
+            box-shadow: 0 8px 25px -5px rgba(124, 58, 237, 0.6), inset 0 2px 0 rgba(255,255,255,0.2); 
+        }
+        .btn-purple:hover { transform: translateY(-2px); box-shadow: 0 15px 35px -5px rgba(124, 58, 237, 0.8), inset 0 2px 0 rgba(255,255,255,0.3); }
+        .btn-purple:active { transform: translateY(1px); }
+
+        /* Custom form controls */
+        label {
+            font-size: 0.7rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase;
+            color: #94a3b8; margin-bottom: 6px; display: block;
+        }
+
+        input[type="text"], select {
+            background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.1);
+            color: white; font-family: 'Inter', sans-serif; padding: 10px 14px;
+            border-radius: 8px; width: 100%; font-weight: 600;
+            transition: all 0.3s ease;
+            appearance: none;
+        }
+        input[type="text"]:focus, select:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 15px rgba(59,130,246,0.3); background: rgba(0,0,0,0.8); }
+
+        input[type="color"] {
+            -webkit-appearance: none; border: none; width: 100%; height: 42px; border-radius: 8px;
+            background: rgba(0,0,0,0.6); padding: 2px; cursor: pointer;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+        input[type="color"]::-webkit-color-swatch { border: none; border-radius: 6px; }
+
+        .checkbox-container { display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; }
+        .checkbox-container input { display: none; }
+        .checkmark {
+            width: 20px; height: 20px; background: rgba(0,0,0,0.6); border: 2px solid rgba(255,255,255,0.2);
+            border-radius: 4px; display: flex; align-items: center; justify-content: center; transition: all 0.2s;
+        }
+        .checkbox-container input:checked ~ .checkmark { background: #3b82f6; border-color: #3b82f6; }
+        .checkbox-container input:checked ~ .checkmark::after { content: '✓'; color: white; font-size: 14px; font-weight: bold; }
+
+        /* Canvas Wrapper representing the raw exported image frame */
+        #canvasWrapper {
+            background-image: 
+                linear-gradient(45deg, #111 25%, transparent 25%), 
+                linear-gradient(-45deg, #111 25%, transparent 25%), 
+                linear-gradient(45deg, transparent 75%, #111 75%), 
+                linear-gradient(-45deg, transparent 75%, #111 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+            border-radius: 12px;
+            padding: 20px;
+            display: inline-block;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        canvas { display: block; border-radius: 50%; box-shadow: 0 15px 50px rgba(0,0,0,0.9); }
+    </style>
+</head>
+<body class="flex items-center justify-center py-12 px-4">
+
+    <div class="max-w-5xl w-full grid grid-cols-1 md:grid-cols-12 gap-10 items-start">
+        
+        <!-- Left Side: Preview & Export -->
+        <div class="md:col-span-5 flex flex-col items-center gap-6 sticky top-10">
+            <div class="text-center w-full">
+                <h1 class="text-6xl font-black mb-1 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500 tracking-tighter">PFP MAKER</h1>
+                <p class="text-gray-400 text-xs font-bold tracking-[0.3em] uppercase">Export 100% Ready-to-Use</p>
+            </div>
+
+            <div id="canvasWrapper">
+                <!-- High-Res canvas rendered down to 300px for nice display, exports at 600px -->
+                <canvas id="pfpCanvas" width="600" height="600" style="width: 300px; height: 300px;"></canvas>
+            </div>
+
+            <button class="btn btn-purple" onclick="downloadPFP()">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                DOWNLOAD PNG
+            </button>
+        </div>
+
+        <!-- Right Side: Controls -->
+        <div class="md:col-span-7 glass-panel p-8 flex flex-col gap-6">
+            
+            <h2 class="text-2xl font-bold tracking-widest text-white/90 border-b border-white/10 pb-3">CUSTOMIZE FIGHTER</h2>
+
+            <!-- Background & Body Colors -->
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div>
+                    <label>Background</label>
+                    <input type="color" id="bgColor" value="#0c0a20" oninput="renderPFP()">
+                </div>
+                <div>
+                    <label>Shirt Color</label>
+                    <input type="color" id="shirtColor" value="#3b82f6" oninput="renderPFP()">
+                </div>
+                <div>
+                    <label>Gloves Color</label>
+                    <input type="color" id="gloveColor" value="#ef4444" oninput="renderPFP()">
+                </div>
+            </div>
+
+            <!-- Toggles for BG -->
+            <div class="bg-white/5 p-4 rounded-xl border border-white/5">
+                <label class="checkbox-container m-0">
+                    <input type="checkbox" id="clearBg" onchange="renderPFP()">
+                    <div class="checkmark"></div>
+                    <span class="text-sm font-bold tracking-wider">CLEAR / TRANSPARENT BG</span>
+                </label>
+            </div>
+
+            <!-- Initial Customization -->
+            <div class="bg-white/5 p-4 rounded-xl border border-white/5 flex flex-col gap-4">
+                <label class="checkbox-container m-0">
+                    <input type="checkbox" id="showInitial" checked onchange="renderPFP()">
+                    <div class="checkmark"></div>
+                    <span class="text-sm font-bold tracking-wider">EMBOSSED INITIAL</span>
+                </label>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label>Letter</label>
+                        <input type="text" id="initialText" value="C" maxlength="2" placeholder="Letter" class="text-center font-['Oswald'] text-xl uppercase" oninput="renderPFP()">
+                    </div>
+                    <div>
+                        <label>Letter Color</label>
+                        <input type="color" id="initialColor" value="#ffffff" oninput="renderPFP()">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pose & Headgear -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label>Fighter Pose</label>
+                    <select id="pose" onchange="renderPFP()">
+                        <option value="none">No Gloves</option>
+                        <option value="idle" selected>Idle Stance</option>
+                        <option value="tpose">Dominant T-Pose</option>
+                        <option value="powerup">Powering Up</option>
+                        <option value="praise">Praise</option>
+                        <option value="point">Menacing Point</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Headgear</label>
+                    <select id="hat" onchange="renderPFP()">
+                        <option value="none">None</option>
+                        <option value="kippah">Kippah</option>
+                        <option value="widebrim">Wide Brim Hat</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Accessories -->
+            <div class="flex flex-col gap-3 bg-white/5 p-4 rounded-xl border border-white/5">
+                <label>Accessories (Can equip multiple)</label>
+                <div class="grid grid-cols-2 gap-4">
+                    <label class="checkbox-container">
+                        <input type="checkbox" id="accSunglasses" onchange="renderPFP()">
+                        <div class="checkmark"></div>
+                        <span class="text-sm font-bold tracking-wider">SUNGLASSES</span>
+                    </label>
+                    <label class="checkbox-container">
+                        <input type="checkbox" id="accChain" onchange="renderPFP()">
+                        <div class="checkmark"></div>
+                        <span class="text-sm font-bold tracking-wider">GOLD CHAIN</span>
+                    </label>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+<script>
+    const canvas = document.getElementById('pfpCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // Canvas Size is fixed to 600x600 for a crisp exported image
+    const W = 600;
+    const H = 600;
+    const CX = W / 2;
+    const CY = H / 2;
+
+    // Trigger initial render
+    window.onload = () => {
+        renderPFP();
+    };
+
+    function renderPFP() {
+        // Fetch values
+        const bgColor = document.getElementById('bgColor').value;
+        const clearBg = document.getElementById('clearBg').checked;
+        const shirtColor = document.getElementById('shirtColor').value;
+        const gloveColor = document.getElementById('gloveColor').value;
+        
+        const showInitial = document.getElementById('showInitial').checked;
+        const initialText = document.getElementById('initialText').value.trim() || ' ';
+        const initialColor = document.getElementById('initialColor').value;
+        
+        const pose = document.getElementById('pose').value;
+        const hat = document.getElementById('hat').value;
+        const hasSunglasses = document.getElementById('accSunglasses').checked;
+        const hasChain = document.getElementById('accChain').checked;
+
+        ctx.clearRect(0, 0, W, H);
+        ctx.save();
+
+        // 1. Clip everything to a perfect circle (TikTok format)
+        ctx.beginPath();
+        ctx.arc(CX, CY, W/2, 0, Math.PI * 2);
+        ctx.clip();
+
+        // 2. Draw Background
+        if (!clearBg) {
+            let bgGrad = ctx.createRadialGradient(CX, CY - 150, 0, CX, CY, W);
+            bgGrad.addColorStop(0, adjustColor(bgColor, 30)); 
+            bgGrad.addColorStop(1, bgColor); 
+            ctx.fillStyle = bgGrad;
+            ctx.fillRect(0, 0, W, H);
+        }
+
+        // --- NEW PROPORTIONS TO MATCH GAME ACCURATELY ---
+        // Game features a head that is strictly wider than the torso width.
+        const headR = 110;  // Head diameter = 220
+        const torsoW = 180; // Torso width = 180 (slimmer than head!)
+        const torsoH = 400; 
+        
+        const headY = 190;  
+        const torsoY = 260; // Overlaps under the head cleanly
+
+        // 3. Draw Torso
+        let bodyGrad = ctx.createLinearGradient(CX - torsoW/2, torsoY, CX + torsoW/2, torsoY);
+        bodyGrad.addColorStop(0, shirtColor); 
+        bodyGrad.addColorStop(1, adjustColor(shirtColor, -50)); // Shading on right
+        
+        ctx.fillStyle = bodyGrad;
+        ctx.beginPath();
+        ctx.roundRect(CX - torsoW/2, torsoY, torsoW, torsoH, 90); // Perfect pill shape
+        ctx.fill();
+
+        // 4. Draw Gold Chain (Lays over shirt, placed higher so it doesn't block the letter)
+        if (hasChain) {
+            ctx.strokeStyle = '#fbbf24'; 
+            ctx.lineWidth = 14;
+            ctx.lineCap = 'round'; 
+            ctx.lineJoin = 'round';
+            
+            ctx.beginPath();
+            ctx.moveTo(CX - 40, headY + 80); // Left side of neck
+            ctx.lineTo(CX, torsoY + 70);     // Down to chest pendant (higher up)
+            ctx.lineTo(CX + 40, headY + 80); // Right side of neck
+            ctx.stroke();
+            
+            // Pendant
+            ctx.fillStyle = '#f59e0b';
+            ctx.fillRect(CX - 18, torsoY + 50, 36, 40);
+            ctx.fillStyle = '#fef08a'; 
+            ctx.fillRect(CX - 6, torsoY + 60, 12, 12);
+        }
+
+        // 5. Draw Custom Embossed Initial (Moved lower to avoid chain)
+        if (showInitial && initialText) {
+            const textY = torsoY + 160; 
+            ctx.font = "900 130px Oswald";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            
+            // Deep drop shadow
+            ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+            ctx.fillText(initialText, CX, textY + 6);
+            
+            // Top highlight
+            ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
+            ctx.fillText(initialText, CX, textY - 4);
+            
+            // Main user-selected color
+            ctx.fillStyle = initialColor;
+            ctx.fillText(initialText, CX, textY);
+        }
+
+        // 6. Draw Head
+        ctx.fillStyle = '#fecaca'; // Skin tone
+        ctx.beginPath();
+        ctx.arc(CX, headY, headR, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Slight face shading
+        ctx.fillStyle = 'rgba(0,0,0,0.15)'; 
+        ctx.beginPath(); 
+        ctx.arc(CX - 25, headY + 10, headR * 0.8, 0, Math.PI * 2); 
+        ctx.fill();
+
+        // 7. Draw Sunglasses (Wider to fit new head)
+        if (hasSunglasses) {
+            const eyeY = headY - 10;
+            
+            ctx.fillStyle = '#0f172a';
+            ctx.beginPath();
+            ctx.moveTo(CX - 95, eyeY - 12);
+            ctx.lineTo(CX + 95, eyeY - 12);
+            ctx.lineTo(CX + 70, eyeY + 35);
+            ctx.lineTo(CX - 70, eyeY + 35);
+            ctx.fill();
+            
+            // Visor Shine
+            ctx.fillStyle = 'rgba(255,255,255,0.7)';
+            ctx.beginPath();
+            ctx.moveTo(CX + 10, eyeY - 12);
+            ctx.lineTo(CX + 60, eyeY - 12);
+            ctx.lineTo(CX + 45, eyeY + 35);
+            ctx.lineTo(CX - 5, eyeY + 35);
+            ctx.fill();
+        }
+
+        // 8. Draw Headgear
+        if (hat === 'kippah') {
+            ctx.fillStyle = '#0f172a';
+            ctx.beginPath();
+            // Perfectly centered on crown
+            ctx.ellipse(CX, headY - headR + 15, 65, 25, 0, 0, Math.PI * 2); 
+            ctx.fill();
+        } else if (hat === 'widebrim') {
+            ctx.fillStyle = '#0a0a0a';
+            const hatY = headY - headR + 35;
+            
+            // Huge Brim
+            ctx.beginPath(); 
+            ctx.ellipse(CX, hatY, 190, 28, 0, 0, Math.PI * 2); 
+            ctx.fill();
+            
+            // Hat Top
+            ctx.beginPath(); 
+            ctx.roundRect(CX - 75, hatY - 75, 150, 80, 8); 
+            ctx.fill();
+        }
+
+        // 9. Draw Arms & Gloves (Longer & Thicker)
+        const armColor = adjustColor(shirtColor, 20);
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        
+        function drawArm(x1, y1, x2, y2) {
+            ctx.strokeStyle = armColor;
+            ctx.lineWidth = 44; // Thicker arms
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+        }
+
+        function drawGlove(x, y, scale = 1) {
+            const r = 75 * scale; // Much larger gloves
+            ctx.fillStyle = gloveColor;
+            ctx.beginPath(); 
+            ctx.arc(x, y, r, 0, Math.PI * 2); 
+            ctx.fill();
+            
+            // Glove Shine
+            ctx.fillStyle = 'rgba(255,255,255,0.6)';
+            ctx.beginPath(); 
+            ctx.arc(x + (r*0.3), y - (r*0.3), r*0.25, 0, Math.PI * 2); 
+            ctx.fill();
+        }
+
+        // Anchor shoulders inside the new slimmer torso
+        const shoulderL = { x: CX - torsoW/2 + 20, y: torsoY + 50 };
+        const shoulderR = { x: CX + torsoW/2 - 20, y: torsoY + 50 };
+
+        if (pose === 'idle') {
+            // L arm down/forward
+            drawArm(shoulderL.x, shoulderL.y, CX - 150, torsoY + 140);
+            drawArm(CX - 150, torsoY + 140, CX - 110, torsoY + 40);
+            drawGlove(CX - 110, torsoY + 10);
+
+            // R arm up guarding
+            drawArm(shoulderR.x, shoulderR.y, CX + 140, torsoY);
+            drawGlove(CX + 120, torsoY - 40);
+            
+        } else if (pose === 'tpose') {
+            // Arms straight out 
+            drawArm(shoulderL.x, shoulderL.y, CX - 320, torsoY + 30);
+            drawGlove(CX - 280, torsoY + 30);
+            
+            drawArm(shoulderR.x, shoulderR.y, CX + 320, torsoY + 30);
+            drawGlove(CX + 280, torsoY + 30);
+            
+        } else if (pose === 'powerup') {
+            // Both arms thrust low
+            drawArm(shoulderL.x, shoulderL.y, CX - 160, torsoY + 160);
+            drawGlove(CX - 160, torsoY + 190);
+            
+            drawArm(shoulderR.x, shoulderR.y, CX + 160, torsoY + 160);
+            drawGlove(CX + 160, torsoY + 190);
+            
+        } else if (pose === 'praise') {
+            // Both arms straight up
+            drawArm(shoulderL.x, shoulderL.y, CX - 130, headY - 140);
+            drawGlove(CX - 130, headY - 160);
+
+            drawArm(shoulderR.x, shoulderR.y, CX + 130, headY - 140);
+            drawGlove(CX + 130, headY - 160);
+            
+        } else if (pose === 'point') {
+            // Right arm back
+            drawArm(shoulderR.x, shoulderR.y, CX + 120, torsoY - 20);
+            drawGlove(CX + 100, torsoY - 50);
+
+            // Left arm (massive foreground)
+            drawArm(shoulderL.x, shoulderL.y, CX - 20, torsoY - 10);
+            drawGlove(CX, torsoY - 30, 1.6); 
+        }
+
+        ctx.restore();
+    }
+
+    // Helper to lighten/darken hex colors
+    function adjustColor(color, amount) {
+        return '#' + color.replace(/^#/, '').replace(/../g, color => 
+            ('0'+Math.min(255, Math.max(0, parseInt(color, 16) + amount)).toString(16)).substr(-2));
+    }
+
+    // Download functionality
+    function downloadPFP() {
+        const link = document.createElement('a');
+        const filenameText = document.getElementById('initialText').value.trim() || 'Fighter';
+        link.download = `GloveGame_PFP_${filenameText}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+    }
+</script>
+</body>
+</html>
