@@ -2376,7 +2376,9 @@
                     
                     this.inVoiceRoom = channelId; this.rtcVideoOff = true; this.isScreenSharing = false; this.viewingVoice = true; 
                     
-                    this.updatePresence();
+                    // Explicitly wipe ghost presence payload manually before re-connecting logic
+                    await this.apiUpdate('presence', this.logicalUid, { status: 'online', currentServer: this.activeView === 'server' ? this.activeTarget : null, currentVoice: this.inVoiceRoom, isScreenSharing: false, isCameraOff: true, isMuted: this.isMuted, lastActive: Date.now() });
+
                     this.updateVideoCount();
 
                     setTimeout(() => {
@@ -2408,6 +2410,7 @@
                 this.inVoiceRoom = null; this.localStream = null; this.viewingVoice = false; this.fullscreenVideoId = null;
                 this.updateVideoCount();
                 
+                // Clear Voice State on leave perfectly
                 this.apiUpdate('presence', this.logicalUid, { status: 'online', currentVoice: null, isScreenSharing: false, isCameraOff: true, lastActive: Date.now() });
             },
 
@@ -2430,8 +2433,9 @@
                 
                 if (this.rtcVideoOff) {
                     try {
+                        // Enforce native 16:9 ratio hardware request while keeping bandwidth footprint light
                         const vidStream = await navigator.mediaDevices.getUserMedia({ 
-                            video: { aspectRatio: 16/9, width: { ideal: 1280 }, height: { ideal: 720 } } 
+                            video: { aspectRatio: 16/9, width: { ideal: 640, max: 1280 }, height: { ideal: 360, max: 720 }, frameRate: { ideal: 15, max: 24 } } 
                         });
                         const vidTrack = vidStream.getVideoTracks()[0];
                         const oldTrack = this.localStream.getVideoTracks()[0];
@@ -2547,8 +2551,11 @@
                     config: {
                         iceServers: [
                             { urls: 'stun:stun.l.google.com:19302' },
+                            { urls: 'stun:stun.cloudflare.com:3478' },
                             { urls: 'turn:openrelay.metered.ca:80?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
-                            { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
+                            { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+                            // DPI/Firewall Obliterator 
+                            { urls: 'turns:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
                         ]
                     }
                 });
@@ -2563,6 +2570,7 @@
                     });
                 });
                 
+                // Show Reconnecting UI instead of instantly destroying cell
                 peer.on('error', err => { 
                     this.removePeer(targetUid, false); 
                     setTimeout(() => this.checkPresenceSideEffects(), 2500);
@@ -2604,6 +2612,7 @@
                             overlay.innerText = this.getUser(targetUid).displayName + (isScreen ? " (Screen)" : "");
 
                             if (!isScreen) {
+                                // Camera Off Profile Setup (No hacky 'playing' override needed anymore)
                                 const fallback = document.createElement('div');
                                 fallback.id = `fallback_${targetUid}_cam`;
                                 fallback.className = "absolute inset-0 flex items-center justify-center transition-opacity duration-300 z-0";
@@ -2618,6 +2627,7 @@
                                 img.className = "w-32 h-32 rounded-full object-cover shadow-2xl bg-[#1e1f22]";
                                 fallback.appendChild(img);
 
+                                // The reconnecting spinner overlay
                                 const reconnect = document.createElement('div');
                                 reconnect.id = `reconnect_${targetUid}_cam`;
                                 reconnect.className = "absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-20 transition-opacity duration-300 opacity-0 pointer-events-none";
@@ -2633,12 +2643,11 @@
                             this.updateVideoCount();
                         }
                         
-                        const reconnectUI = document.getElementById(`reconnect_${targetUid}_cam`);
+                        const reconnectUI = document.getElementById(`reconnect_${vId}`);
                         if(reconnectUI) reconnectUI.style.opacity = '0';
                         
                         const vElem = document.getElementById(`vid_${vId}`);
                         if (vElem) {
-                            vElem.srcObject = null;
                             vElem.srcObject = stream;
                             vElem.play().catch(e=>{});
                         }
