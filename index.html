@@ -44,30 +44,15 @@
         }
         
         /* Flawless Grid Scaling Logic w/ Aspect Ratio Clamping */
-        .grid-count-1 .video-wrapper { 
-            width: 100%; max-height: calc(100vh - 2rem); max-width: calc((100vh - 2rem) * 16 / 9); 
-        }
-        .grid-count-2 .video-wrapper { 
-            width: calc(50% - 0.5rem); max-height: calc(100vh - 2rem); max-width: calc((100vh - 2rem) * 16 / 9); 
-        }
-        .grid-count-3 .video-wrapper, .grid-count-4 .video-wrapper { 
-            width: calc(50% - 0.5rem); max-height: calc(50vh - 1.5rem); max-width: calc((50vh - 1.5rem) * 16 / 9); 
-        }
-        .grid-count-5 .video-wrapper, .grid-count-6 .video-wrapper { 
-            width: calc(33.333% - 0.67rem); max-height: calc(50vh - 1.5rem); max-width: calc((50vh - 1.5rem) * 16 / 9); 
-        }
-        .grid-count-7 .video-wrapper, .grid-count-8 .video-wrapper, .grid-count-9 .video-wrapper { 
-            width: calc(33.333% - 0.67rem); max-height: calc(33.333vh - 1.33rem); max-width: calc((33.333vh - 1.33rem) * 16 / 9); 
-        }
-        .grid-count-more .video-wrapper { 
-            width: calc(25% - 0.75rem); max-height: calc(33.333vh - 1.33rem); max-width: calc((33.333vh - 1.33rem) * 16 / 9); 
-        }
+        .grid-count-1 .video-wrapper { width: 100%; max-height: calc(100vh - 2rem); max-width: calc((100vh - 2rem) * 16 / 9); }
+        .grid-count-2 .video-wrapper { width: calc(50% - 0.5rem); max-height: calc(100vh - 2rem); max-width: calc((100vh - 2rem) * 16 / 9); }
+        .grid-count-3 .video-wrapper, .grid-count-4 .video-wrapper { width: calc(50% - 0.5rem); max-height: calc(50vh - 1.5rem); max-width: calc((50vh - 1.5rem) * 16 / 9); }
+        .grid-count-5 .video-wrapper, .grid-count-6 .video-wrapper { width: calc(33.333% - 0.67rem); max-height: calc(50vh - 1.5rem); max-width: calc((50vh - 1.5rem) * 16 / 9); }
+        .grid-count-7 .video-wrapper, .grid-count-8 .video-wrapper, .grid-count-9 .video-wrapper { width: calc(33.333% - 0.67rem); max-height: calc(33.333vh - 1.33rem); max-width: calc((33.333vh - 1.33rem) * 16 / 9); }
+        .grid-count-more .video-wrapper { width: calc(25% - 0.75rem); max-height: calc(33.333vh - 1.33rem); max-width: calc((33.333vh - 1.33rem) * 16 / 9); }
 
         .video-wrapper:hover { border-color: #5865F2; }
-        .video-wrapper video {
-            width: 100%; height: 100%; background-color: #000;
-            object-fit: cover; 
-        }
+        .video-wrapper video { width: 100%; height: 100%; background-color: #000; object-fit: cover; }
 
         /* Fixed Fullscreen Mode - Absolute Top Z-Index */
         .video-fullscreen-mode {
@@ -77,12 +62,26 @@
             max-width: none !important; max-height: none !important;
         }
 
+        /* Pulse Ring Animation for Outgoing Calls */
+        .ringing-pfp { animation: pulse-ring 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite; }
+        @keyframes pulse-ring {
+            0% { box-shadow: 0 0 0 0 rgba(88, 101, 242, 0.7); }
+            100% { box-shadow: 0 0 0 25px rgba(88, 101, 242, 0); }
+        }
+
+        /* Typing Dots Animation */
+        .typing-dot { animation: typing 1.4s infinite ease-in-out both; }
+        .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+        .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes typing { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
+
+        /* Zoomed Image Lightbox */
         .image-lightbox {
             position: fixed; inset: 0; z-index: 9999;
             background: rgba(0,0,0,0.85); backdrop-filter: blur(5px);
             display: flex; justify-content: center; align-items: center;
         }
-        .image-lightbox img { max-width: 90vw; max-height: 90vh; border-radius: 8px; box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.5); }
+        .image-lightbox img, .image-lightbox video { max-width: 90vw; max-height: 90vh; border-radius: 8px; box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.5); }
 
         [x-cloak] { display: none !important; }
     </style>
@@ -95,10 +94,32 @@
         <span x-text="toast.message"></span>
     </div>
 
-    <!-- Image Lightbox Modal -->
-    <div x-show="zoomedImage" class="image-lightbox" style="display: none;" @click="zoomedImage = null">
+    <!-- Image/Video Lightbox Modal -->
+    <div x-show="zoomedMedia" class="image-lightbox" style="display: none;" @click="zoomedMedia = null">
         <button class="absolute top-6 right-6 text-white bg-red-500 hover:bg-red-600 rounded-full p-2 transition"><i class="ph-bold ph-x text-xl"></i></button>
-        <img :src="zoomedImage" @click.stop>
+        <template x-if="zoomedMedia?.type === 'image'">
+            <img :src="zoomedMedia.data" @click.stop>
+        </template>
+        <template x-if="zoomedMedia?.type === 'video'">
+            <video :src="zoomedMedia.data" controls autoplay @click.stop></video>
+        </template>
+    </div>
+
+    <!-- Incoming Call Overlay -->
+    <div x-show="incomingCall" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm" style="display: none;">
+        <div class="bg-[#1e1f22] border border-[#2b2d31] p-8 rounded-2xl shadow-2xl flex flex-col items-center max-w-sm w-full animate-bounce" style="animation-duration: 2s;">
+            <img :src="getUser(incomingCall?.caller)?.avatar" class="w-24 h-24 rounded-full object-cover shadow-lg mb-4 bg-[#2b2d31] border-4 border-[#1e1f22]">
+            <h2 class="text-white text-xl font-extrabold mb-1" x-text="getUser(incomingCall?.caller)?.displayName"></h2>
+            <p class="text-gray-400 text-sm font-medium mb-8">Incoming Voice Call...</p>
+            <div class="flex gap-4 w-full">
+                <button @click="declineCall(incomingCall.id)" class="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-lg transition shadow-lg flex items-center justify-center gap-2">
+                    <i class="ph-fill ph-phone-disconnect text-xl"></i> Decline
+                </button>
+                <button @click="acceptCall(incomingCall)" class="flex-1 py-3 bg-[#23A559] hover:bg-[#1f8c4b] text-white font-bold rounded-lg transition shadow-lg flex items-center justify-center gap-2">
+                    <i class="ph-fill ph-phone-call text-xl"></i> Accept
+                </button>
+            </div>
+        </div>
     </div>
 
     <!-- Onboarding / Auth Overlay -->
@@ -189,10 +210,10 @@
     <template x-if="isReady && currentUserProfile">
         <div class="flex h-full w-full">
             
-            <!-- Far Left Sidebar (Server List) -->
+            <!-- Far Left Sidebar (Server List with Drag/Drop) -->
             <div class="w-[72px] h-full bg-[#1e1f22] flex flex-col items-center py-3 space-y-2 flex-shrink-0 z-30 overflow-y-auto no-scrollbar">
                 
-                <!-- Home Button Wrapper (Fixing badge clipping) -->
+                <!-- Home Button Wrapper -->
                 <div class="relative group">
                     <div class="absolute -left-3 w-1 bg-white rounded-r-md transition-all duration-200 z-10" :class="activeView === 'home' ? 'h-10 top-1' : 'h-0 top-[24px] group-hover:h-5 group-hover:top-[14px]'"></div>
                     <button @click="openHome()" class="w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-[#313338] text-gray-100 flex items-center justify-center transition-all duration-200 overflow-hidden" :class="{'rounded-[16px] bg-[#5865F2] text-white': activeView === 'home'}">
@@ -204,32 +225,24 @@
 
                 <div class="w-8 h-[2px] bg-[#313338] rounded-full my-1"></div>
 
-                <!-- Unread DMs floating in the primary sidebar -->
-                <template x-for="dm in dms.filter(d => getUnreadCount(d.id) > 0 && activeTarget !== d.id)" :key="dm.id">
-                    <div class="relative group mt-1">
-                        <div class="absolute -left-3 w-1 bg-white rounded-r-md transition-all duration-200 z-10 h-2 top-[20px] group-hover:h-5 group-hover:top-[14px]"></div>
-                        <button @click="openDM(dm.id)" class="w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-[#313338] flex items-center justify-center transition-all duration-200 overflow-hidden" title="Direct Message">
-                            <img :src="getUser(dm.partnerUid)?.avatar" class="w-full h-full object-cover">
-                        </button>
-                        <div class="absolute -bottom-1 -right-1 bg-red-500 rounded-full border-[3px] border-[#1e1f22] text-[10px] font-bold text-white flex items-center justify-center min-w-[20px] h-[20px] px-1 z-20 pointer-events-none" x-text="getUnreadCount(dm.id) > 99 ? '99+' : getUnreadCount(dm.id)"></div>
-                    </div>
-                </template>
-                <div x-show="dms.filter(d => getUnreadCount(d.id) > 0 && activeTarget !== d.id).length > 0" class="w-8 h-[2px] bg-[#313338] rounded-full my-1"></div>
-
-                <!-- Mapped Servers Wrapper -->
+                <!-- Mapped Servers -->
                 <template x-for="server in myServers" :key="server.id">
-                    <div class="relative group mt-1">
-                        <!-- Morphing Discord Pill securely mapped outside overflow mask -->
+                    <div class="relative group mt-1"
+                         draggable="true" 
+                         @dragstart="dragStartServer($event, server.id)"
+                         @dragover.prevent
+                         @drop="dropServer($event, server.id)">
+                         
                         <div class="absolute -left-3 w-1 bg-white rounded-r-md transition-all duration-200 z-10" 
                              :class="activeTarget === server.id && activeView === 'server' ? 'h-10 top-1' : (getServerUnreadState(server.id) ? 'h-2 top-[20px] group-hover:h-5 group-hover:top-[14px]' : 'h-0 top-[24px] group-hover:h-5 group-hover:top-[14px]')">
                         </div>
 
-                        <button @click="openServer(server.id)" class="w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-[#313338] text-gray-100 hover:text-white flex items-center justify-center transition-all duration-200 shadow overflow-hidden" :class="{'rounded-[16px] bg-[#5865F2] text-white': activeTarget === server.id && activeView === 'server'}">
+                        <button @click="openServer(server.id)" class="w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-[#313338] text-gray-100 hover:text-white flex items-center justify-center transition-all duration-200 shadow overflow-hidden cursor-grab active:cursor-grabbing" :class="{'rounded-[16px] bg-[#5865F2] text-white': activeTarget === server.id && activeView === 'server'}">
                             <template x-if="server.icon">
-                                <img :src="server.icon" class="w-full h-full object-cover">
+                                <img :src="server.icon" class="w-full h-full object-cover pointer-events-none">
                             </template>
                             <template x-if="!server.icon">
-                                <span x-text="server.name.substring(0,2).toUpperCase()" class="font-bold text-sm"></span>
+                                <span x-text="server.name.substring(0,2).toUpperCase()" class="font-bold text-sm pointer-events-none"></span>
                             </template>
                         </button>
                         
@@ -277,7 +290,7 @@
                             
                             <!-- DM List (Sorted by recent) w/ Date Times -->
                             <template x-for="dm in sortedDms" :key="dm.id">
-                                <button @click="openDM(dm.id)" class="w-full flex items-center px-2 py-1.5 rounded-md transition group" :class="activeTarget === dm.id && activeView === 'home' ? 'bg-[#3f4147] text-white' : 'hover:bg-[#35373c] text-gray-400 hover:text-gray-200'">
+                                <button @click="openDM(dm.id)" class="w-full flex items-center px-2 py-1.5 rounded-md transition group relative" :class="activeTarget === dm.id && activeView === 'home' ? 'bg-[#3f4147] text-white' : 'hover:bg-[#35373c] text-gray-400 hover:text-gray-200'">
                                     <div class="relative flex-shrink-0 mr-3">
                                         <img :src="getUser(dm.partnerUid)?.avatar" class="w-8 h-8 rounded-full object-cover bg-[#1e1f22]">
                                         <div class="absolute bottom-0 right-0 w-3 h-3 border-2 border-[#2b2d31] rounded-full" :class="isUserOnline(dm.partnerUid) ? 'bg-[#23A559]' : 'bg-gray-500'"></div>
@@ -285,12 +298,14 @@
                                     <div class="flex-1 min-w-0 flex items-center justify-between">
                                         <div class="font-medium text-[15px] truncate" :class="hasUnread(dm.id) ? 'text-gray-100 font-bold' : ''" x-text="getUser(dm.partnerUid)?.displayName || 'Unknown'"></div>
                                         <div class="flex items-center gap-1.5 pl-2 flex-shrink-0">
-                                            <template x-if="getUnreadCount(dm.id) > 0 && activeTarget !== dm.id">
-                                                <div class="bg-red-500 rounded-full text-white text-[10px] font-bold px-1.5 h-4 min-w-[16px] flex items-center justify-center shadow" x-text="getUnreadCount(dm.id) > 99 ? '99+' : getUnreadCount(dm.id)"></div>
-                                            </template>
                                             <div class="text-[10px] font-medium" :class="hasUnread(dm.id) && activeTarget !== dm.id ? 'text-gray-300' : 'text-gray-500'" x-show="getLastMessageTimestamp(dm.id) > 0" x-text="formatSidebarTime(getLastMessageTimestamp(dm.id))"></div>
                                         </div>
                                     </div>
+                                    
+                                    <!-- DM Unread Number Badge overlaying button -->
+                                    <template x-if="getUnreadCount(dm.id) > 0 && activeTarget !== dm.id">
+                                        <div class="absolute right-2 top-1/2 transform -translate-y-1/2 bg-red-500 rounded-full text-white text-[10px] font-bold px-1.5 h-4 min-w-[16px] flex items-center justify-center shadow" x-text="getUnreadCount(dm.id) > 99 ? '99+' : getUnreadCount(dm.id)"></div>
+                                    </template>
                                 </button>
                             </template>
                         </div>
@@ -340,7 +355,7 @@
                                     
                                     <!-- Mention Ping Badge inside channel -->
                                     <template x-if="getMentionCount(channel.id) > 0">
-                                        <div class="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 ml-1" x-text="getMentionCount(channel.id) > 99 ? '99+' : getMentionCount(channel.id)"></div>
+                                        <div class="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 ml-1 shadow" x-text="getMentionCount(channel.id) > 99 ? '99+' : getMentionCount(channel.id)"></div>
                                     </template>
                                     
                                     <!-- Standard Unread Dot -->
@@ -518,216 +533,27 @@
                     </div>
                 </div>
 
-                <!-- DM Incoming Call Banner -->
-                <div x-show="!inVoiceRoom && activeView === 'home' && activeTarget && getVoiceUsers(activeTarget).length > 0" class="bg-[#23A559]/20 border-b border-[#23A559]/30 p-3 flex justify-between items-center animate-pulse" style="display: none;">
-                    <div class="flex items-center gap-3 text-[#23A559] font-bold text-sm">
-                        <i class="ph-fill ph-phone-call text-xl"></i>
-                        <span x-text="getUser(getDmPartner(activeTarget))?.displayName + ' started a call. Join them?'"></span>
-                    </div>
-                    <button @click="joinVoiceRoom(activeTarget)" class="px-4 py-1.5 bg-[#23A559] hover:bg-[#1f8c4b] text-white font-bold rounded shadow transition text-sm">Join Call</button>
-                </div>
-
-                <!-- Friends Hub Content -->
-                <div x-show="activeView === 'home' && !activeTarget" class="flex-1 flex flex-col overflow-hidden" style="display: none;">
-                    <div class="flex-1 p-6 overflow-y-auto">
-                        <!-- Online Friends -->
-                        <template x-if="friendsTab === 'online'">
-                            <div>
-                                <h2 class="text-gray-400 font-bold mb-4 uppercase text-xs tracking-wide">Online — <span x-text="onlineFriendsList.length"></span></h2>
-                                <template x-if="onlineFriendsList.length === 0">
-                                    <div class="flex flex-col items-center justify-center h-64 text-gray-500">
-                                        <i class="ph-fill ph-users text-6xl mb-4 text-[#3f4147]"></i>
-                                        <p class="text-gray-400 font-medium">No one's around to play with Wumpus.</p>
-                                    </div>
-                                </template>
-                                <div class="space-y-1">
-                                    <template x-for="friend in onlineFriendsList" :key="friend.uid">
-                                        <div class="flex items-center justify-between p-2.5 hover:bg-[#3f4147] rounded-md transition group border-t border-[#3f4147]/50 first:border-0 cursor-pointer" @click="openProfilePopout(friend.uid)">
-                                            <div class="flex items-center gap-3">
-                                                <div class="relative">
-                                                    <img :src="friend.avatar" class="w-10 h-10 rounded-full object-cover bg-[#1e1f22]">
-                                                    <div class="absolute bottom-0 right-0 w-3.5 h-3.5 border-2 border-[#313338] group-hover:border-[#3f4147] bg-[#23A559] rounded-full transition-colors"></div>
-                                                </div>
-                                                <div class="flex flex-col">
-                                                    <div class="flex items-center gap-1">
-                                                        <span class="font-bold text-gray-100 text-[15px]" x-text="friend.displayName"></span>
-                                                        <span class="text-[11px] text-gray-400 hidden group-hover:block" x-text="'@' + friend.username"></span>
-                                                    </div>
-                                                    <span class="text-xs text-gray-400">Online</span>
-                                                </div>
-                                            </div>
-                                            <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition">
-                                                <button @click.stop="initiateDM(friend.uid)" class="w-9 h-9 rounded-full bg-[#2b2d31] hover:bg-[#1e1f22] text-gray-300 hover:text-white flex items-center justify-center transition" title="Message">
-                                                    <i class="ph-fill ph-chat-circle-dots text-lg"></i>
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </template>
-                                </div>
-                            </div>
-                        </template>
-
-                        <!-- All Friends -->
-                        <template x-if="friendsTab === 'all'">
-                            <div>
-                                <h2 class="text-gray-400 font-bold mb-4 uppercase text-xs tracking-wide">All Friends — <span x-text="myFriendsList.length"></span></h2>
-                                <template x-if="myFriendsList.length === 0">
-                                    <div class="flex flex-col items-center justify-center h-64 text-gray-500">
-                                        <i class="ph-fill ph-users text-6xl mb-4 text-[#3f4147]"></i>
-                                        <p class="text-gray-400 font-medium">You don't have any friends yet.</p>
-                                    </div>
-                                </template>
-                                <div class="space-y-1">
-                                    <template x-for="friend in myFriendsList" :key="friend.uid">
-                                        <div class="flex items-center justify-between p-2.5 hover:bg-[#3f4147] rounded-md transition group border-t border-[#3f4147]/50 first:border-0 cursor-pointer" @click="openProfilePopout(friend.uid)">
-                                            <div class="flex items-center gap-3">
-                                                <div class="relative">
-                                                    <img :src="friend.avatar" class="w-10 h-10 rounded-full object-cover bg-[#1e1f22]">
-                                                    <div class="absolute bottom-0 right-0 w-3.5 h-3.5 border-2 border-[#313338] group-hover:border-[#3f4147] rounded-full transition-colors" :class="isUserOnline(friend.uid) ? 'bg-[#23A559]' : 'bg-gray-500'"></div>
-                                                </div>
-                                                <div class="flex flex-col">
-                                                    <div class="flex items-center gap-1">
-                                                        <span class="font-bold text-gray-100 text-[15px]" x-text="friend.displayName"></span>
-                                                        <span class="text-[11px] text-gray-400 hidden group-hover:block" x-text="'@' + friend.username"></span>
-                                                    </div>
-                                                    <span class="text-xs text-gray-400" x-text="isUserOnline(friend.uid) ? 'Online' : 'Offline'"></span>
-                                                </div>
-                                            </div>
-                                            <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition">
-                                                <button @click.stop="initiateDM(friend.uid)" class="w-9 h-9 rounded-full bg-[#2b2d31] hover:bg-[#1e1f22] text-gray-300 hover:text-white flex items-center justify-center transition" title="Message">
-                                                    <i class="ph-fill ph-chat-circle-dots text-lg"></i>
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </template>
-                                </div>
-                            </div>
-                        </template>
-
-                        <!-- Pending Requests -->
-                        <template x-if="friendsTab === 'pending'">
-                            <div>
-                                <h2 class="text-gray-400 font-bold mb-4 uppercase text-xs tracking-wide">Pending Requests — <span x-text="incomingFriendRequests.length + outgoingFriendRequests.length"></span></h2>
-                                <template x-if="incomingFriendRequests.length === 0 && outgoingFriendRequests.length === 0">
-                                    <div class="flex flex-col items-center justify-center h-64 text-gray-500">
-                                        <i class="ph-fill ph-user-focus text-6xl mb-4 text-[#3f4147]"></i>
-                                        <p class="text-gray-400 font-medium">There are no pending friend requests.</p>
-                                    </div>
-                                </template>
-
-                                <div class="space-y-1">
-                                    <!-- Incoming -->
-                                    <template x-for="user in incomingFriendRequests" :key="user.uid">
-                                        <div class="flex items-center justify-between p-2.5 hover:bg-[#3f4147] rounded-md transition group border-t border-[#3f4147]/50 first:border-0 cursor-pointer" @click="openProfilePopout(user.uid)">
-                                            <div class="flex items-center gap-3">
-                                                <img :src="user.avatar" class="w-10 h-10 rounded-full object-cover bg-[#1e1f22]">
-                                                <div class="flex flex-col">
-                                                    <div class="flex items-center gap-1">
-                                                        <span class="font-bold text-gray-100 text-[15px]" x-text="user.displayName"></span>
-                                                        <span class="text-[11px] text-gray-400" x-text="'@' + user.username"></span>
-                                                    </div>
-                                                    <span class="text-xs text-gray-400">Incoming Friend Request</span>
-                                                </div>
-                                            </div>
-                                            <div class="flex gap-2">
-                                                <button @click.stop="addFriend(user.uid)" class="w-9 h-9 rounded-full bg-[#2b2d31] hover:bg-[#23A559] text-gray-300 hover:text-white flex items-center justify-center transition shadow" title="Accept">
-                                                    <i class="ph-bold ph-check text-lg"></i>
-                                                </button>
-                                                <button @click.stop="removeFriend(user.uid)" class="w-9 h-9 rounded-full bg-[#2b2d31] hover:bg-red-500 text-gray-300 hover:text-white flex items-center justify-center transition shadow" title="Ignore">
-                                                    <i class="ph-bold ph-x text-lg"></i>
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </template>
-
-                                    <!-- Outgoing -->
-                                    <template x-for="user in outgoingFriendRequests" :key="user.uid">
-                                        <div class="flex items-center justify-between p-2.5 hover:bg-[#3f4147] rounded-md transition group border-t border-[#3f4147]/50 first:border-0 cursor-pointer" @click="openProfilePopout(user.uid)">
-                                            <div class="flex items-center gap-3">
-                                                <img :src="user.avatar" class="w-10 h-10 rounded-full object-cover bg-[#1e1f22]">
-                                                <div class="flex flex-col">
-                                                    <div class="flex items-center gap-1">
-                                                        <span class="font-bold text-gray-100 text-[15px]" x-text="user.displayName"></span>
-                                                        <span class="text-[11px] text-gray-400" x-text="'@' + user.username"></span>
-                                                    </div>
-                                                    <span class="text-xs text-gray-400">Outgoing Friend Request</span>
-                                                </div>
-                                            </div>
-                                            <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition">
-                                                <button @click.stop="removeFriend(user.uid)" class="w-9 h-9 rounded-full bg-[#2b2d31] hover:bg-red-500 text-gray-300 hover:text-white flex items-center justify-center transition shadow" title="Cancel Request">
-                                                    <i class="ph-bold ph-x text-lg"></i>
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </template>
-                                </div>
-                            </div>
-                        </template>
-
-                        <!-- Add Friend View -->
-                        <template x-if="friendsTab === 'add'">
-                            <div class="flex flex-col py-4 w-full max-w-2xl">
-                                <h2 class="text-gray-100 font-bold mb-2 text-[15px]">ADD FRIEND</h2>
-                                <p class="text-gray-400 text-sm mb-4">You can add friends with their Le BaroChat™ username.</p>
-                                <div class="flex items-center bg-[#1e1f22] border border-[#1e1f22] focus-within:border-[#5865F2] rounded-lg p-3 transition">
-                                    <input type="text" x-model="directFriendRequestUsername" @keydown.enter="sendDirectFriendRequest()" placeholder="You can add friends with their username." class="flex-1 bg-transparent text-gray-200 outline-none px-2 text-sm font-medium">
-                                    <button @click="sendDirectFriendRequest()" :disabled="!directFriendRequestUsername.trim()" class="px-5 py-2 bg-[#5865F2] hover:bg-[#4752C4] disabled:opacity-50 text-white font-medium text-sm rounded transition shadow">Send Friend Request</button>
-                                </div>
-                            </div>
-                        </template>
-                    </div>
-                </div>
-
-                <!-- Server Discovery Hub -->
-                <div x-show="activeView === 'discovery'" class="flex-1 p-8 overflow-y-auto" style="display: none;">
-                    <div class="text-center mb-10 mt-8">
-                        <h1 class="text-3xl font-extrabold text-white mb-2">Discover Public Servers</h1>
-                        <p class="text-gray-400">Join communities and chat with new people on Le BaroChat™.</p>
-                    </div>
-                    
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-6xl mx-auto">
-                        <template x-for="server in discoveryServers" :key="server.id">
-                            <div class="bg-[#2b2d31] rounded-lg overflow-hidden shadow-lg border border-[#1e1f22] hover:border-[#5865F2] transition cursor-pointer flex flex-col h-64 group" @click="joinServer(server.id)">
-                                <div class="h-24 relative flex justify-center items-center overflow-hidden" :style="'background-color: ' + (server.bannerColor || '#5865F2')">
-                                    <template x-if="server.banner">
-                                        <img :src="server.banner" class="absolute inset-0 w-full h-full object-cover">
-                                    </template>
-                                    <div class="absolute inset-0 bg-black/20 group-hover:bg-transparent transition"></div>
-                                </div>
-                                <div class="p-4 flex-1 flex flex-col relative">
-                                    <img x-show="server.icon" :src="server.icon" class="w-16 h-16 rounded-2xl absolute -top-8 left-4 border-4 border-[#2b2d31] bg-[#1e1f22] object-cover shadow-md">
-                                    <div x-show="!server.icon" class="w-16 h-16 rounded-2xl absolute -top-8 left-4 border-4 border-[#2b2d31] bg-[#1e1f22] flex items-center justify-center text-xl font-bold text-white shadow-md" x-text="server.name.substring(0,2).toUpperCase()"></div>
-                                    
-                                    <h3 class="mt-8 text-lg font-bold text-gray-100 truncate" x-text="server.name"></h3>
-                                    <p class="text-sm text-gray-400 mt-1 flex-1 truncate">A public community server.</p>
-                                    
-                                    <div class="flex items-center justify-between text-xs text-gray-400 mt-2 font-medium">
-                                        <div class="flex items-center">
-                                            <div class="w-2 h-2 rounded-full bg-[#23A559] mr-1.5"></div>
-                                            Public Server
-                                        </div>
-                                        <button class="bg-[#5865F2] hover:bg-[#4752C4] text-white px-3 py-1 rounded transition opacity-0 group-hover:opacity-100">Join</button>
-                                    </div>
-                                </div>
-                            </div>
-                        </template>
-                        <template x-if="discoveryServers.length === 0">
-                            <div class="col-span-full text-center py-12 text-gray-500">
-                                <i class="ph ph-magnifying-glass text-4xl mb-3"></i>
-                                <p>No public servers found. Create one and make it public!</p>
-                            </div>
-                        </template>
-                    </div>
-                </div>
-
-                <!-- WebRTC Fullscreen Video Grid -->
+                <!-- WebRTC Fullscreen Video Grid or Outgoing Call Ringing -->
                 <div x-show="viewingVoice && inVoiceRoom" class="flex-1 bg-[#000000] flex flex-col relative overflow-hidden" style="display: none;">
+                    
+                    <!-- Outgoing Ringing Overlay -->
+                    <template x-if="outgoingCall">
+                        <div class="absolute inset-0 z-[60] bg-[#1e1f22] flex flex-col items-center justify-center">
+                            <div class="relative w-32 h-32 mb-8">
+                                <div class="absolute inset-0 rounded-full ringing-pfp"></div>
+                                <img :src="getUser(outgoingCall.target)?.avatar" class="w-full h-full rounded-full object-cover border-4 border-[#313338] grayscale relative z-10">
+                            </div>
+                            <h2 class="text-white text-2xl font-extrabold mb-2" x-text="getUser(outgoingCall.target)?.displayName"></h2>
+                            <p class="text-gray-400 text-sm font-medium">Calling...</p>
+                        </div>
+                    </template>
+
                     <div id="fullscreen-video-grid" :class="'grid-count-' + (videoCount > 9 ? 'more' : videoCount)">
                         <!-- Local Camera Video (Always exists if in room) -->
                         <div class="video-wrapper group" :class="fullscreenVideoId === 'local' ? 'video-fullscreen-mode' : ''" @click="toggleFullscreenVideo('local')">
                             <video id="local-video" autoplay playsinline muted class="w-full h-full bg-black object-cover transition-opacity duration-300"></video>
                             
-                            <!-- Avatar overlay when cam is off (Correctly pulls color) -->
+                            <!-- Avatar overlay when cam is off -->
                             <div x-show="rtcVideoOff" x-transition.opacity class="absolute inset-0 flex items-center justify-center z-0" :style="'background-color: ' + (currentUserProfile?.dominantColor || '#5865F2')">
                                 <img :src="currentUserProfile?.avatar" class="w-32 h-32 rounded-full object-cover shadow-2xl bg-[#1e1f22]">
                             </div>
@@ -738,7 +564,7 @@
                                 <i class="ph-fill text-red-500" x-show="isMuted" class="ph-microphone-slash"></i>
                             </div>
                         </div>
-                        <!-- Remote Videos and Local Screenshare dynamically injected here -->
+                        <!-- Remote Videos dynamically injected here -->
                     </div>
                 </div>
 
@@ -791,22 +617,42 @@
                                         <template x-for="msg in group.messages" :key="msg.id">
                                             <div class="group/msg relative flex flex-col items-start py-0.5 hover:bg-[#2b2d31] transition -ml-14 pl-14 rounded-r" :class="isMentioned(msg.text) ? 'bg-[#5865F2]/10 border-l-2 border-[#5865F2]' : 'border-l-2 border-transparent'">
                                                 
+                                                <!-- Context Reply Hook -->
+                                                <template x-if="msg.replyTo">
+                                                    <div class="flex items-center gap-2 mb-1 text-xs text-gray-400 cursor-pointer hover:text-gray-300 w-full truncate">
+                                                        <div class="w-8 h-px bg-gray-500 rounded relative top-1 flex-shrink-0"><div class="absolute right-0 bottom-0 w-px h-3 bg-gray-500 rounded"></div></div>
+                                                        <img :src="getUser(messages.find(m=>m.id===msg.replyTo)?.senderId)?.avatar" class="w-4 h-4 rounded-full object-cover">
+                                                        <span class="font-bold" x-text="'@' + getUser(messages.find(m=>m.id===msg.replyTo)?.senderId)?.displayName"></span>
+                                                        <span class="truncate" x-text="messages.find(m=>m.id===msg.replyTo)?.text"></span>
+                                                    </div>
+                                                </template>
+
                                                 <!-- Message Content -->
                                                 <div class="w-full text-gray-300 break-words leading-snug text-[15px]" x-show="msg.text"><span class="whitespace-pre-wrap" x-html="formatMessage(msg.text)"></span><span x-show="msg.edited" class="text-[10px] text-gray-500 ml-1">(edited)</span></div>
                                                 
-                                                <!-- Image Attachments -->
-                                                <template x-if="msg.image">
-                                                    <img :src="msg.image" class="mt-1 max-w-md w-full rounded-md object-contain border border-[#1e1f22] bg-[#2b2d31] cursor-pointer block" @click="zoomedImage = msg.image">
+                                                <!-- Media Attachments -->
+                                                <template x-if="msg.media?.type === 'image'">
+                                                    <img :src="msg.media.data" class="mt-1 max-w-md w-full rounded-md object-contain border border-[#1e1f22] bg-[#2b2d31] cursor-pointer block" @click="zoomedMedia = msg.media">
+                                                </template>
+                                                <template x-if="msg.media?.type === 'video'">
+                                                    <video :src="msg.media.data" controls class="mt-2 max-w-md w-full rounded-md border border-[#1e1f22] bg-[#2b2d31]"></video>
                                                 </template>
                                                 
-                                                <!-- Edit/Delete Controls (Right aligned) -->
-                                                <div x-show="msg.senderId === logicalUid" class="absolute right-2 -top-3 bg-[#313338] border border-[#1e1f22] rounded shadow-md hidden group-hover/msg:flex items-center z-10 overflow-hidden">
-                                                    <button @click="startEditMessage(msg)" class="p-1.5 text-gray-400 hover:bg-[#3f4147] hover:text-gray-200 transition" title="Edit">
-                                                        <i class="ph-fill ph-pencil-simple text-sm"></i>
+                                                <!-- Edit/Reply/Delete Controls (Right aligned) -->
+                                                <div class="absolute right-2 -top-3 bg-[#313338] border border-[#1e1f22] rounded shadow-md hidden group-hover/msg:flex items-center z-10 overflow-hidden">
+                                                    <button @click="setReply(msg)" class="p-1.5 text-gray-400 hover:bg-[#3f4147] hover:text-gray-200 transition" title="Reply">
+                                                        <i class="ph-bold ph-arrow-u-up-left text-sm"></i>
                                                     </button>
-                                                    <button @click="deleteMessage(msg.id)" class="p-1.5 text-gray-400 hover:bg-red-500 hover:text-white transition" title="Delete">
-                                                        <i class="ph-fill ph-trash text-sm"></i>
-                                                    </button>
+                                                    <template x-if="msg.senderId === logicalUid">
+                                                        <button @click="startEditMessage(msg)" class="p-1.5 text-gray-400 hover:bg-[#3f4147] hover:text-gray-200 transition" title="Edit">
+                                                            <i class="ph-fill ph-pencil-simple text-sm"></i>
+                                                        </button>
+                                                    </template>
+                                                    <template x-if="msg.senderId === logicalUid || (activeView === 'server' && getServer()?.owner === logicalUid)">
+                                                        <button @click="deleteMessage(msg.id)" class="p-1.5 text-gray-400 hover:bg-red-500 hover:text-white transition" title="Delete">
+                                                            <i class="ph-fill ph-trash text-sm"></i>
+                                                        </button>
+                                                    </template>
                                                 </div>
                                             </div>
                                         </template>
@@ -818,8 +664,14 @@
                 </div>
 
                 <!-- Chat Input Bar -->
-                <div class="p-4 pt-0 flex-shrink-0 bg-[#313338] relative" x-show="currentChatId && !viewingVoice && activeView !== 'discovery'" style="display: none;">
+                <div class="p-4 pt-0 flex-shrink-0 bg-[#313338] relative flex flex-col" x-show="currentChatId && !viewingVoice && activeView !== 'discovery'" style="display: none;">
                     
+                    <!-- Replying To Indicator -->
+                    <div x-show="replyingToMessage" class="flex items-center bg-[#2b2d31] px-4 py-2 rounded-t-lg border-b border-[#1e1f22] gap-2">
+                        <span class="text-xs font-bold text-gray-300">Replying to <span class="text-[#5865F2]" x-text="'@' + getUser(replyingToMessage?.senderId)?.displayName"></span></span>
+                        <button @click="cancelReply()" class="ml-auto text-gray-400 hover:text-white"><i class="ph-bold ph-x"></i></button>
+                    </div>
+
                     <!-- Edit Mode Indicator -->
                     <div x-show="editingMessageId" class="text-xs text-gray-400 mb-1 font-medium flex items-center justify-between px-2">
                         <span>Editing message...</span>
@@ -838,22 +690,42 @@
                         </template>
                     </div>
 
-                    <div class="bg-[#383a40] rounded-lg flex items-center px-4 py-2.5 transition">
-                        <button @click="triggerImageUpload('chat')" x-show="!editingMessageId" class="text-gray-400 hover:text-gray-200 p-1 flex-shrink-0 transition mr-2 bg-[#2b2d31] rounded-full h-7 w-7 flex items-center justify-center hover:bg-[#5865F2] hover:text-white">
+                    <!-- Chat Box -->
+                    <div class="bg-[#383a40] flex items-center px-4 py-2.5 transition" :class="replyingToMessage ? 'rounded-b-lg' : 'rounded-lg'">
+                        <button @click="triggerImageUpload('chat')" x-show="!editingMessageId" class="text-gray-400 hover:text-gray-200 p-1 flex-shrink-0 transition mr-2 bg-[#2b2d31] rounded-full h-7 w-7 flex items-center justify-center hover:bg-[#5865F2] hover:text-white" title="Upload Media (Images/Video)">
                             <i class="ph-fill ph-plus font-bold"></i>
                         </button>
-                        <input type="text" x-model="newMessage" x-ref="chatInput" @input="checkMentions()" @keydown.tab.prevent="if(showMentions && filteredMentionUsers.length > 0) insertMention(filteredMentionUsers[0].username)" @keydown.enter="sendMessage()" :placeholder="editingMessageId ? 'Edit message...' : getChatPlaceholder()" class="flex-1 bg-transparent px-1 focus:outline-none text-gray-100 placeholder-gray-500 text-[15px]">
-                        <button @click="sendMessage()" :disabled="!newMessage.trim() && !pendingImage" class="p-1.5 rounded-md text-gray-400 hover:text-[#5865F2] disabled:opacity-50 disabled:cursor-not-allowed transition flex-shrink-0 ml-2">
+                        <input type="text" x-model="newMessage" x-ref="chatInput" @input="handleInput()" @keydown.tab.prevent="if(showMentions && filteredMentionUsers.length > 0) insertMention(filteredMentionUsers[0].username)" @keydown.enter="sendMessage()" @paste="handlePaste" :placeholder="editingMessageId ? 'Edit message...' : getChatPlaceholder()" class="flex-1 bg-transparent px-1 focus:outline-none text-gray-100 placeholder-gray-500 text-[15px]">
+                        <button @click="sendMessage()" :disabled="!newMessage.trim() && !pendingMedia" class="p-1.5 rounded-md text-gray-400 hover:text-[#5865F2] disabled:opacity-50 disabled:cursor-not-allowed transition flex-shrink-0 ml-2">
                             <i x-show="!editingMessageId" class="ph-fill ph-paper-plane-right text-xl"></i>
                             <i x-show="editingMessageId" class="ph-bold ph-check text-xl text-[#23A559]"></i>
                         </button>
                     </div>
                     
-                    <!-- Pending Image Preview -->
-                    <template x-if="pendingImage">
-                        <div class="mt-3 relative inline-block bg-[#2b2d31] p-2 rounded-md border border-[#1e1f22] shadow-lg">
-                            <img :src="pendingImage" class="h-32 rounded object-cover">
-                            <button @click="pendingImage = null" class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600">
+                    <!-- Typing Indicator -->
+                    <div class="h-4 mt-1 px-1 flex items-center gap-1">
+                        <template x-if="typingText">
+                            <div class="flex items-center gap-1">
+                                <div class="flex gap-0.5 pt-1">
+                                    <div class="w-1.5 h-1.5 bg-gray-400 rounded-full typing-dot"></div>
+                                    <div class="w-1.5 h-1.5 bg-gray-400 rounded-full typing-dot"></div>
+                                    <div class="w-1.5 h-1.5 bg-gray-400 rounded-full typing-dot"></div>
+                                </div>
+                                <span class="text-xs font-bold text-gray-400" x-text="typingText"></span>
+                            </div>
+                        </template>
+                    </div>
+                    
+                    <!-- Pending Media Preview -->
+                    <template x-if="pendingMedia">
+                        <div class="mt-1 relative inline-block bg-[#2b2d31] p-2 rounded-md border border-[#1e1f22] shadow-lg max-w-sm">
+                            <template x-if="pendingMedia.type === 'image'">
+                                <img :src="pendingMedia.data" class="h-32 rounded object-cover">
+                            </template>
+                            <template x-if="pendingMedia.type === 'video'">
+                                <video :src="pendingMedia.data" class="h-32 rounded object-cover" controls></video>
+                            </template>
+                            <button @click="pendingMedia = null" class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600">
                                 <i class="ph ph-x text-xs"></i>
                             </button>
                         </div>
@@ -1289,7 +1161,7 @@
             currentUserProfile: null,
             
             toast: { show: false, message: '', isError: false, timeout: null },
-            zoomedImage: null,
+            zoomedMedia: null,
 
             showSettingsModal: false, editProfile: {},
             showProfilePopout: false, popoutUser: null, profileTab: 'info',
@@ -1306,13 +1178,15 @@
             fullscreenVideoId: null,
             videoCount: 1, 
             
-            newMessage: '', pendingImage: null, editingMessageId: null,
+            newMessage: '', pendingMedia: null, editingMessageId: null, replyingToMessage: null,
             showMentions: false, mentionQuery: '', filteredMentionUsers: [],
             directFriendRequestUsername: '',
             
             servers: [], dms: [], messages: [], filteredMessages: [], users: {}, globalPresence: [], _colorCache: {},
             
             originalTitle: "Le BaroChat™", flashInterval: null, isFlashing: false,
+            typingUsers: {}, _lastTypingSent: 0,
+            activeCalls: [], // from DB collection 'calls'
 
             get myServers() { return this.servers.filter(s => this.currentUserProfile?.joinedServers?.includes(s.id)); },
             get discoveryServers() { return this.servers.filter(s => s.isPublic && !this.currentUserProfile?.joinedServers?.includes(s.id)); },
@@ -1395,7 +1269,7 @@
             },
             get totalUnreadDms() {
                 return this.dms.reduce((sum, dm) => {
-                    if (this.activeTarget !== dm.id) {
+                    if (this.activeTarget !== dm.id || this.viewingVoice) {
                         return sum + this.getUnreadCount(dm.id);
                     }
                     return sum;
@@ -1417,18 +1291,27 @@
                 return s.channels.reduce((sum, c) => sum + this.getMentionCount(c.id), 0);
             },
             hasUnread(roomId) {
-                return this.getUnreadCount(roomId) > 0;
+                if (!roomId || !this.messages || !this.currentUserProfile) return false;
+                const lastRead = this.currentUserProfile?.lastRead?.[roomId] || 0;
+                const hasNew = this.messages.some(m => m.roomId === roomId && m.senderId !== this.logicalUid && m.timestamp > lastRead);
+                if (hasNew) {
+                    if (this.activeChannelId === roomId && this.activeView === 'server' && !this.viewingVoice) return false;
+                    if (this.activeTarget === roomId && this.activeView === 'home' && !this.viewingVoice) return false;
+                    return true;
+                }
+                return false;
             },
             getServerUnreadState(serverId) {
                 const s = this.servers.find(srv => srv.id === serverId);
                 if(!s || !s.channels) return false;
                 for(let c of s.channels) {
-                    if (c.type === 'text' && this.hasUnread(c.id) && this.activeChannelId !== c.id) return true;
+                    if (c.type === 'text' && this.hasUnread(c.id)) return true;
                 }
                 return false;
             },
             markRead(roomId) {
                 if (!roomId || !this.logicalUid || !this.currentUserProfile) return;
+                if (this.viewingVoice) return; // Do not mark text chat read while explicitly in Voice Mode
                 const lr = { ...(this.currentUserProfile.lastRead || {}) };
                 lr[roomId] = Date.now();
                 this.apiUpdate('users', this.logicalUid, { lastRead: lr });
@@ -1452,6 +1335,47 @@
                 this.isFlashing = false;
                 if (this.flashInterval) clearInterval(this.flashInterval);
                 document.title = this.originalTitle;
+            },
+
+            // Typing Indicator Mechanics
+            handleInput() {
+                this.checkMentions();
+                if (Date.now() - this._lastTypingSent > 2000 && this.currentChatId && this.globalChannel) {
+                    this._lastTypingSent = Date.now();
+                    this.globalChannel.send({
+                        type: 'broadcast', event: 'typing',
+                        payload: { roomId: this.currentChatId, uid: this.logicalUid, username: this.currentUserProfile.displayName }
+                    });
+                }
+            },
+            get typingText() {
+                if (!this.currentChatId || !this.typingUsers[this.currentChatId]) return '';
+                const now = Date.now();
+                const active = Object.entries(this.typingUsers[this.currentChatId])
+                    .filter(([uid, data]) => now - data.timestamp < 4000 && uid !== this.logicalUid)
+                    .map(([uid, data]) => data.username);
+                
+                if (active.length === 0) return '';
+                if (active.length === 1) return `${active[0]} is typing...`;
+                if (active.length === 2) return `${active[0]} and ${active[1]} are typing...`;
+                return `Several people are typing...`;
+            },
+
+            // Call Engine Mechanics
+            get incomingCall() {
+                return this.activeCalls.find(c => c.target === this.logicalUid && c.status === 'ringing' && Date.now() - c.timestamp < 60000);
+            },
+            get outgoingCall() {
+                if (!this.inVoiceRoom || !this.inVoiceRoom.includes('_')) return null;
+                return this.activeCalls.find(c => c.caller === this.logicalUid && c.id === 'call_' + this.inVoiceRoom && c.status === 'ringing' && Date.now() - c.timestamp < 60000);
+            },
+            async acceptCall(call) {
+                await this.apiUpdate('calls', call.id, { status: 'accepted' });
+                this.openDM(call.id.replace('call_', ''));
+                this.handleVoiceChannelClick(call.id.replace('call_', ''));
+            },
+            async declineCall(callId) {
+                await this.apiUpdate('calls', callId, { status: 'declined' });
             },
 
             get groupedMessages() {
@@ -1479,7 +1403,7 @@
                         currentGroup = null; 
                     }
 
-                    if (!currentGroup || currentGroup.senderId !== msg.senderId || (msg.timestamp - currentGroup.lastTimestamp) > 300000) {
+                    if (!currentGroup || currentGroup.senderId !== msg.senderId || (msg.timestamp - currentGroup.lastTimestamp) > 300000 || msg.replyTo) {
                         currentGroup = {
                             id: msg.id + '_grp',
                             senderId: msg.senderId,
@@ -1538,10 +1462,6 @@
                 safe = safe.replace(/@([a-zA-Z0-9_]+)/g, '<span class="text-[#5865F2] bg-[#5865F2]/20 px-1 rounded font-medium cursor-pointer hover:underline">@$1</span>');
                 return safe;
             },
-            isMentioned(text) {
-                if(!this.currentUserProfile || !this.currentUserProfile.username || !text) return false;
-                return text.includes('@' + this.currentUserProfile.username);
-            },
             
             checkMentions() {
                 const match = this.newMessage.match(/@([a-zA-Z0-9_]*)$/);
@@ -1567,7 +1487,6 @@
                 this.newMessage = this.newMessage.replace(/@([a-zA-Z0-9_]*)$/, '@' + username + ' ');
                 this.showMentions = false;
                 
-                // Allow DOM to update before focusing to prevent Tab-key jumps
                 setTimeout(() => {
                     this.$refs.chatInput.focus();
                 }, 50);
@@ -1620,6 +1539,22 @@
                 return '#5865F2'; 
             },
 
+            // Drag and Drop Logic
+            dragStartServer(e, id) { e.dataTransfer.setData('serverId', id); },
+            dropServer(e, targetId) {
+                const sourceId = e.dataTransfer.getData('serverId');
+                if(sourceId && sourceId !== targetId) {
+                    let list = [...this.currentUserProfile.joinedServers];
+                    const sourceIdx = list.indexOf(sourceId);
+                    const targetIdx = list.indexOf(targetId);
+                    if (sourceIdx > -1 && targetIdx > -1) {
+                        list.splice(sourceIdx, 1);
+                        list.splice(targetIdx, 0, sourceId);
+                        this.apiUpdate('users', this.logicalUid, { joinedServers: list });
+                    }
+                }
+            },
+
             inVoiceRoom: null, voicePeers: {}, 
             rtcVideoOff: true, isMuted: false, isDeafened: false, isScreenSharing: false,
             localStream: null, screenStream: null, simplePeers: {}, dummyCanvasInterval: null,
@@ -1653,7 +1588,8 @@
                         }
                     });
                     this.$watch('currentChatId', (newVal) => { 
-                        this.filterMessages();
+                        this.filterMessages(); 
+                        if (!this.viewingVoice) this.markRead(newVal); 
                     });
                     
                     this.$watch('dms', () => this.updateFavicon());
@@ -1683,6 +1619,7 @@
                             } else {
                                 const c = document.getElementById('chatContainer');
                                 if(c) c.scrollTop = c.scrollHeight;
+                                this.markRead(this.currentChatId);
                             }
                         });
                     });
@@ -1703,11 +1640,23 @@
                         }
                     });
 
+                    // Tabbing out stops processing hardware entirely for performance + privacy
                     document.addEventListener("visibilitychange", () => {
-                        if (!document.hidden && this.isReady) {
-                            this.stopTabFlash();
-                            this.updatePresence();
-                            this.syncPresence(); 
+                        if (document.hidden) {
+                            if (this.localStream) {
+                                this.localStream.getVideoTracks().forEach(t => t.enabled = false);
+                                this.localStream.getAudioTracks().forEach(t => t.enabled = false);
+                            }
+                        } else {
+                            if (this.localStream) {
+                                this.localStream.getVideoTracks().forEach(t => t.enabled = !this.rtcVideoOff);
+                                this.localStream.getAudioTracks().forEach(t => t.enabled = !this.isMuted);
+                            }
+                            if (this.isReady) {
+                                this.stopTabFlash();
+                                this.updatePresence();
+                                this.syncPresence(); 
+                            }
                         }
                     });
 
@@ -1738,6 +1687,7 @@
                 if(collection === 'users') current = this.users[id] || {};
                 else if(collection === 'servers') current = this.servers.find(s=>s.id===id) || {};
                 else if(collection === 'presence') current = this.globalPresence.find(p=>p.uid===id) || {};
+                else if(collection === 'calls') current = this.activeCalls.find(c=>c.id===id) || {};
                 
                 current = JSON.parse(JSON.stringify(current));
                 const merged = { ...current, ...partialData };
@@ -1753,6 +1703,9 @@
                     if(idx>=0) this.globalPresence.splice(idx, 1, merged); else this.globalPresence.push(merged);
                     this.checkPresenceSideEffects();
                     this.updateVideoFallbacks();
+                } else if(collection === 'calls') {
+                    const idx = this.activeCalls.findIndex(c=>c.id===id);
+                    if(idx>=0) this.activeCalls.splice(idx, 1, merged); else this.activeCalls.push(merged);
                 }
 
                 await this.apiSet(collection, id, merged);
@@ -1851,7 +1804,7 @@
                             this.globalPresence = this.globalPresence.filter(p => {
                                 if (p.uid === this.logicalUid) return true;
                                 const elapsed = now - (p._localLastSeen || p.lastActive);
-                                if (elapsed > 45000) {
+                                if (elapsed > 120000) {
                                     changed = true;
                                     return false;
                                 }
@@ -1874,7 +1827,6 @@
             },
 
             async startGlobalListeners() {
-                // MASSIVE FIX: Paginate all initial data loads completely bypassing 1000 row limits that causes ghost users
                 let allData = [];
                 let page = 0;
                 const size = 1000;
@@ -1890,7 +1842,7 @@
                     page++;
                 }
                 
-                this.servers = []; this.dms = []; this.messages = []; this.globalPresence = [];
+                this.servers = []; this.dms = []; this.messages = []; this.globalPresence = []; this.activeCalls = [];
                 allData.forEach(row => this.handleDbChange('INSERT', row));
 
                 this.globalChannel = this.supabase.channel('public:lebarochat_data_v4', {
@@ -1905,6 +1857,11 @@
                             this.handleDbChange(payload.eventType, payload.new);
                         }
                     })
+                    .on('broadcast', { event: 'typing' }, payload => {
+                        const { roomId, uid, username } = payload.payload;
+                        if (!this.typingUsers[roomId]) this.typingUsers[roomId] = {};
+                        this.typingUsers[roomId][uid] = { timestamp: Date.now(), username };
+                    })
                     .subscribe();
             },
 
@@ -1918,7 +1875,7 @@
                             const d = row.data; d.id = row.document_id;
                             const idx = this.globalPresence.findIndex(p=>p.uid===d.uid);
                             if(idx>=0) {
-                                if (d.lastActive > this.globalPresence[idx].lastActive) {
+                                if (d.lastActive >= this.globalPresence[idx].lastActive) {
                                     d._localLastSeen = now;
                                     this.globalPresence.splice(idx, 1, d);
                                 }
@@ -1941,6 +1898,7 @@
                 if (event === 'DELETE') {
                     if (c === 'messages') { this.messages = this.messages.filter(m => m.id !== id); this.filterMessages(); }
                     else if (c === 'servers') { this.servers = this.servers.filter(s => s.id !== id); }
+                    else if (c === 'calls') { this.activeCalls = this.activeCalls.filter(x => x.id !== id); }
                 } else {
                     d.id = id; 
                     if (c === 'users') { this.cacheUser(d); if(id === this.logicalUid) { this.currentUserProfile = d; } }
@@ -1957,10 +1915,8 @@
                     }
                     else if (c === 'messages') { 
                         const idx = this.messages.findIndex(m=>m.id===id); 
-                        if(idx>=0) this.messages.splice(idx, 1, d); else {
+                        if(idx>=0) { this.messages.splice(idx, 1, d); } else {
                             this.messages.push(d);
-                            
-                            // Chrome Tab Flashing triggers precisely here
                             if (document.hidden && d.senderId !== this.logicalUid) {
                                 if (d.roomId === this.currentChatId || this.isMentioned(d.text) || d.roomId.includes(this.logicalUid)) {
                                     this.startTabFlash();
@@ -1980,6 +1936,19 @@
                         }
                         this.checkPresenceSideEffects(); 
                         this.updateVideoFallbacks(); 
+                    }
+                    else if (c === 'calls') {
+                        const idx = this.activeCalls.findIndex(x=>x.id===id); 
+                        if(idx>=0) this.activeCalls.splice(idx, 1, d); else this.activeCalls.push(d);
+                        
+                        if (d.caller === this.logicalUid && d.status === 'declined') {
+                            this.showToast("Call declined.");
+                            this.leaveVoiceRoom();
+                            this.apiDelete('calls', d.id);
+                        }
+                        if (d.caller === this.logicalUid && d.status === 'accepted') {
+                            this.apiDelete('calls', d.id); // clear state once connected
+                        }
                     }
                     else if (c === 'signaling') {
                         if (d.to === this.logicalUid && d.room === this.inVoiceRoom) {
@@ -2250,6 +2219,13 @@
                 return `Message #${this.getChannelName(this.activeChannelId) || 'channel'}`;
             },
 
+            setReply(msg) {
+                this.replyingToMessage = msg;
+                this.$refs.chatInput.focus();
+            },
+            cancelReply() {
+                this.replyingToMessage = null;
+            },
             startEditMessage(msg) {
                 this.editingMessageId = msg.id;
                 this.newMessage = msg.text;
@@ -2262,14 +2238,21 @@
             async deleteMessage(msgId) { await this.apiDelete('messages', msgId); },
 
             async sendMessage() {
-                if (!this.currentChatId || (!this.newMessage.trim() && !this.pendingImage)) return;
+                if (!this.currentChatId || (!this.newMessage.trim() && !this.pendingMedia)) return;
                 
                 if (this.editingMessageId) {
                     await this.apiUpdate('messages', this.editingMessageId, { text: this.newMessage.trim(), edited: true });
                     this.cancelEditMessage();
                 } else {
-                    const payload = { roomId: this.currentChatId, senderId: this.logicalUid, text: this.newMessage.trim(), image: this.pendingImage, timestamp: Date.now() };
-                    this.newMessage = ''; this.pendingImage = null; this.showMentions = false;
+                    const payload = { 
+                        roomId: this.currentChatId, 
+                        senderId: this.logicalUid, 
+                        text: this.newMessage.trim(), 
+                        media: this.pendingMedia, 
+                        replyTo: this.replyingToMessage ? this.replyingToMessage.id : null,
+                        timestamp: Date.now() 
+                    };
+                    this.newMessage = ''; this.pendingMedia = null; this.showMentions = false; this.replyingToMessage = null;
                     await this.apiAdd('messages', payload);
                     this.markRead(this.currentChatId); 
                 }
@@ -2352,36 +2335,56 @@
                 this.showSettingsModal = false; this.showToast("Profile updated.");
             },
 
+            handlePaste(e) {
+                const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+                for (let i = 0; i < items.length; i++) {
+                    if (items[i].type.indexOf('image') !== -1) {
+                        const file = items[i].getAsFile();
+                        this.processImage(file, 'chat');
+                        break;
+                    }
+                }
+            },
+
             triggerImageUpload(context) {
-                const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*';
+                const input = document.createElement('input'); input.type = 'file'; 
+                input.accept = context === 'chat' ? 'image/*,video/mp4,video/webm' : 'image/*';
                 input.onchange = (e) => this.processImage(e.target.files[0], context); input.click();
             },
             processImage(file, context) {
-                if (!file) return; const reader = new FileReader();
+                if (!file) return; 
+                if (file.size > 2 * 1024 * 1024) { this.showToast("File limit is 2MB to protect the database.", true); return; }
+                
+                const isVideo = file.type.startsWith('video/');
+                const reader = new FileReader();
                 reader.onload = (e) => {
-                    const img = new Image();
-                    img.onload = () => {
-                        const canvas = document.createElement('canvas');
-                        let MAX_W = 256; let MAX_H = 256;
-                        
-                        if (context === 'chat') { MAX_W = 800; MAX_H = 800; }
-                        else if (context === 'banner' || context === 'serverBannerEdit') { MAX_W = 600; MAX_H = 300; }
+                    if (isVideo && context === 'chat') {
+                        this.pendingMedia = { type: 'video', data: e.target.result };
+                    } else if (!isVideo) {
+                        const img = new Image();
+                        img.onload = () => {
+                            const canvas = document.createElement('canvas');
+                            let MAX_W = 256; let MAX_H = 256;
+                            
+                            if (context === 'chat') { MAX_W = 800; MAX_H = 800; }
+                            else if (context === 'banner' || context === 'serverBannerEdit') { MAX_W = 600; MAX_H = 300; }
 
-                        let w = img.width, h = img.height;
-                        if (w > h) { if (w > MAX_W) { h *= MAX_W / w; w = MAX_W; } } else { if (h > MAX_H) { w *= MAX_H / h; h = MAX_H; } }
-                        canvas.width = w; canvas.height = h;
-                        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-                        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-                        
-                        if (context === 'chat') this.pendingImage = dataUrl;
-                        else if (context === 'setup') this.authAvatar = dataUrl;
-                        else if (context === 'edit') this.editProfile.avatar = dataUrl;
-                        else if (context === 'banner') this.editProfile.banner = dataUrl;
-                        else if (context === 'server') this.newServerIcon = dataUrl;
-                        else if (context === 'serverEdit') this.editServer.icon = dataUrl;
-                        else if (context === 'serverBannerEdit') this.editServer.banner = dataUrl;
-                    };
-                    img.src = e.target.result;
+                            let w = img.width, h = img.height;
+                            if (w > h) { if (w > MAX_W) { h *= MAX_W / w; w = MAX_W; } } else { if (h > MAX_H) { w *= MAX_H / h; h = MAX_H; } }
+                            canvas.width = w; canvas.height = h;
+                            canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                            const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+                            
+                            if (context === 'chat') this.pendingMedia = { type: 'image', data: dataUrl };
+                            else if (context === 'setup') this.authAvatar = dataUrl;
+                            else if (context === 'edit') this.editProfile.avatar = dataUrl;
+                            else if (context === 'banner') this.editProfile.banner = dataUrl;
+                            else if (context === 'server') this.newServerIcon = dataUrl;
+                            else if (context === 'serverEdit') this.editServer.icon = dataUrl;
+                            else if (context === 'serverBannerEdit') this.editServer.banner = dataUrl;
+                        };
+                        img.src = e.target.result;
+                    }
                 };
                 reader.readAsDataURL(file);
             },
@@ -2407,6 +2410,17 @@
 
             async joinVoiceRoom(channelId) {
                 if (this.inVoiceRoom) this.leaveVoiceRoom();
+                
+                // Active Call overlay initialization if jumping to an empty DM VC
+                if (channelId.includes('_')) {
+                    const partnerUid = this.getDmPartner(channelId);
+                    if (!this.getVoiceUsers(channelId).some(p => p.uid === partnerUid)) {
+                        this.apiSet('calls', `call_${channelId}`, {
+                            caller: this.logicalUid, target: partnerUid, status: 'ringing', timestamp: Date.now()
+                        });
+                    }
+                }
+
                 try {
                     let stream;
                     try {
@@ -2464,6 +2478,11 @@
                     });
                 }
                 
+                // Clear any outbound ringing states
+                if (this.inVoiceRoom && this.inVoiceRoom.includes('_')) {
+                    this.apiDelete('calls', `call_${this.inVoiceRoom}`);
+                }
+
                 this.inVoiceRoom = null; this.localStream = null; this.viewingVoice = false; this.fullscreenVideoId = null;
                 this.updateVideoCount();
                 
@@ -2663,7 +2682,6 @@
                             v.onloadedmetadata = () => { 
                                 v.play().catch(e => {
                                     console.warn("Autoplay blocked:", e); 
-                                    // iOS Safari Autoplay Unblocker Fallback
                                     const unblockBtn = document.createElement('button');
                                     unblockBtn.className = "absolute inset-0 bg-black/80 text-white font-bold z-50 flex flex-col items-center justify-center";
                                     unblockBtn.innerHTML = "<i class='ph-fill ph-play-circle text-4xl mb-2 text-[#5865F2]'></i>Tap to View Video";
