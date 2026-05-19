@@ -2423,7 +2423,7 @@
             },
             processImage(file, context) {
                 if (!file) { this.isUploading = false; return; }
-                
+                if (file.size > 10 * 1024 * 1024) { this.showToast("File limit is 10MB.", true); this.isUploading = false; return; }
                 const isVideo = file.type.startsWith('video/');
                 const reader = new FileReader();
                 reader.onload = (e) => {
