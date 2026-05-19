@@ -29,44 +29,39 @@
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-        /* Unified WebRTC Video Grid Container */
-        #webrtc-video-grid {
+        /* Restored Stable Flexbox WebRTC Video Grid */
+        #fullscreen-video-grid {
             display: flex; flex-wrap: wrap; justify-content: center; align-content: center; align-items: center;
             gap: 1rem; width: 100%; height: 100%; padding: 1rem; min-h-0; min-w-0;
         }
-
-        /* Top-Bar DM Call styling overrides */
-        .dm-bar-mode {
-            flex-wrap: nowrap !important; padding: 0.5rem !important; gap: 0.5rem !important;
-            justify-content: flex-start !important; overflow-x: auto !important;
-        }
-        
         .video-wrapper {
-            position: relative; flex: 0 1 auto;
+            position: relative; flex: 1 1 30%;
             aspect-ratio: 16 / 9;
+            max-width: calc(100% - 1rem); max-height: calc(100% - 1rem);
             border-radius: 0.5rem; background-color: #1e1f22;
             overflow: hidden; border: 1px solid #2b2d31;
             box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.5);
-            cursor: pointer; transition: all 0.2s ease-in-out;
+            cursor: pointer; transition: border-color 0.2s ease-in-out;
         }
-
-        /* Scale Logic for Fullscreen Grid */
-        .grid-fullscreen.grid-count-1 .video-wrapper { width: 100%; max-height: calc(100vh - 2rem); max-width: calc((100vh - 2rem) * 16 / 9); }
-        .grid-fullscreen.grid-count-2 .video-wrapper { width: calc(50% - 0.5rem); max-height: calc(100vh - 2rem); max-width: calc((100vh - 2rem) * 16 / 9); }
-        .grid-fullscreen.grid-count-3 .video-wrapper, .grid-fullscreen.grid-count-4 .video-wrapper { width: calc(50% - 0.5rem); max-height: calc(50vh - 1.5rem); max-width: calc((50vh - 1.5rem) * 16 / 9); }
-        .grid-fullscreen.grid-count-5 .video-wrapper, .grid-fullscreen.grid-count-6 .video-wrapper { width: calc(33.333% - 0.67rem); max-height: calc(50vh - 1.5rem); max-width: calc((50vh - 1.5rem) * 16 / 9); }
-        
-        /* Scale Logic for Top-Bar DM Mode */
-        .dm-bar-mode .video-wrapper { width: 240px; height: 135px; flex-shrink: 0; }
+        /* Lock max sizes based on element count to prevent overflow */
+        .grid-count-1 .video-wrapper { flex: 0 1 100%; max-height: 85vh; max-width: calc(85vh * 16 / 9); }
+        .grid-count-2 .video-wrapper { flex: 0 1 calc(50% - 1rem); max-height: 50vh; }
+        .grid-count-3 .video-wrapper, .grid-count-4 .video-wrapper { flex: 0 1 calc(50% - 1rem); max-height: 40vh; }
+        .grid-count-more .video-wrapper { flex: 0 1 calc(33.333% - 1rem); max-height: 30vh; }
 
         .video-wrapper:hover { border-color: #5865F2; }
-        .video-wrapper video { width: 100%; height: 100%; background-color: #000; object-fit: cover; }
+        .video-wrapper video {
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%; background-color: #000;
+            object-fit: cover; 
+        }
 
+        /* Fixed Fullscreen Mode - Absolute Top Z-Index */
         .video-fullscreen-mode {
             position: absolute !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important;
             width: 100% !important; height: 100% !important; z-index: 50 !important; 
             border-radius: 0 !important; background-color: #000 !important; border: none !important;
-            max-width: none !important; max-height: none !important;
+            max-width: none !important; max-height: none !important; flex: none !important;
         }
 
         /* Pulse Ring Animation for Outgoing Calls */
@@ -471,8 +466,8 @@
                 <!-- Current User Profile Strip (Bottom Left) -->
                 <div class="mt-auto flex flex-col w-full z-30 flex-shrink-0">
                     
-                    <!-- Global Active Voice Connection Strip (Hidden if in DM Top-Bar mode) -->
-                    <div x-show="inVoiceRoom && !(inVoiceRoom.includes('_') && activeView === 'home' && activeTarget === inVoiceRoom)" class="bg-[#111214] p-2 border-t border-[#1e1f22] flex flex-col gap-2 relative z-20" style="display: none;">
+                    <!-- Global Active Voice Connection Strip -->
+                    <div x-show="inVoiceRoom" class="bg-[#111214] p-2 border-t border-[#1e1f22] flex flex-col gap-2 relative z-20" style="display: none;">
                         <div class="flex items-center justify-between text-[#23A559] px-1 pt-1">
                             <div class="flex flex-col cursor-pointer hover:underline" @click="returnToCall()">
                                 <span class="font-bold text-xs uppercase tracking-wide flex items-center gap-1"><i class="ph-fill ph-check-circle"></i> Voice Connected</span>
@@ -588,83 +583,27 @@
                     </div>
                 </div>
 
-                <!-- DM Top-Bar Call UI -->
-                <div x-show="inVoiceRoom && inVoiceRoom === activeTarget && activeView === 'home' && !isDmCallFullscreen" class="bg-[#000000] border-b border-[#1e1f22] flex flex-col relative w-full h-56 flex-shrink-0 transition-all" style="display: none;">
+                <!-- WebRTC Fullscreen Video Grid or Outgoing Call Ringing -->
+                <div x-show="viewingVoice && inVoiceRoom" class="flex-1 bg-[#000000] flex flex-col relative overflow-hidden" style="display: none;">
                     
-                    <!-- If currently outgoing ringing (Waiting for partner) -->
-                    <template x-if="outgoingCall && !getVoiceUsers(inVoiceRoom).some(u => u.uid === outgoingCall.target)">
-                        <div class="absolute inset-0 flex items-center justify-between px-16 bg-[#111214]">
-                            <!-- Local Caller -->
-                            <div class="flex flex-col items-center gap-3">
-                                <img :src="currentUserProfile?.avatar" class="w-20 h-20 rounded-full object-cover border-4 border-[#313338] bg-[#1e1f22]">
-                                <span class="text-white font-bold text-sm" x-text="currentUserProfile?.displayName"></span>
+                    <!-- Outgoing Ringing Overlay -->
+                    <template x-if="outgoingCall">
+                        <div class="absolute inset-0 z-[60] bg-[#1e1f22] flex flex-col items-center justify-center">
+                            <div class="relative w-32 h-32 mb-8">
+                                <div class="absolute inset-0 rounded-full ringing-pfp"></div>
+                                <img :src="getUser(outgoingCall.target)?.avatar" class="w-full h-full rounded-full object-cover border-4 border-[#313338] grayscale relative z-10">
                             </div>
-                            
-                            <div class="flex-1 flex justify-center">
-                                <div class="flex gap-2">
-                                    <div class="w-2 h-2 bg-gray-500 rounded-full animate-pulse"></div>
-                                    <div class="w-2 h-2 bg-gray-500 rounded-full animate-pulse" style="animation-delay: 0.2s"></div>
-                                    <div class="w-2 h-2 bg-gray-500 rounded-full animate-pulse" style="animation-delay: 0.4s"></div>
-                                </div>
-                            </div>
-                            
-                            <!-- Remote Target (Ringing) -->
-                            <div class="flex flex-col items-center gap-3">
-                                <div class="relative w-20 h-20">
-                                    <div class="absolute inset-0 rounded-full ringing-pfp"></div>
-                                    <img :src="getUser(outgoingCall.target)?.avatar" class="w-full h-full rounded-full object-cover border-4 border-[#313338] grayscale relative z-10 bg-[#1e1f22]">
-                                </div>
-                                <span class="text-gray-400 font-bold text-sm">Ringing...</span>
-                            </div>
+                            <h2 class="text-white text-2xl font-extrabold mb-2" x-text="getUser(outgoingCall.target)?.displayName"></h2>
+                            <p class="text-gray-400 text-sm font-medium">Calling...</p>
                         </div>
                     </template>
 
-                    <!-- Active DM Grid -->
-                    <template x-if="!outgoingCall || getVoiceUsers(inVoiceRoom).some(u => u.uid === outgoingCall.target)">
-                        <div id="dm-video-grid" class="flex items-center justify-start gap-2 p-2 h-full overflow-x-auto overflow-y-hidden w-full dm-bar-mode">
-                            <!-- Local Camera Video -->
-                            <div class="video-wrapper group relative" @click="isDmCallFullscreen = true">
-                                <video id="dm-local-video" autoplay playsinline muted class="w-full h-full bg-black object-cover transition-opacity duration-300"></video>
-                                
-                                <div x-show="rtcVideoOff" class="absolute inset-0 flex items-center justify-center z-0" :style="'background-color: ' + (currentUserProfile?.dominantColor || '#5865F2')">
-                                    <img :src="currentUserProfile?.avatar" class="w-16 h-16 rounded-full object-cover shadow-2xl bg-[#1e1f22]">
-                                </div>
-
-                                <div class="absolute bottom-2 left-2 bg-black/60 px-1.5 py-0.5 rounded text-[11px] text-white font-bold backdrop-blur-sm flex items-center gap-1 z-10">
-                                    <span x-text="currentUserProfile?.displayName"></span>
-                                    <i class="ph-fill text-red-500" x-show="rtcVideoOff" class="ph-video-camera-slash"></i>
-                                    <i class="ph-fill text-red-500" x-show="isMuted" class="ph-microphone-slash"></i>
-                                </div>
-                            </div>
-                            <!-- Remote elements get appended here by simplepeer dynamically -->
-                        </div>
-                    </template>
-
-                    <!-- DM Top Bar Controls -->
-                    <div class="absolute bottom-3 right-4 flex gap-2 z-30">
-                        <button @click="rtcToggleVideo()" class="w-10 h-10 rounded-full flex items-center justify-center transition shadow-lg" :class="!rtcVideoOff ? 'text-white bg-[#3f4147] hover:bg-[#4b4d54]' : 'text-gray-800 bg-white hover:bg-gray-200'" title="Toggle Camera">
-                            <i class="ph-fill text-xl" :class="rtcVideoOff ? 'ph-video-camera-slash' : 'ph-video-camera'"></i>
-                        </button>
-                        <button @click="rtcToggleScreenShare()" class="w-10 h-10 rounded-full flex items-center justify-center transition shadow-lg" :class="isScreenSharing ? 'text-white bg-[#3f4147] hover:bg-[#4b4d54]' : 'text-gray-800 bg-white hover:bg-gray-200'" title="Share Screen">
-                            <i class="ph-fill ph-screencast text-xl" :class="isScreenSharing ? 'text-[#5865F2]' : ''"></i>
-                        </button>
-                        <button @click="leaveVoiceRoom()" class="w-10 h-10 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center transition shadow-lg" title="Disconnect">
-                            <i class="ph-fill ph-phone-disconnect text-xl"></i>
-                        </button>
-                        <div class="w-px h-6 bg-gray-600 my-auto mx-1"></div>
-                        <button @click="isDmCallFullscreen = true" class="w-10 h-10 bg-black/60 hover:bg-black text-white rounded-full flex items-center justify-center transition shadow-lg" title="Fullscreen">
-                            <i class="ph-bold ph-arrows-out text-lg"></i>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- WebRTC Fullscreen Server Grid OR Fullscreen DM Grid -->
-                <div x-show="(viewingVoice && inVoiceRoom && !inVoiceRoom.includes('_')) || (inVoiceRoom && inVoiceRoom.includes('_') && isDmCallFullscreen)" class="flex-1 bg-[#000000] flex flex-col relative overflow-hidden" style="display: none;">
-                    <div id="fullscreen-video-grid" class="grid-fullscreen" :class="'grid-count-' + (videoCount > 9 ? 'more' : videoCount)">
-                        <!-- Local Camera Video -->
+                    <div id="fullscreen-video-grid" :class="'grid-count-' + (videoCount > 9 ? 'more' : videoCount)">
+                        <!-- Local Camera Video (Always exists if in room) -->
                         <div class="video-wrapper group" :class="fullscreenVideoId === 'local' ? 'video-fullscreen-mode' : ''" @click="toggleFullscreenVideo('local')">
                             <video id="local-video" autoplay playsinline muted class="w-full h-full bg-black object-cover transition-opacity duration-300"></video>
                             
+                            <!-- Avatar overlay when cam is off -->
                             <div x-show="rtcVideoOff" x-transition.opacity class="absolute inset-0 flex items-center justify-center z-0" :style="'background-color: ' + (currentUserProfile?.dominantColor || '#5865F2')">
                                 <img :src="currentUserProfile?.avatar" class="w-32 h-32 rounded-full object-cover shadow-2xl bg-[#1e1f22]">
                             </div>
@@ -677,19 +616,10 @@
                         </div>
                         <!-- Remote Videos dynamically injected here -->
                     </div>
-
-                    <!-- DM Collapse Button -->
-                    <template x-if="inVoiceRoom && inVoiceRoom.includes('_') && isDmCallFullscreen">
-                        <div class="absolute top-4 right-4 z-50 flex gap-2">
-                            <button @click="isDmCallFullscreen = false" class="w-10 h-10 bg-black/60 hover:bg-black text-white rounded-full flex items-center justify-center transition shadow-lg" title="Back to Chat">
-                                <i class="ph-bold ph-arrows-in text-lg"></i>
-                            </button>
-                        </div>
-                    </template>
                 </div>
 
                 <!-- Text Chat Window -->
-                <div x-show="!(inVoiceRoom && inVoiceRoom.includes('_') && isDmCallFullscreen) && (!viewingVoice || inVoiceRoom?.includes('_')) && activeView !== 'discovery' && (activeTarget || activeChannelId)" class="flex-1 overflow-y-auto flex flex-col p-4" id="chatContainer" @scroll="handleScroll($event)">
+                <div x-show="!viewingVoice && activeView !== 'discovery' && (activeTarget || activeChannelId)" class="flex-1 overflow-y-auto flex flex-col p-4" id="chatContainer" @scroll="handleScroll($event)">
                     <template x-if="!currentChatId">
                         <div class="flex flex-col items-center justify-center h-full text-gray-500">
                             <i class="ph-fill ph-chat-circle-dots text-6xl mb-4 text-[#3f4147]"></i>
@@ -784,7 +714,7 @@
                 </div>
 
                 <!-- Chat Input Bar -->
-                <div class="p-4 pt-0 flex-shrink-0 bg-[#313338] relative flex flex-col" x-show="currentChatId && !(inVoiceRoom && inVoiceRoom.includes('_') && isDmCallFullscreen) && (!viewingVoice || inVoiceRoom?.includes('_')) && activeView !== 'discovery'" style="display: none;">
+                <div class="p-4 pt-0 flex-shrink-0 bg-[#313338] relative flex flex-col" x-show="currentChatId && !viewingVoice && activeView !== 'discovery'" style="display: none;">
                     
                     <!-- Replying To Indicator -->
                     <div x-show="replyingToMessage" class="flex items-center bg-[#2b2d31] px-4 py-2 rounded-t-lg border-b border-[#1e1f22] gap-2">
@@ -1300,11 +1230,11 @@
             activeChannelId: null, 
             activeRoomReadMarker: { roomId: null, timestamp: 0 },
             showMembersList: true,
-            viewingVoice: false, isDmCallFullscreen: true,
+            viewingVoice: false,
             friendsTab: 'online', 
             fullscreenVideoId: null,
             videoCount: 1, 
-            renderLimit: 30, // DOM Pagination Culling Limit
+            renderLimit: 30,
             
             newMessage: '', pendingMedia: null, isUploading: false, editingMessageId: null, replyingToMessage: null,
             showMentions: false, mentionQuery: '', filteredMentionUsers: [],
@@ -1322,7 +1252,7 @@
             },
             get discoveryServers() { return this.servers.filter(s => s.isPublic && !this.currentUserProfile?.joinedServers?.includes(s.id)); },
             get currentChatId() { return this.activeView === 'server' ? this.activeChannelId : this.activeTarget; },
-            get isPiPActive() { return this.inVoiceRoom && !this.viewingVoice && (!this.inVoiceRoom.includes('_') || (this.inVoiceRoom.includes('_') && this.activeTarget !== this.inVoiceRoom)); },
+            get isPiPActive() { return this.inVoiceRoom && !this.viewingVoice; },
             
             get activePresence() {
                 const now = Date.now();
@@ -1343,7 +1273,6 @@
                 const groups = {};
                 this.myFriendsList.forEach(f => {
                     const p = this.activePresence.find(x => x.uid === f.uid);
-                    // Filter out DMs from Active Now Hub
                     if (p && p.currentVoice && !p.currentVoice.includes('_')) {
                         const key = `${p.currentServer || 'dm'}_${p.currentVoice}`;
                         if (!groups[key]) groups[key] = { key, serverId: p.currentServer, voiceId: p.currentVoice, users: [] };
@@ -1497,7 +1426,7 @@
                 const now = Date.now();
                 const active = Object.keys(this.typingUsers[this.currentChatId])
                     .filter(uid => uid !== this.logicalUid)
-                    .map(uid => this.typingUsers[this.currentChatId][uid]);
+                    .map(uid => this.typingUsers[this.currentChatId][uid].username);
                 
                 if (active.length === 0) return '';
                 if (active.length === 1) return `${active[0]} is typing...`;
@@ -1525,12 +1454,11 @@
                 if (this.inVoiceRoom) {
                     if (this.inVoiceRoom.includes('_')) {
                         this.openDM(this.inVoiceRoom);
-                        this.isDmCallFullscreen = true;
                     } else {
                         const s = this.servers.find(srv => srv.channels?.some(c => c.id === this.inVoiceRoom));
                         if (s) this.openServer(s.id);
-                        this.viewingVoice = true;
                     }
+                    this.viewingVoice = true;
                 }
             },
 
@@ -1749,7 +1677,7 @@
                         }
                     });
                     this.$watch('currentChatId', (newVal) => { 
-                        this.renderLimit = 30; // reset pagination limit
+                        this.renderLimit = 30; 
                         this.filterMessages(); 
                         if (!this.viewingVoice) this.markRead(newVal); 
                     });
@@ -1760,7 +1688,7 @@
                     this.$watch('viewingVoice', (isViewing) => {
                         this.$nextTick(() => {
                             if (isViewing) {
-                                const localVid = document.getElementById(this.inVoiceRoom && this.inVoiceRoom.includes('_') && !this.isDmCallFullscreen ? 'dm-local-video' : 'local-video');
+                                const localVid = document.getElementById('local-video');
                                 if (localVid && this.localStream) {
                                     localVid.srcObject = this.localStream;
                                     localVid.play().catch(()=>{});
@@ -1803,15 +1731,10 @@
                     });
 
                     document.addEventListener("visibilitychange", () => {
-                        if (document.hidden) {
-                            // Don't shut off hardware streams, just update presence
+                        if (!document.hidden && this.isReady) {
+                            this.stopTabFlash();
                             this.updatePresence();
-                        } else {
-                            if (this.isReady) {
-                                this.stopTabFlash();
-                                this.updatePresence();
-                                this.syncPresence(); 
-                            }
+                            this.syncPresence(); 
                         }
                     });
 
@@ -2131,13 +2054,7 @@
             updateVideoCount() {
                 setTimeout(() => {
                     const grid = document.getElementById('fullscreen-video-grid');
-                    let dmBar = document.getElementById('dm-video-grid');
-                    
-                    if (this.inVoiceRoom && this.inVoiceRoom.includes('_') && !this.isDmCallFullscreen && dmBar) {
-                        this.videoCount = dmBar.querySelectorAll('.video-wrapper').length;
-                    } else if (grid) {
-                        this.videoCount = grid.querySelectorAll('.video-wrapper').length;
-                    }
+                    this.videoCount = grid ? grid.querySelectorAll('.video-wrapper').length : 1;
                 }, 50);
             },
 
@@ -2350,9 +2267,6 @@
                 
                 this.activeView = 'home'; this.activeTarget = id; this.activeChannelId = null;
                 this.viewingVoice = (this.inVoiceRoom === id);
-                
-                if (this.inVoiceRoom === id) this.isDmCallFullscreen = false;
-
                 this.markRead(id);
             },
             async initiateDM(targetUid) {
@@ -2605,8 +2519,7 @@
             async joinVoiceRoom(channelId) {
                 if (this.inVoiceRoom) this.leaveVoiceRoom();
                 
-                // Active Call overlay initialization if jumping to an empty DM VC
-                if (channelId.includes('_')) {
+                if (channelId.startsWith('user_') && channelId.includes('_user_')) {
                     const partnerUid = this.getDmPartner(channelId);
                     if (!this.getVoiceUsers(channelId).some(p => p.uid === partnerUid)) {
                         this.apiSet('calls', `call_${channelId}`, {
@@ -2641,20 +2554,13 @@
                     if(micTrack) this.localStream = new MediaStream([dummyVideo, micTrack]);
                     else this.localStream = new MediaStream([dummyVideo]);
                     
-                    this.inVoiceRoom = channelId; this.rtcVideoOff = true; this.isScreenSharing = false; 
-                    
-                    if (channelId.includes('_')) {
-                        this.isDmCallFullscreen = false;
-                        this.viewingVoice = false;
-                    } else {
-                        this.viewingVoice = true; 
-                    }
+                    this.inVoiceRoom = channelId; this.rtcVideoOff = true; this.isScreenSharing = false; this.viewingVoice = true; 
                     
                     this.updatePresence();
                     this.updateVideoCount();
 
                     setTimeout(() => {
-                        const localVid = document.getElementById(this.inVoiceRoom && this.inVoiceRoom.includes('_') && !this.isDmCallFullscreen ? 'dm-local-video' : 'local-video');
+                        const localVid = document.getElementById('local-video');
                         if (localVid) {
                             localVid.srcObject = this.localStream;
                             localVid.style.opacity = '0';
@@ -2678,14 +2584,7 @@
                         if(child.className.includes('video-wrapper') && !child.innerHTML.includes('local-video')) child.remove();
                     });
                 }
-                const dmGrid = document.getElementById('dm-video-grid');
-                if(dmGrid) {
-                    Array.from(dmGrid.children).forEach(child => {
-                        if(child.className.includes('video-wrapper') && !child.innerHTML.includes('local-video')) child.remove();
-                    });
-                }
                 
-                // Clear any outbound ringing states
                 if (this.inVoiceRoom && this.inVoiceRoom.includes('_')) {
                     this.apiDelete('calls', `call_${this.inVoiceRoom}`);
                 }
@@ -2732,10 +2631,10 @@
                             try { p.replaceTrack(oldTrack, vidTrack, this.localStream); } catch(e){}
                         });
                         
-                        this.rtcVideoOff = false; 
+                        this.rtcVideoOff = false; this.viewingVoice = true; 
                         this.updatePresence();
 
-                        const localVid = document.getElementById(this.inVoiceRoom && this.inVoiceRoom.includes('_') && !this.isDmCallFullscreen ? 'dm-local-video' : 'local-video');
+                        const localVid = document.getElementById('local-video');
                         if (localVid) { 
                             localVid.srcObject = null; localVid.srcObject = this.localStream; 
                             localVid.style.opacity = '1';
@@ -2768,7 +2667,7 @@
                         this.rtcVideoOff = true;
                         this.updatePresence();
 
-                        const localVid = document.getElementById(this.inVoiceRoom && this.inVoiceRoom.includes('_') && !this.isDmCallFullscreen ? 'dm-local-video' : 'local-video');
+                        const localVid = document.getElementById('local-video');
                         if (localVid) { 
                             localVid.srcObject = null; localVid.srcObject = this.localStream; 
                             localVid.style.opacity = '0';
@@ -2784,14 +2683,7 @@
                         this.screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
                         
                         Object.values(this.simplePeers).forEach(p => { try { p.addStream(this.screenStream); } catch(e){} });
-                        this.isScreenSharing = true;
-                        
-                        if (this.inVoiceRoom && this.inVoiceRoom.includes('_')) {
-                            this.isDmCallFullscreen = true;
-                        } else {
-                            this.viewingVoice = true;
-                        }
-                        
+                        this.isScreenSharing = true; this.viewingVoice = true;
                         this.updatePresence();
 
                         const grid = document.getElementById('fullscreen-video-grid');
@@ -2871,8 +2763,7 @@
                 peer.on('stream', stream => {
                     this.voicePeers[targetUid] = true;
                     setTimeout(() => {
-                        let grid = document.getElementById('fullscreen-video-grid');
-                        let dmGrid = document.getElementById('dm-video-grid');
+                        const grid = document.getElementById('fullscreen-video-grid'); if(!grid) return;
                         
                         let isScreen = stream.getAudioTracks().length === 0;
                         if (document.getElementById(`vid_wrap_${targetUid}_cam`)) {
@@ -2881,25 +2772,14 @@
                         
                         const vId = isScreen ? `${targetUid}_screenshare` : `${targetUid}_cam`;
                         const wrapperId = `vid_wrap_${vId}`;
-                        
-                        // Append to DM bar if DM mode, else Fullscreen grid
-                        const targetGrid = (this.inVoiceRoom && this.inVoiceRoom.includes('_') && !this.isDmCallFullscreen && dmGrid) ? dmGrid : grid;
-                        
-                        if (!targetGrid) return;
-                        
                         let wrapper = document.getElementById(wrapperId);
+                        
                         if (!wrapper) {
                             wrapper = document.createElement('div');
                             wrapper.id = wrapperId; 
-                            wrapper.className = "video-wrapper group relative";
+                            wrapper.className = "video-wrapper group";
                             wrapper.setAttribute('x-bind:class', `fullscreenVideoId === '${vId}' ? 'video-fullscreen-mode' : ''`);
-                            wrapper.onclick = () => {
-                                if(this.inVoiceRoom && this.inVoiceRoom.includes('_') && !this.isDmCallFullscreen) {
-                                    this.isDmCallFullscreen = true;
-                                } else {
-                                    this.toggleFullscreenVideo(vId);
-                                }
-                            };
+                            wrapper.onclick = () => this.toggleFullscreenVideo(vId);
                             
                             const v = document.createElement('video');
                             v.id = `vid_${vId}`; v.autoplay = true; v.playsInline = true; 
@@ -2917,7 +2797,7 @@
                             };
                             
                             const overlay = document.createElement('div');
-                            overlay.className = "absolute bottom-2 left-2 bg-black/60 px-1.5 py-0.5 rounded text-[11px] text-white font-bold backdrop-blur-sm z-10 pointer-events-none";
+                            overlay.className = "absolute bottom-3 left-3 bg-black/60 px-2.5 py-1.5 rounded text-[13px] text-white font-bold backdrop-blur-sm z-10 pointer-events-none";
                             overlay.innerText = this.getUser(targetUid).displayName + (isScreen ? " (Screen)" : "");
 
                             if (!isScreen) {
@@ -2931,13 +2811,13 @@
                                 
                                 const img = document.createElement('img');
                                 img.src = this.getUser(targetUid).avatar;
-                                img.className = "w-16 h-16 md:w-32 md:h-32 rounded-full object-cover shadow-2xl bg-[#1e1f22]";
+                                img.className = "w-32 h-32 rounded-full object-cover shadow-2xl bg-[#1e1f22]";
                                 fallback.appendChild(img);
 
                                 const reconnect = document.createElement('div');
                                 reconnect.id = `reconnect_${targetUid}_cam`;
                                 reconnect.className = "absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-20 transition-opacity duration-300 opacity-0 pointer-events-none";
-                                reconnect.innerHTML = `<i class="ph ph-spinner-gap animate-spin text-xl md:text-3xl text-[#5865F2] mb-2"></i><span class="text-[10px] md:text-xs font-bold text-gray-300">Reconnecting...</span>`;
+                                reconnect.innerHTML = `<i class="ph ph-spinner-gap animate-spin text-3xl text-[#5865F2] mb-2"></i><span class="text-xs font-bold text-gray-300">Reconnecting...</span>`;
 
                                 wrapper.appendChild(fallback);
                                 wrapper.appendChild(reconnect);
@@ -2945,7 +2825,7 @@
 
                             wrapper.appendChild(v); 
                             wrapper.appendChild(overlay); 
-                            targetGrid.appendChild(wrapper);
+                            grid.appendChild(wrapper);
                             this.updateVideoCount();
                         }
                         
