@@ -192,54 +192,62 @@
             <!-- Far Left Sidebar (Server List) -->
             <div class="w-[72px] h-full bg-[#1e1f22] flex flex-col items-center py-3 space-y-2 flex-shrink-0 z-30 overflow-y-auto no-scrollbar">
                 
-                <!-- Home Button -->
-                <button @click="openHome()" class="w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-[#313338] text-gray-100 flex items-center justify-center transition-all duration-200 relative group" :class="{'rounded-[16px] bg-[#5865F2] text-white': activeView === 'home'}">
-                    <img :src="defaultAvatars[0].data" class="w-8 h-8 object-contain drop-shadow-md">
-                    <div class="absolute -left-3 w-1 bg-white rounded-r-md transition-all duration-200" :class="activeView === 'home' ? 'h-10 top-1' : 'h-0 top-[24px] group-hover:h-5 group-hover:top-[14px]'"></div>
-                    <!-- Home DM Notification Badge -->
-                    <div x-show="totalUnreadDms > 0" class="absolute -bottom-1 -right-1 bg-red-500 rounded-full border-[3px] border-[#1e1f22] text-[10px] font-bold text-white flex items-center justify-center min-w-[20px] h-[20px] px-1 z-10" x-text="totalUnreadDms > 99 ? '99+' : totalUnreadDms"></div>
-                </button>
+                <!-- Home Button Wrapper (Fixing badge clipping) -->
+                <div class="relative group">
+                    <div class="absolute -left-3 w-1 bg-white rounded-r-md transition-all duration-200 z-10" :class="activeView === 'home' ? 'h-10 top-1' : 'h-0 top-[24px] group-hover:h-5 group-hover:top-[14px]'"></div>
+                    <button @click="openHome()" class="w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-[#313338] text-gray-100 flex items-center justify-center transition-all duration-200 overflow-hidden" :class="{'rounded-[16px] bg-[#5865F2] text-white': activeView === 'home'}">
+                        <img :src="defaultAvatars[0].data" class="w-8 h-8 object-contain drop-shadow-md">
+                    </button>
+                    <!-- Home DM Notification Badge outside overflow-hidden -->
+                    <div x-show="totalUnreadDms > 0" class="absolute -bottom-1 -right-1 bg-red-500 rounded-full border-[3px] border-[#1e1f22] text-[10px] font-bold text-white flex items-center justify-center min-w-[20px] h-[20px] px-1 z-20 pointer-events-none" x-text="totalUnreadDms > 99 ? '99+' : totalUnreadDms"></div>
+                </div>
 
                 <div class="w-8 h-[2px] bg-[#313338] rounded-full my-1"></div>
 
-                <!-- Unread DMs floating in the primary sidebar like Discord -->
+                <!-- Unread DMs floating in the primary sidebar -->
                 <template x-for="dm in dms.filter(d => getUnreadCount(d.id) > 0 && activeTarget !== d.id)" :key="dm.id">
-                    <button @click="openDM(dm.id)" class="w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-[#313338] flex items-center justify-center transition-all duration-200 relative group overflow-hidden mt-1" title="Direct Message">
-                        <img :src="getUser(dm.partnerUid)?.avatar" class="w-full h-full object-cover">
-                        <!-- Notification Badge -->
-                        <div class="absolute -bottom-1 -right-1 bg-red-500 rounded-full border-[3px] border-[#1e1f22] text-[10px] font-bold text-white flex items-center justify-center min-w-[20px] h-[20px] px-1 z-10" x-text="getUnreadCount(dm.id) > 99 ? '99+' : getUnreadCount(dm.id)"></div>
-                    </button>
+                    <div class="relative group mt-1">
+                        <div class="absolute -left-3 w-1 bg-white rounded-r-md transition-all duration-200 z-10 h-2 top-[20px] group-hover:h-5 group-hover:top-[14px]"></div>
+                        <button @click="openDM(dm.id)" class="w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-[#313338] flex items-center justify-center transition-all duration-200 overflow-hidden" title="Direct Message">
+                            <img :src="getUser(dm.partnerUid)?.avatar" class="w-full h-full object-cover">
+                        </button>
+                        <div class="absolute -bottom-1 -right-1 bg-red-500 rounded-full border-[3px] border-[#1e1f22] text-[10px] font-bold text-white flex items-center justify-center min-w-[20px] h-[20px] px-1 z-20 pointer-events-none" x-text="getUnreadCount(dm.id) > 99 ? '99+' : getUnreadCount(dm.id)"></div>
+                    </div>
                 </template>
                 <div x-show="dms.filter(d => getUnreadCount(d.id) > 0 && activeTarget !== d.id).length > 0" class="w-8 h-[2px] bg-[#313338] rounded-full my-1"></div>
 
-                <!-- Mapped Servers -->
+                <!-- Mapped Servers Wrapper -->
                 <template x-for="server in myServers" :key="server.id">
-                    <button @click="openServer(server.id)" class="w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-[#313338] text-gray-100 hover:text-white flex items-center justify-center transition-all duration-200 shadow relative group overflow-hidden" :class="{'rounded-[16px] bg-[#5865F2] text-white': activeTarget === server.id && activeView === 'server'}">
-                        <template x-if="server.icon">
-                            <img :src="server.icon" class="w-full h-full object-cover">
-                        </template>
-                        <template x-if="!server.icon">
-                            <span x-text="server.name.substring(0,2).toUpperCase()" class="font-bold text-sm"></span>
-                        </template>
-                        
-                        <!-- Morphing Discord Pill -->
-                        <div class="absolute -left-3 w-1 bg-white rounded-r-md transition-all duration-200" 
+                    <div class="relative group mt-1">
+                        <!-- Morphing Discord Pill securely mapped outside overflow mask -->
+                        <div class="absolute -left-3 w-1 bg-white rounded-r-md transition-all duration-200 z-10" 
                              :class="activeTarget === server.id && activeView === 'server' ? 'h-10 top-1' : (getServerUnreadState(server.id) ? 'h-2 top-[20px] group-hover:h-5 group-hover:top-[14px]' : 'h-0 top-[24px] group-hover:h-5 group-hover:top-[14px]')">
                         </div>
 
-                        <!-- Ping Badge -->
-                        <div x-show="getServerMentionCount(server.id) > 0" class="absolute -bottom-1 -right-1 bg-red-500 rounded-full border-[3px] border-[#1e1f22] text-[10px] font-bold text-white flex items-center justify-center min-w-[20px] h-[20px] px-1 z-10" x-text="getServerMentionCount(server.id) > 99 ? '99+' : getServerMentionCount(server.id)"></div>
-                    </button>
+                        <button @click="openServer(server.id)" class="w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-[#313338] text-gray-100 hover:text-white flex items-center justify-center transition-all duration-200 shadow overflow-hidden" :class="{'rounded-[16px] bg-[#5865F2] text-white': activeTarget === server.id && activeView === 'server'}">
+                            <template x-if="server.icon">
+                                <img :src="server.icon" class="w-full h-full object-cover">
+                            </template>
+                            <template x-if="!server.icon">
+                                <span x-text="server.name.substring(0,2).toUpperCase()" class="font-bold text-sm"></span>
+                            </template>
+                        </button>
+                        
+                        <!-- Ping Badge mapped securely outside -->
+                        <div x-show="getServerMentionCount(server.id) > 0" class="absolute -bottom-1 -right-1 bg-red-500 rounded-full border-[3px] border-[#1e1f22] text-[10px] font-bold text-white flex items-center justify-center min-w-[20px] h-[20px] px-1 z-20 pointer-events-none" x-text="getServerMentionCount(server.id) > 99 ? '99+' : getServerMentionCount(server.id)"></div>
+                    </div>
                 </template>
 
                 <!-- Actions -->
                 <button @click="showCreateServerModal = true; newServerName = ''" class="w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-[#313338] hover:bg-[#23A559] text-[#23A559] hover:text-white flex items-center justify-center transition-all duration-200 mt-2 group relative" title="Add a Server">
                     <i class="ph ph-plus text-xl"></i>
                 </button>
-                <button @click="openDiscovery()" class="w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-[#313338] hover:bg-[#5865F2] text-gray-300 hover:text-white flex items-center justify-center transition-all duration-200 mt-2 relative group" :class="{'rounded-[16px] bg-[#5865F2] text-white': activeView === 'discovery'}" title="Discover Servers">
-                    <i class="ph-fill ph-compass text-2xl"></i>
-                    <div class="absolute -left-3 w-1 bg-white rounded-r-md transition-all duration-200" :class="activeView === 'discovery' ? 'h-10 top-1' : 'h-0 top-[24px] group-hover:h-5 group-hover:top-[14px]'"></div>
-                </button>
+                <div class="relative group mt-2 mb-4">
+                    <div class="absolute -left-3 w-1 bg-white rounded-r-md transition-all duration-200 z-10" :class="activeView === 'discovery' ? 'h-10 top-1' : 'h-0 top-[24px] group-hover:h-5 group-hover:top-[14px]'"></div>
+                    <button @click="openDiscovery()" class="w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-[#313338] hover:bg-[#5865F2] text-gray-300 hover:text-white flex items-center justify-center transition-all duration-200 overflow-hidden" :class="{'rounded-[16px] bg-[#5865F2] text-white': activeView === 'discovery'}" title="Discover Servers">
+                        <i class="ph-fill ph-compass text-2xl"></i>
+                    </button>
+                </div>
             </div>
 
             <!-- Secondary Sidebar (Channels or DMs) -->
@@ -247,7 +255,7 @@
                 
                 <!-- Home Sidebar (Friends & DMs) -->
                 <template x-if="activeView === 'home' || activeView === 'discovery'">
-                    <div class="flex flex-col flex-1 min-h-0">
+                    <div class="flex flex-col h-full flex-1 min-h-0">
                         <div class="h-12 border-b border-[#1e1f22] shadow-sm flex items-center px-4 flex-shrink-0">
                             <div class="w-full bg-[#1e1f22] text-gray-400 text-sm py-1.5 px-3 rounded flex items-center justify-center cursor-pointer hover:text-gray-200 transition" @click="friendsTab = 'add'; activeTarget = null;">
                                 Find or start a conversation
@@ -291,7 +299,7 @@
                 
                 <!-- Server Sidebar (Channels) -->
                 <template x-if="activeView === 'server'">
-                    <div class="flex flex-col flex-1 min-h-0">
+                    <div class="flex flex-col h-full flex-1 min-h-0">
                         <!-- Server Header w/ Dropdown -->
                         <div class="h-12 border-b border-[#1e1f22] shadow-sm flex items-center px-4 font-bold text-gray-100 justify-between cursor-pointer hover:bg-[#35373c] transition group relative z-50 flex-shrink-0">
                             <span class="truncate pr-2" x-text="getServer()?.name || 'Loading...'"></span>
@@ -332,12 +340,12 @@
                                     
                                     <!-- Mention Ping Badge inside channel -->
                                     <template x-if="getMentionCount(channel.id) > 0">
-                                        <div class="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0" x-text="getMentionCount(channel.id) > 99 ? '99+' : getMentionCount(channel.id)"></div>
+                                        <div class="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 ml-1" x-text="getMentionCount(channel.id) > 99 ? '99+' : getMentionCount(channel.id)"></div>
                                     </template>
                                     
                                     <!-- Standard Unread Dot -->
                                     <template x-if="hasUnread(channel.id) && getMentionCount(channel.id) === 0 && activeChannelId !== channel.id">
-                                        <div class="w-1.5 h-1.5 bg-white rounded-full flex-shrink-0"></div>
+                                        <div class="w-1.5 h-1.5 bg-white rounded-full flex-shrink-0 ml-1"></div>
                                     </template>
                                 </button>
                             </template>
@@ -1304,6 +1312,8 @@
             
             servers: [], dms: [], messages: [], filteredMessages: [], users: {}, globalPresence: [], _colorCache: {},
             
+            originalTitle: "Le BaroChat™", flashInterval: null, isFlashing: false,
+
             get myServers() { return this.servers.filter(s => this.currentUserProfile?.joinedServers?.includes(s.id)); },
             get discoveryServers() { return this.servers.filter(s => s.isPublic && !this.currentUserProfile?.joinedServers?.includes(s.id)); },
             get currentChatId() { return this.activeView === 'server' ? this.activeChannelId : this.activeTarget; },
@@ -1428,6 +1438,21 @@
                 const link = document.getElementById('dynamic-favicon');
                 if (link) { link.href = this.totalUnreadDms > 0 ? faviconAlert : faviconNormal; }
             },
+            
+            startTabFlash() {
+                if (this.isFlashing) return;
+                this.isFlashing = true;
+                let flashState = false;
+                this.flashInterval = setInterval(() => {
+                    document.title = flashState ? "💬 New Message!" : this.originalTitle;
+                    flashState = !flashState;
+                }, 1000);
+            },
+            stopTabFlash() {
+                this.isFlashing = false;
+                if (this.flashInterval) clearInterval(this.flashInterval);
+                document.title = this.originalTitle;
+            },
 
             get groupedMessages() {
                 if (!this.filteredMessages || this.filteredMessages.length === 0) return [];
@@ -1541,7 +1566,11 @@
             insertMention(username) {
                 this.newMessage = this.newMessage.replace(/@([a-zA-Z0-9_]*)$/, '@' + username + ' ');
                 this.showMentions = false;
-                this.$refs.chatInput.focus();
+                
+                // Allow DOM to update before focusing to prevent Tab-key jumps
+                setTimeout(() => {
+                    this.$refs.chatInput.focus();
+                }, 50);
             },
 
             extractProminentColor(base64) {
@@ -1676,6 +1705,7 @@
 
                     document.addEventListener("visibilitychange", () => {
                         if (!document.hidden && this.isReady) {
+                            this.stopTabFlash();
                             this.updatePresence();
                             this.syncPresence(); 
                         }
@@ -1768,7 +1798,7 @@
                         const profile = {
                             uid: newProfileId, username: usernameNormalized, displayName: this.authDisplayName.trim() || usernameNormalized,
                             avatar: this.authAvatar, bio: "Ready to chat on Le BaroChat™!", banner: null, bannerColor: '#5865F2',
-                            joinedServers: [], friends: [], lastRead: {}
+                            joinedServers: [], friends: [], lastRead: {}, lastChannel: {}
                         };
                         await this.apiSet('users', newProfileId, profile);
 
@@ -1843,12 +1873,25 @@
                 window.location.reload();
             },
 
-            startGlobalListeners() {
-                this.supabase.from('lebarochat_data_v4').select('*').then(({ data: allData, error }) => {
-                    if (error) { console.error("Cache load failed:", error); return; }
-                    this.servers = []; this.dms = []; this.messages = []; this.globalPresence = [];
-                    allData.forEach(row => this.handleDbChange('INSERT', row));
-                });
+            async startGlobalListeners() {
+                // MASSIVE FIX: Paginate all initial data loads completely bypassing 1000 row limits that causes ghost users
+                let allData = [];
+                let page = 0;
+                const size = 1000;
+                
+                while (true) {
+                    const { data, error } = await this.supabase.from('lebarochat_data_v4')
+                        .select('*')
+                        .range(page * size, (page + 1) * size - 1);
+                    if (error) { console.error("Cache load failed:", error); break; }
+                    if (!data || data.length === 0) break;
+                    allData.push(...data);
+                    if (data.length < size) break;
+                    page++;
+                }
+                
+                this.servers = []; this.dms = []; this.messages = []; this.globalPresence = [];
+                allData.forEach(row => this.handleDbChange('INSERT', row));
 
                 this.globalChannel = this.supabase.channel('public:lebarochat_data_v4', {
                     config: { broadcast: { self: false } }
@@ -1914,7 +1957,16 @@
                     }
                     else if (c === 'messages') { 
                         const idx = this.messages.findIndex(m=>m.id===id); 
-                        if(idx>=0) this.messages.splice(idx, 1, d); else this.messages.push(d); 
+                        if(idx>=0) this.messages.splice(idx, 1, d); else {
+                            this.messages.push(d);
+                            
+                            // Chrome Tab Flashing triggers precisely here
+                            if (document.hidden && d.senderId !== this.logicalUid) {
+                                if (d.roomId === this.currentChatId || this.isMentioned(d.text) || d.roomId.includes(this.logicalUid)) {
+                                    this.startTabFlash();
+                                }
+                            }
+                        }
                         this.filterMessages(); 
                     }
                     else if (c === 'presence') { 
@@ -2356,28 +2408,30 @@
             async joinVoiceRoom(channelId) {
                 if (this.inVoiceRoom) this.leaveVoiceRoom();
                 try {
-                    // Highly Optimized bandwidth request for aggressive NAT/School Firewalls
-                    const stream = await navigator.mediaDevices.getUserMedia({ 
-                        video: false, 
-                        audio: { echoCancellation: true, noiseSuppression: true } 
-                    });
+                    let stream;
+                    try {
+                        stream = await navigator.mediaDevices.getUserMedia({ video: { aspectRatio: 16/9, width: { ideal: 1280 } }, audio: true });
+                    } catch (e) {
+                        stream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+                    }
+                    
                     const micTrack = stream.getAudioTracks()[0];
-                    micTrack.enabled = !this.isMuted;
+                    if(micTrack) micTrack.enabled = !this.isMuted;
                     
                     const canvas = document.createElement('canvas'); 
-                    canvas.width = 640; canvas.height = 360;
+                    canvas.width = 1280; canvas.height = 720;
                     const ctx = canvas.getContext('2d'); 
-                    ctx.fillStyle = '#000000'; ctx.fillRect(0,0,640,360); 
-                    // Lower frame rate drastically reduces bandwidth overhead during network jitter
+                    ctx.fillStyle = '#000000'; ctx.fillRect(0,0,1280,720); 
                     const dummyStream = canvas.captureStream(15);
                     const dummyVideo = dummyStream.getVideoTracks()[0];
                     
                     if (this.dummyCanvasInterval) clearInterval(this.dummyCanvasInterval);
                     this.dummyCanvasInterval = setInterval(() => {
-                        if(ctx) { ctx.fillStyle = ctx.fillStyle === '#000000' ? '#000001' : '#000000'; ctx.fillRect(0,0,640,360); }
+                        if(ctx) { ctx.fillStyle = ctx.fillStyle === '#000000' ? '#000001' : '#000000'; ctx.fillRect(0,0,1280,720); }
                     }, 100);
                     
-                    this.localStream = new MediaStream([dummyVideo, micTrack]);
+                    if(micTrack) this.localStream = new MediaStream([dummyVideo, micTrack]);
+                    else this.localStream = new MediaStream([dummyVideo]);
                     
                     this.inVoiceRoom = channelId; this.rtcVideoOff = true; this.isScreenSharing = false; this.viewingVoice = true; 
                     
@@ -2435,10 +2489,13 @@
                 
                 if (this.rtcVideoOff) {
                     try {
-                        // Highly Optimized bandwidth request for aggressive NAT/School Firewalls
-                        const vidStream = await navigator.mediaDevices.getUserMedia({ 
-                            video: { aspectRatio: 16/9, width: { ideal: 640, max: 1280 }, height: { ideal: 360, max: 720 }, frameRate: { ideal: 15, max: 24 } } 
-                        });
+                        let vidStream;
+                        try {
+                            vidStream = await navigator.mediaDevices.getUserMedia({ video: { aspectRatio: 16/9, width: { ideal: 1280 }, height: { ideal: 720 } } });
+                        } catch(e) {
+                            vidStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                        }
+                        
                         const vidTrack = vidStream.getVideoTracks()[0];
                         const oldTrack = this.localStream.getVideoTracks()[0];
                         
@@ -2464,15 +2521,15 @@
                         vidTrack.stop();
                         
                         const canvas = document.createElement('canvas'); 
-                        canvas.width = 640; canvas.height = 360;
+                        canvas.width = 1280; canvas.height = 720;
                         const ctx = canvas.getContext('2d'); 
-                        ctx.fillStyle = '#000000'; ctx.fillRect(0,0,640,360);
+                        ctx.fillStyle = '#000000'; ctx.fillRect(0,0,1280,720);
                         const dummyStream = canvas.captureStream(15);
                         const dummyVideo = dummyStream.getVideoTracks()[0];
                         
                         if (this.dummyCanvasInterval) clearInterval(this.dummyCanvasInterval);
                         this.dummyCanvasInterval = setInterval(() => {
-                            if(ctx) { ctx.fillStyle = ctx.fillStyle === '#000000' ? '#000001' : '#000000'; ctx.fillRect(0,0,640,360); }
+                            if(ctx) { ctx.fillStyle = ctx.fillStyle === '#000000' ? '#000001' : '#000000'; ctx.fillRect(0,0,1280,720); }
                         }, 100);
                         
                         this.localStream.removeTrack(vidTrack);
@@ -2546,11 +2603,6 @@
             },
 
             createPeer(targetUid, initiator) {
-                // Brutally purge any ghost DOM elements before creating a new peer to fix "Fake Screenshare" overlaps
-                document.querySelectorAll('.video-wrapper').forEach(w => {
-                    if (w.id.startsWith(`vid_wrap_${targetUid}_`)) w.remove();
-                });
-                
                 const peer = new SimplePeer({
                     initiator: initiator, 
                     trickle: true, 
@@ -2588,9 +2640,8 @@
                     setTimeout(() => {
                         const grid = document.getElementById('fullscreen-video-grid'); if(!grid) return;
                         
-                        // Mathematically certain way to tell if it's a screenshare instead of relying on DOM presence
-                        let isScreen = false;
-                        if (peer._remoteStreams && peer._remoteStreams.length > 1 && stream === peer._remoteStreams[1]) {
+                        let isScreen = stream.getAudioTracks().length === 0;
+                        if (document.getElementById(`vid_wrap_${targetUid}_cam`)) {
                             isScreen = true;
                         }
                         
@@ -2609,21 +2660,30 @@
                             v.id = `vid_${vId}`; v.autoplay = true; v.playsInline = true; 
                             v.className = "remote-vid w-full h-full bg-black object-cover"; v.muted = this.isDeafened;
                             
-                            v.onloadedmetadata = () => { v.play().catch(e=>console.warn("Autoplay blocked:", e)); };
+                            v.onloadedmetadata = () => { 
+                                v.play().catch(e => {
+                                    console.warn("Autoplay blocked:", e); 
+                                    // iOS Safari Autoplay Unblocker Fallback
+                                    const unblockBtn = document.createElement('button');
+                                    unblockBtn.className = "absolute inset-0 bg-black/80 text-white font-bold z-50 flex flex-col items-center justify-center";
+                                    unblockBtn.innerHTML = "<i class='ph-fill ph-play-circle text-4xl mb-2 text-[#5865F2]'></i>Tap to View Video";
+                                    unblockBtn.onclick = (e) => { e.stopPropagation(); v.play(); unblockBtn.remove(); };
+                                    wrapper.appendChild(unblockBtn);
+                                }); 
+                            };
                             
                             const overlay = document.createElement('div');
-                            overlay.className = "absolute bottom-3 left-3 bg-black/60 px-2.5 py-1.5 rounded text-[13px] text-white font-bold backdrop-blur-sm z-10";
+                            overlay.className = "absolute bottom-3 left-3 bg-black/60 px-2.5 py-1.5 rounded text-[13px] text-white font-bold backdrop-blur-sm z-10 pointer-events-none";
                             overlay.innerText = this.getUser(targetUid).displayName + (isScreen ? " (Screen)" : "");
 
                             if (!isScreen) {
                                 const fallback = document.createElement('div');
                                 fallback.id = `fallback_${targetUid}_cam`;
-                                fallback.className = "absolute inset-0 flex items-center justify-center transition-opacity duration-300 z-0";
+                                fallback.className = "absolute inset-0 flex items-center justify-center transition-opacity duration-300 z-0 pointer-events-none";
                                 fallback.style.backgroundColor = this.getUser(targetUid).dominantColor || '#5865F2';
                                 
                                 const currentStatus = this.activePresence.find(p => p.uid === targetUid)?.isCameraOff;
                                 fallback.style.opacity = currentStatus ? '1' : '0';
-                                fallback.style.pointerEvents = currentStatus ? 'auto' : 'none';
                                 
                                 const img = document.createElement('img');
                                 img.src = this.getUser(targetUid).avatar;
