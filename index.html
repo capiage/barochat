@@ -15,7 +15,6 @@
         window.global = window;
         window.process = { env: { DEBUG: undefined } };
     </script>
-    <!-- WebRTC Adapter for flawless iOS/Mobile Safari compatibility -->
     <script src="https://webrtc.github.io/adapter/adapter-latest.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/simple-peer/9.11.1/simplepeer.min.js"></script>
 
@@ -40,12 +39,13 @@
             position: relative; flex: 0 1 auto;
             aspect-ratio: 16 / 9;
             border-radius: 0.5rem; background-color: #1e1f22;
-            overflow: hidden; border: 1px solid #2b2d31;
-            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.5);
+            overflow: hidden; box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.5);
             cursor: pointer; transition: all 0.2s ease-in-out;
+            border: 3px solid transparent;
         }
+        .video-wrapper.speaking { border-color: #23A559; }
         
-        /* Flawless Grid Scaling Logic w/ Aspect Ratio Clamping */
+        /* Flawless Grid Scaling Logic */
         .grid-count-1 .video-wrapper { width: 100%; max-height: calc(100vh - 2rem); max-width: calc((100vh - 2rem) * 16 / 9); }
         .grid-count-2 .video-wrapper { width: calc(50% - 0.5rem); max-height: calc(100vh - 2rem); max-width: calc((100vh - 2rem) * 16 / 9); }
         .grid-count-3 .video-wrapper, .grid-count-4 .video-wrapper { width: calc(50% - 0.5rem); max-height: calc(50vh - 1.5rem); max-width: calc((50vh - 1.5rem) * 16 / 9); }
@@ -53,10 +53,9 @@
         .grid-count-7 .video-wrapper, .grid-count-8 .video-wrapper, .grid-count-9 .video-wrapper { width: calc(33.333% - 0.67rem); max-height: calc(33.333vh - 1.33rem); max-width: calc((33.333vh - 1.33rem) * 16 / 9); }
         .grid-count-more .video-wrapper { width: calc(25% - 0.75rem); max-height: calc(33.333vh - 1.33rem); max-width: calc((33.333vh - 1.33rem) * 16 / 9); }
 
-        .video-wrapper:hover { border-color: #5865F2; }
         .video-wrapper video { width: 100%; height: 100%; background-color: #000; object-fit: cover; }
 
-        /* Fixed Fullscreen Mode - Absolute Top Z-Index */
+        /* Fixed Fullscreen Mode */
         .video-fullscreen-mode {
             position: absolute !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important;
             width: 100% !important; height: 100% !important; z-index: 50 !important; 
@@ -128,31 +127,33 @@
     </div>
 
     <!-- Draggable PiP Floating VC Window -->
-    <div x-show="isPiPActive" class="fixed z-[90] cursor-move shadow-[0_20px_50px_rgba(0,0,0,0.8)] rounded-lg overflow-hidden border border-[#2b2d31] bg-black" 
+    <div x-show="isPiPActive" class="fixed z-[90] cursor-move shadow-[0_20px_50px_rgba(0,0,0,0.8)] rounded-lg overflow-hidden border-2 bg-black" 
          style="width: 200px; height: 355px; display: none;" 
          x-data="{ pipX: window.innerWidth - 240, pipY: window.innerHeight - 380, dragging: false, startX: 0, startY: 0 }"
+         :class="speakingUsers[pipActiveUid] ? 'border-[#23A559]' : 'border-[#2b2d31]'"
          :style="`left: ${pipX}px; top: ${pipY}px;`"
          @mousedown="dragging = true; startX = $event.clientX - pipX; startY = $event.clientY - pipY;"
-         @window:mousemove="if(dragging) { pipX = Math.max(0, Math.min(window.innerWidth - 200, $event.clientX - startX)); pipY = Math.max(0, Math.min(window.innerHeight - 355, $event.clientY - startY)); }"
-         @window:mouseup="dragging = false"
-         @window:resize="pipX = window.innerWidth - 240; pipY = window.innerHeight - 380;">
+         @mousemove.window="if(dragging) { pipX = Math.max(0, Math.min(window.innerWidth - 200, $event.clientX - startX)); pipY = Math.max(0, Math.min(window.innerHeight - 355, $event.clientY - startY)); }"
+         @mouseup.window="dragging = false"
+         @resize.window="pipX = window.innerWidth - 240; pipY = window.innerHeight - 380;">
          
          <div class="w-full h-full relative group">
-             <video id="pip-video" autoplay playsinline muted class="w-full h-full object-cover"></video>
+             <!-- PiP Video injected by Alpine dynamically -->
+             <video id="pip-video" autoplay playsinline class="w-full h-full object-cover"></video>
              
              <!-- Avatar Fallback for PiP -->
-             <div x-show="rtcVideoOff" class="absolute inset-0 flex items-center justify-center z-0" :style="'background-color: ' + (currentUserProfile?.dominantColor || '#5865F2')">
-                 <img :src="currentUserProfile?.avatar" class="w-20 h-20 rounded-full object-cover shadow-2xl bg-[#1e1f22]">
+             <div x-show="isPiPCameraOff" class="absolute inset-0 flex items-center justify-center z-0" :style="'background-color: ' + (getUser(pipActiveUid)?.dominantColor || '#5865F2')">
+                 <img :src="getUser(pipActiveUid)?.avatar" class="w-20 h-20 rounded-full object-cover shadow-2xl bg-[#1e1f22]">
              </div>
 
              <!-- Return to Call Hover Overlay -->
-             <div class="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer z-20" @click="viewingVoice = true; if(activeView !== 'server' && activeView !== 'home') activeView = 'server';">
+             <div class="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer z-20" @click="returnToCall()">
                  <span class="text-white font-bold text-xs bg-[#5865F2] px-3 py-1.5 rounded-full shadow-lg">Return to Call</span>
              </div>
              
              <!-- Small Status Strip -->
              <div class="absolute bottom-2 left-2 flex gap-1 z-10 pointer-events-none bg-black/60 rounded px-1.5 py-0.5 backdrop-blur-sm">
-                 <i class="ph-fill text-white text-xs" :class="isMuted ? 'ph-microphone-slash text-red-500' : 'ph-microphone'"></i>
+                 <span class="text-white text-[10px] font-bold truncate max-w-[120px]" x-text="getUser(pipActiveUid)?.displayName"></span>
              </div>
          </div>
     </div>
@@ -254,7 +255,6 @@
                     <button @click="openHome()" class="w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-[#313338] text-gray-100 flex items-center justify-center transition-all duration-200 overflow-hidden" :class="{'rounded-[16px] bg-[#5865F2] text-white': activeView === 'home'}">
                         <img :src="defaultAvatars[0].data" class="w-8 h-8 object-contain drop-shadow-md">
                     </button>
-                    <!-- Home DM Notification Badge outside overflow-hidden -->
                     <div x-show="totalUnreadDms > 0" class="absolute -bottom-1 -right-1 bg-red-500 rounded-full border-[3px] border-[#1e1f22] text-[10px] font-bold text-white flex items-center justify-center min-w-[20px] h-[20px] px-1 z-20 pointer-events-none" x-text="totalUnreadDms > 99 ? '99+' : totalUnreadDms"></div>
                 </div>
 
@@ -293,7 +293,6 @@
                             </template>
                         </button>
                         
-                        <!-- Ping Badge mapped securely outside -->
                         <div x-show="getServerMentionCount(server.id) > 0" class="absolute -bottom-1 -right-1 bg-red-500 rounded-full border-[3px] border-[#1e1f22] text-[10px] font-bold text-white flex items-center justify-center min-w-[20px] h-[20px] px-1 z-20 pointer-events-none" x-text="getServerMentionCount(server.id) > 99 ? '99+' : getServerMentionCount(server.id)"></div>
                     </div>
                 </template>
@@ -335,7 +334,7 @@
                                 <i class="ph ph-plus"></i>
                             </div>
                             
-                            <!-- DM List (Sorted by recent) w/ Date Times -->
+                            <!-- DM List (Sorted by recent) -->
                             <template x-for="dm in sortedDms" :key="dm.id">
                                 <button @click="openDM(dm.id)" class="w-full flex items-center px-2 py-1.5 rounded-md transition group relative" :class="activeTarget === dm.id && activeView === 'home' ? 'bg-[#3f4147] text-white' : 'hover:bg-[#35373c] text-gray-400 hover:text-gray-200'">
                                     <div class="relative flex-shrink-0 mr-3">
@@ -349,7 +348,6 @@
                                         </div>
                                     </div>
                                     
-                                    <!-- DM Unread Number Badge overlaying button -->
                                     <template x-if="getUnreadCount(dm.id) > 0 && activeTarget !== dm.id">
                                         <div class="absolute right-2 top-1/2 transform -translate-y-1/2 bg-red-500 rounded-full text-white text-[10px] font-bold px-1.5 h-4 min-w-[16px] flex items-center justify-center shadow" x-text="getUnreadCount(dm.id) > 99 ? '99+' : getUnreadCount(dm.id)"></div>
                                     </template>
@@ -362,12 +360,10 @@
                 <!-- Server Sidebar (Channels) -->
                 <template x-if="activeView === 'server'">
                     <div class="flex flex-col h-full flex-1 min-h-0">
-                        <!-- Server Header w/ Dropdown -->
                         <div class="h-12 border-b border-[#1e1f22] shadow-sm flex items-center px-4 font-bold text-gray-100 justify-between cursor-pointer hover:bg-[#35373c] transition group relative z-50 flex-shrink-0">
                             <span class="truncate pr-2" x-text="getServer()?.name || 'Loading...'"></span>
                             <i class="ph ph-caret-down text-gray-400 group-hover:text-gray-200 transition-transform"></i>
                             
-                            <!-- Dropdown Menu -->
                             <div class="absolute top-10 left-2 right-2 bg-[#111214] rounded-md shadow-2xl border border-[#1e1f22] p-2 hidden group-hover:block">
                                 <button @click.stop="copyInviteLink()" class="w-full flex items-center justify-between px-2 py-1.5 text-[#5865F2] hover:bg-[#5865F2] hover:text-white rounded-md transition text-sm font-medium mb-1">
                                     <span>Invite People</span>
@@ -396,16 +392,14 @@
                                 </template>
                             </div>
                             <template x-for="channel in (getServer()?.channels || []).filter(c => c.type === 'text')" :key="channel.id">
-                                <button @click="selectChannel(channel.id)" class="w-full flex items-center px-2 py-1.5 rounded-md transition" :class="activeChannelId === channel.id && !viewingVoice ? 'bg-[#3f4147] text-white' : 'text-gray-400 hover:bg-[#35373c] hover:text-gray-200'">
+                                <button @click="selectChannel(channel.id)" class="w-full flex items-center px-2 py-1.5 rounded-md transition" :class="activeChannelId === channel.id && (!viewingVoice || inVoiceRoom?.includes('_')) ? 'bg-[#3f4147] text-white' : 'text-gray-400 hover:bg-[#35373c] hover:text-gray-200'">
                                     <i class="ph ph-hash mr-2 text-lg" :class="hasUnread(channel.id) ? 'text-gray-200' : ''"></i>
                                     <span class="font-medium text-[15px] truncate flex-1 text-left" :class="hasUnread(channel.id) ? 'text-gray-100 font-bold' : ''" x-text="channel.name"></span>
                                     
-                                    <!-- Mention Ping Badge inside channel -->
                                     <template x-if="getMentionCount(channel.id) > 0">
                                         <div class="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 ml-1 shadow" x-text="getMentionCount(channel.id) > 99 ? '99+' : getMentionCount(channel.id)"></div>
                                     </template>
                                     
-                                    <!-- Standard Unread Dot -->
                                     <template x-if="hasUnread(channel.id) && getMentionCount(channel.id) === 0 && activeChannelId !== channel.id">
                                         <div class="w-1.5 h-1.5 bg-white rounded-full flex-shrink-0 ml-1"></div>
                                     </template>
@@ -426,13 +420,11 @@
                                         <span class="font-medium text-[15px] truncate flex-1 text-left" :class="inVoiceRoom === channel.id ? 'text-[#23A559]' : ''" x-text="channel.name"></span>
                                     </button>
                                     
-                                    <!-- Display Users currently in this voice channel -->
-                                    <div class="pl-6 pt-1 space-y-1 border-l border-[#3f4147] ml-4">
+                                    <div class="pl-6 pt-1 space-y-1 border-l border-[#3f4147] ml-4" x-show="getVoiceUsers(channel.id).length > 0">
                                         <template x-for="p in getVoiceUsers(channel.id)" :key="p.uid">
                                             <div class="flex items-center gap-2 px-2 py-1 rounded hover:bg-[#35373c] cursor-pointer transition group" @click="openProfilePopout(p.uid)">
-                                                <img :src="getUser(p.uid)?.avatar" class="w-6 h-6 rounded-full object-cover bg-[#1e1f22]">
+                                                <img :src="getUser(p.uid)?.avatar" class="w-6 h-6 rounded-full object-cover bg-[#1e1f22]" :class="speakingUsers[p.uid] ? 'border-2 border-[#23A559]' : ''">
                                                 <span class="text-sm font-medium text-gray-400 group-hover:text-gray-200 truncate flex-1" x-text="getUser(p.uid)?.displayName"></span>
-                                                <!-- Status Icons for VC Users -->
                                                 <div class="flex items-center gap-1">
                                                     <template x-if="p.isScreenSharing">
                                                         <i class="ph-fill ph-screencast text-xs text-[#5865F2]"></i>
@@ -447,6 +439,14 @@
                                             </div>
                                         </template>
                                     </div>
+                                    
+                                    <template x-if="inVoiceRoom === channel.id && !viewingVoice">
+                                        <div class="pl-6 mt-1 mb-2 ml-4">
+                                            <button @click="viewingVoice = true; activeChannelId = null;" class="w-full flex items-center justify-center gap-2 py-1 bg-[#1e1f22] hover:bg-[#111214] border border-[#3f4147] rounded text-xs font-bold text-gray-300 hover:text-white transition">
+                                                <i class="ph-fill ph-video-camera"></i> Show Video Grid
+                                            </button>
+                                        </div>
+                                    </template>
                                 </div>
                             </template>
                         </div>
@@ -459,7 +459,7 @@
                     <!-- Global Active Voice Connection Strip -->
                     <div x-show="inVoiceRoom" class="bg-[#111214] p-2 border-t border-[#1e1f22] flex flex-col gap-2 relative z-20" style="display: none;">
                         <div class="flex items-center justify-between text-[#23A559] px-1 pt-1">
-                            <div class="flex flex-col cursor-pointer hover:underline" @click="viewingVoice = true; if(activeView !== 'server' && activeView !== 'home') activeView = 'server';">
+                            <div class="flex flex-col cursor-pointer hover:underline" @click="returnToCall()">
                                 <span class="font-bold text-xs uppercase tracking-wide flex items-center gap-1"><i class="ph-fill ph-check-circle"></i> Voice Connected</span>
                                 <span class="text-[11px] text-gray-400 truncate w-32" x-text="getChannelName(inVoiceRoom) || 'Loading...'"></span>
                             </div>
@@ -495,7 +495,7 @@
                             </button>
                             <button @click="toggleDeafen()" class="w-7 h-7 rounded-md flex items-center justify-center hover:bg-[#3f4147] transition relative" :class="isDeafened ? 'text-red-500' : 'text-gray-400 hover:text-gray-200'" title="Deafen Audio">
                                 <i class="ph-fill text-lg ph-headphones"></i>
-                                <!-- Hardcoded slash override to guarantee it renders -->
+                                <!-- Hardcoded slash override to guarantee it renders permanently -->
                                 <div x-show="isDeafened" class="absolute w-5 h-[2px] bg-red-500 transform -rotate-45 shadow-sm rounded-full pointer-events-none"></div>
                             </button>
                             <button @click="openSettings()" class="w-7 h-7 rounded-md flex items-center justify-center hover:bg-[#3f4147] text-gray-400 hover:text-gray-200 transition" title="User Settings">
@@ -535,17 +535,23 @@
                         <template x-if="activeView === 'discovery'">
                             <div class="flex items-center"><i class="ph-fill ph-compass mr-2 text-gray-400 text-xl"></i> Discover Servers</div>
                         </template>
-                        <template x-if="activeView === 'home' && activeTarget">
+                        <template x-if="activeView === 'home' && activeTarget && !viewingVoice">
                             <div class="flex items-center gap-2">
                                 <i class="ph ph-at mr-1 text-gray-400 text-xl"></i>
                                 <span x-text="getUser(getDmPartner(activeTarget))?.displayName || 'Loading...'"></span>
                                 <span class="text-xs text-gray-400 font-medium" x-text="'@' + getUser(getDmPartner(activeTarget))?.username"></span>
                             </div>
                         </template>
-                        <template x-if="activeView === 'server'">
+                        <template x-if="activeView === 'server' && !viewingVoice">
                             <div class="flex items-center">
                                 <i class="ph ph-hash mr-2 text-gray-400 text-xl"></i>
                                 <span x-text="getChannelName(activeChannelId) || 'Loading...'"></span>
+                            </div>
+                        </template>
+                        <template x-if="viewingVoice">
+                            <div class="flex items-center text-gray-100">
+                                <i class="ph-fill ph-video-camera mr-2 text-xl text-[#23A559]"></i>
+                                <span>Voice Call — <span x-text="getChannelName(inVoiceRoom) || 'Loading...'"></span></span>
                             </div>
                         </template>
                     </div>
@@ -553,13 +559,13 @@
                     <!-- Right Actions -->
                     <div class="flex items-center gap-3" x-show="!(activeView === 'home' && !activeTarget)">
                         <!-- DM Voice Call Button -->
-                        <template x-if="activeView === 'home' && activeTarget">
+                        <template x-if="activeView === 'home' && activeTarget && !viewingVoice">
                             <button @click="handleVoiceChannelClick(activeTarget)" class="p-1 text-gray-400 hover:text-gray-200 hover:bg-[#3f4147] rounded-md transition" :class="inVoiceRoom === activeTarget ? 'text-[#23A559]' : ''" title="Voice/Video Call">
                                 <i class="ph-fill ph-phone-call text-xl"></i>
                             </button>
                         </template>
 
-                        <template x-if="activeView === 'server' || (activeView === 'home' && activeTarget)">
+                        <template x-if="(activeView === 'server' && !viewingVoice) || (activeView === 'home' && activeTarget && !viewingVoice)">
                             <button @click="showMembersList = !showMembersList" class="p-1 text-gray-400 hover:text-gray-200 hover:bg-[#3f4147] rounded-md transition" title="Toggle Member List">
                                 <i class="ph-fill ph-users text-xl"></i>
                             </button>
@@ -567,54 +573,47 @@
                     </div>
                 </div>
 
-                <!-- DM Active Call Header Banner (Discord Style) -->
+                <!-- DM Embedded Header Call View -->
                 <template x-if="activeView === 'home' && activeTarget && inVoiceRoom === activeTarget && !viewingVoice">
-                    <div class="flex-shrink-0 bg-[#000000] border-b border-[#1e1f22] p-4 flex flex-col relative group">
-                        <div class="flex justify-center gap-8 h-40">
-                            <!-- You -->
-                            <div class="relative w-72 h-full bg-[#1e1f22] rounded-lg overflow-hidden border border-[#2b2d31] flex items-center justify-center shadow-lg">
-                                <div class="absolute inset-0 z-0" :style="'background-color: ' + (currentUserProfile?.dominantColor || '#5865F2')"></div>
-                                <img :src="currentUserProfile?.avatar" class="w-16 h-16 rounded-full object-cover shadow-2xl relative z-10 border-2 border-[#1e1f22]">
-                                <div class="absolute bottom-2 left-2 bg-black/60 px-2 py-1 rounded text-xs text-white font-bold backdrop-blur-sm z-20">You</div>
+                    <div class="flex-shrink-0 bg-[#000000] border-b border-[#1e1f22] p-4 flex flex-col relative group h-48 overflow-hidden z-20">
+                        <div class="flex justify-center gap-8 h-full items-center">
+                            <!-- Local Self -->
+                            <div class="relative w-64 h-36 bg-[#1e1f22] rounded-lg overflow-hidden border-2 flex items-center justify-center shadow-lg transition-colors" :class="speakingUsers[logicalUid] ? 'border-[#23A559]' : 'border-[#2b2d31]'">
+                                <video id="dm-local-video" autoplay playsinline muted class="w-full h-full object-cover"></video>
+                                <div class="absolute inset-0 z-0 flex items-center justify-center transition-opacity" :style="'background-color: ' + (currentUserProfile?.dominantColor || '#5865F2')" :class="rtcVideoOff ? 'opacity-100' : 'opacity-0'">
+                                    <img :src="currentUserProfile?.avatar" class="w-16 h-16 rounded-full object-cover shadow-2xl relative z-10 border-2 border-[#1e1f22]">
+                                </div>
+                                <div class="absolute bottom-2 left-2 bg-black/60 px-2 py-1 rounded text-[11px] text-white font-bold backdrop-blur-sm z-20">You</div>
                             </div>
+                            
                             <!-- Partner -->
-                            <div class="relative w-72 h-full bg-[#1e1f22] rounded-lg overflow-hidden border border-[#2b2d31] flex items-center justify-center shadow-lg">
+                            <div class="relative w-64 h-36 bg-[#1e1f22] rounded-lg overflow-hidden border-2 flex items-center justify-center shadow-lg transition-colors" :class="speakingUsers[getDmPartner(activeTarget)] ? 'border-[#23A559]' : 'border-[#2b2d31]'">
                                 <template x-if="outgoingCall">
                                     <div class="absolute inset-0 rounded-full ringing-pfp m-auto w-16 h-16 z-0"></div>
                                 </template>
-                                <div class="absolute inset-0 z-0" :class="outgoingCall ? 'bg-black/80' : ''" :style="!outgoingCall ? 'background-color: ' + (getUser(getDmPartner(activeTarget))?.dominantColor || '#5865F2') : ''"></div>
-                                <img :src="getUser(getDmPartner(activeTarget))?.avatar" class="w-16 h-16 rounded-full object-cover shadow-2xl relative z-10 border-2 border-[#1e1f22]" :class="outgoingCall ? 'grayscale' : ''">
-                                <div class="absolute bottom-2 left-2 bg-black/60 px-2 py-1 rounded text-xs text-white font-bold backdrop-blur-sm z-20" x-text="getUser(getDmPartner(activeTarget))?.displayName"></div>
+                                <video :id="'dm-remote-video-' + getDmPartner(activeTarget)" autoplay playsinline class="w-full h-full object-cover absolute inset-0 z-10"></video>
+                                <div class="absolute inset-0 z-20 flex items-center justify-center transition-opacity" :class="outgoingCall ? 'bg-black/80' : ''" :style="!outgoingCall ? 'background-color: ' + (getUser(getDmPartner(activeTarget))?.dominantColor || '#5865F2') : ''" x-show="outgoingCall || activePresence.find(p=>p.uid === getDmPartner(activeTarget))?.isCameraOff">
+                                    <img :src="getUser(getDmPartner(activeTarget))?.avatar" class="w-16 h-16 rounded-full object-cover shadow-2xl relative z-30 border-2 border-[#1e1f22]" :class="outgoingCall ? 'grayscale' : ''">
+                                </div>
+                                <div class="absolute bottom-2 left-2 bg-black/60 px-2 py-1 rounded text-[11px] text-white font-bold backdrop-blur-sm z-40" x-text="getUser(getDmPartner(activeTarget))?.displayName"></div>
                             </div>
                         </div>
-                        <button @click="viewingVoice = true" class="absolute top-2 right-2 text-white bg-black/50 hover:bg-black p-1.5 rounded opacity-0 group-hover:opacity-100 transition">
+                        <button @click="viewingVoice = true; activeChannelId = null;" class="absolute top-2 right-2 text-white bg-black/50 hover:bg-black p-1.5 rounded opacity-0 group-hover:opacity-100 transition">
                             <i class="ph-bold ph-arrows-out-simple"></i>
                         </button>
                     </div>
                 </template>
 
-                <!-- WebRTC Fullscreen Video Grid for Server VCs and Expanded DMs -->
+                <!-- WebRTC Fullscreen Video Grid -->
                 <div x-show="viewingVoice && inVoiceRoom" class="flex-1 bg-[#000000] flex flex-col relative overflow-hidden" style="display: none;">
                     
-                    <button @click="viewingVoice = false" class="absolute top-4 right-4 z-[60] bg-black/50 hover:bg-black text-white p-2 rounded-full transition shadow-lg" title="Back to Chat">
+                    <button @click="returnToChat()" class="absolute top-4 right-4 z-[60] bg-black/50 hover:bg-black text-white p-2 rounded-full transition shadow-lg" title="Back to Chat">
                         <i class="ph-bold ph-arrows-in-simple text-xl"></i>
                     </button>
 
-                    <!-- Outgoing Ringing Overlay Fullscreen -->
-                    <template x-if="outgoingCall && activeView === 'home'">
-                        <div class="absolute inset-0 z-[50] bg-[#1e1f22] flex flex-col items-center justify-center">
-                            <div class="relative w-32 h-32 mb-8">
-                                <div class="absolute inset-0 rounded-full ringing-pfp"></div>
-                                <img :src="getUser(outgoingCall.target)?.avatar" class="w-full h-full rounded-full object-cover border-4 border-[#313338] grayscale relative z-10">
-                            </div>
-                            <h2 class="text-white text-2xl font-extrabold mb-2" x-text="getUser(outgoingCall.target)?.displayName"></h2>
-                            <p class="text-gray-400 text-sm font-medium">Calling...</p>
-                        </div>
-                    </template>
-
                     <div id="fullscreen-video-grid" :class="'grid-count-' + (videoCount > 9 ? 'more' : videoCount)">
                         <!-- Local Camera Video (Always exists if in room) -->
-                        <div class="video-wrapper group" :class="fullscreenVideoId === 'local' ? 'video-fullscreen-mode' : ''" @click="toggleFullscreenVideo('local')">
+                        <div class="video-wrapper group" :class="(fullscreenVideoId === 'local' ? 'video-fullscreen-mode ' : '') + (speakingUsers[logicalUid] ? 'speaking' : '')" @click="toggleFullscreenVideo('local')">
                             <video id="local-video" autoplay playsinline muted class="w-full h-full bg-black object-cover transition-opacity duration-300"></video>
                             
                             <!-- Avatar overlay when cam is off -->
@@ -708,7 +707,7 @@
                                                 </template>
                                                 
                                                 <!-- Edit/Reply/Delete Controls (Right aligned) -->
-                                                <div class="absolute right-2 -top-3 bg-[#313338] border border-[#1e1f22] rounded shadow-md hidden group-hover/msg:flex items-center z-10 overflow-hidden">
+                                                <div x-show="msg.senderId === logicalUid || true" class="absolute right-2 -top-3 bg-[#313338] border border-[#1e1f22] rounded shadow-md hidden group-hover/msg:flex items-center z-10 overflow-hidden">
                                                     <button @click="setReply(msg)" class="p-1.5 text-gray-400 hover:bg-[#3f4147] hover:text-gray-200 transition" title="Reply">
                                                         <i class="ph-bold ph-arrow-u-up-left text-sm"></i>
                                                     </button>
@@ -772,7 +771,7 @@
                         
                         <input type="text" x-model="newMessage" x-ref="chatInput" @input="handleInput()" @keydown.tab.prevent="if(showMentions && filteredMentionUsers.length > 0) insertMention(filteredMentionUsers[0].username)" @keydown.enter="sendMessage()" :placeholder="editingMessageId ? 'Edit message...' : getChatPlaceholder()" class="flex-1 bg-transparent px-1 focus:outline-none text-gray-100 placeholder-gray-500 text-[15px]">
                         
-                        <button @click="sendMessage()" :disabled="!newMessage.trim() && !pendingMedia" class="p-1.5 rounded-md text-gray-400 hover:text-[#5865F2] disabled:opacity-50 disabled:cursor-not-allowed transition flex-shrink-0 ml-2">
+                        <button @click="sendMessage()" :disabled="(!newMessage.trim() && !pendingMedia) || isUploading" class="p-1.5 rounded-md text-gray-400 hover:text-[#5865F2] disabled:opacity-50 disabled:cursor-not-allowed transition flex-shrink-0 ml-2">
                             <i x-show="!editingMessageId" class="ph-fill ph-paper-plane-right text-xl"></i>
                             <i x-show="editingMessageId" class="ph-bold ph-check text-xl text-[#23A559]"></i>
                         </button>
@@ -1265,6 +1264,20 @@
             typingUsers: {}, typingTimeouts: {}, _lastTypingSent: 0,
             activeCalls: [], 
 
+            audioContext: null, audioAnalyzers: {}, speakingUsers: {},
+            hardwareStream: null, // the master stream
+
+            get pipActiveUid() {
+                const spks = Object.keys(this.speakingUsers).filter(uid => this.speakingUsers[uid]);
+                if (spks.length > 0) return spks[spks.length - 1]; // most recent active speaker
+                return this.logicalUid; // fallback to self
+            },
+
+            get isPiPCameraOff() {
+                if (this.pipActiveUid === this.logicalUid) return this.rtcVideoOff;
+                return this.activePresence.find(p => p.uid === this.pipActiveUid)?.isCameraOff;
+            },
+
             get myServers() { 
                 const joined = this.currentUserProfile?.joinedServers || [];
                 return this.servers.filter(s => joined.includes(s.id)).sort((a, b) => joined.indexOf(a.id) - joined.indexOf(b.id));
@@ -1277,7 +1290,7 @@
                 const now = Date.now();
                 return this.globalPresence.filter(p => {
                     const elapsed = now - (p._localLastSeen || p.lastActive);
-                    return elapsed < 600000 && p.status === 'online'; 
+                    return elapsed < 120000 && p.status === 'online'; 
                 });
             },
 
@@ -1292,7 +1305,7 @@
                 const groups = {};
                 this.myFriendsList.forEach(f => {
                     const p = this.activePresence.find(x => x.uid === f.uid);
-                    if (p && p.currentVoice && !p.currentVoice.includes('_')) { // Excludes DMs from Active Now
+                    if (p && p.currentVoice && !p.currentVoice.includes('_')) { // Excludes DMs
                         const key = `${p.currentServer}_${p.currentVoice}`;
                         if (!groups[key]) groups[key] = { key, serverId: p.currentServer, voiceId: p.currentVoice, users: [] };
                         groups[key].users.push(f);
@@ -1558,10 +1571,6 @@
                 safe = safe.replace(/@([a-zA-Z0-9_]+)/g, '<span class="text-[#5865F2] bg-[#5865F2]/20 px-1 rounded font-medium cursor-pointer hover:underline">@$1</span>');
                 return safe;
             },
-            isMentioned(text) {
-                if(!this.currentUserProfile || !this.currentUserProfile.username || !text) return false;
-                return text.includes('@' + this.currentUserProfile.username);
-            },
             
             checkMentions() {
                 const match = this.newMessage.match(/@([a-zA-Z0-9_]*)$/);
@@ -1654,11 +1663,88 @@
                 }
             },
 
-            inVoiceRoom: null, voicePeers: {}, 
-            rtcVideoOff: true, isMuted: false, isDeafened: false, isScreenSharing: false,
-            localStream: null, screenStream: null, simplePeers: {}, dummyCanvasInterval: null,
+            setupAudioAnalysis(uid, stream) {
+                if (!this.audioContext) this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                if (this.audioContext.state === 'suspended') this.audioContext.resume();
+                
+                const track = stream.getAudioTracks()[0];
+                if (!track) return;
+                
+                try {
+                    const source = this.audioContext.createMediaStreamSource(new MediaStream([track]));
+                    const analyzer = this.audioContext.createAnalyser();
+                    analyzer.fftSize = 256; analyzer.smoothingTimeConstant = 0.4;
+                    source.connect(analyzer);
+                    this.audioAnalyzers[uid] = analyzer;
+                } catch(e) {}
+            },
 
-            supabase: null, heartbeatInterval: null, presenceSyncInterval: null, cleanupInterval: null,
+            pollSpeaking() {
+                setInterval(() => {
+                    if (!this.inVoiceRoom) return;
+                    const data = new Uint8Array(256);
+                    for (const [uid, analyzer] of Object.entries(this.audioAnalyzers)) {
+                        analyzer.getByteFrequencyData(data);
+                        let sum = 0;
+                        for(let i=0; i<data.length; i++) sum += data[i];
+                        const avg = sum / data.length;
+                        
+                        if (avg > 15) { 
+                            this.speakingUsers[uid] = true;
+                        } else {
+                            this.speakingUsers[uid] = false;
+                        }
+                    }
+                }, 100);
+            },
+
+            attachAllVideoStreams() {
+                const attach = (id, stream) => {
+                    const el = document.getElementById(id);
+                    if (el && el.srcObject !== stream) {
+                        el.srcObject = stream;
+                        el.play().catch(()=>{});
+                    }
+                };
+                
+                if (this.localStream) {
+                    attach('local-video', this.localStream);
+                    attach('dm-local-video', this.localStream);
+                    if (this.pipActiveUid === this.logicalUid) {
+                        attach('pip-video', this.localStream);
+                    }
+                }
+                
+                Object.keys(this.simplePeers).forEach(uid => {
+                    const peer = this.simplePeers[uid];
+                    if (peer && peer._remoteStreams && peer._remoteStreams[0]) {
+                        attach(`vid_${uid}_cam`, peer._remoteStreams[0]);
+                        attach(`vid_${uid}_screenshare`, peer._remoteStreams[0]);
+                        attach(`dm-remote-video-${uid}`, peer._remoteStreams[0]);
+                        if (this.pipActiveUid === uid) {
+                            attach('pip-video', peer._remoteStreams[0]);
+                        }
+                    }
+                });
+            },
+
+            returnToCall() {
+                if (this.inVoiceRoom.includes('_')) {
+                    this.openDM(this.inVoiceRoom);
+                } else {
+                    const s = this.servers.find(srv => srv.channels?.some(c => c.id === this.inVoiceRoom));
+                    if(s) this.openServer(s.id);
+                }
+                this.viewingVoice = true; 
+            },
+
+            returnToChat() {
+                this.viewingVoice = false;
+                const c = document.getElementById('chatContainer');
+                if(c) {
+                    setTimeout(() => c.scrollTop = c.scrollHeight, 100);
+                }
+            },
 
             async init() {
                 try {
@@ -1675,6 +1761,15 @@
                         this.authLoading = false;
                         this.isReady = false;
                     }
+                    
+                    // Hardware failure unlocks UI safely
+                    setTimeout(() => {
+                        if(this.authLoading && this.logicalUid) {
+                            this.authLoading = false; this.isReady = true;
+                        }
+                    }, 5000);
+
+                    this.pollSpeaking();
 
                     this.$watch('filteredMessages', () => {
                         this.$nextTick(() => {
@@ -1699,30 +1794,8 @@
                     
                     this.$watch('viewingVoice', (isViewing) => {
                         this.$nextTick(() => {
-                            if (isViewing) {
-                                const localVid = document.getElementById('local-video');
-                                if (localVid && this.localStream) {
-                                    localVid.srcObject = this.localStream;
-                                    localVid.play().catch(()=>{});
-                                }
-                                Object.keys(this.simplePeers).forEach(uid => {
-                                    const peer = this.simplePeers[uid];
-                                    if (peer && peer._remoteStreams && peer._remoteStreams[0]) {
-                                        const v = document.getElementById(`vid_${uid}_cam`) || document.getElementById(`vid_${uid}_screenshare`);
-                                        if (v) { v.srcObject = peer._remoteStreams[0]; v.play().catch(()=>{}); }
-                                    }
-                                });
-                                this.updateVideoCount();
-                            } else {
-                                const pipVid = document.getElementById('pip-video');
-                                if (pipVid && this.localStream) {
-                                    pipVid.srcObject = this.localStream;
-                                    pipVid.play().catch(()=>{});
-                                }
-                                const c = document.getElementById('chatContainer');
-                                if(c) c.scrollTop = c.scrollHeight;
-                                this.markRead(this.currentChatId);
-                            }
+                            this.attachAllVideoStreams();
+                            this.updateVideoCount();
                         });
                     });
 
@@ -1957,15 +2030,13 @@
                     .on('broadcast', { event: 'typing' }, payload => {
                         const { roomId, uid, username } = payload.payload;
                         if (!this.typingUsers[roomId]) this.typingUsers[roomId] = {};
-                        this.typingUsers[roomId][uid] = username;
-                        this.typingUsers = { ...this.typingUsers }; 
+                        this.typingUsers[roomId][uid] = { timestamp: Date.now(), username };
                         
                         if (!this.typingTimeouts) this.typingTimeouts = {};
                         if (this.typingTimeouts[`${roomId}_${uid}`]) clearTimeout(this.typingTimeouts[`${roomId}_${uid}`]);
                         
                         this.typingTimeouts[`${roomId}_${uid}`] = setTimeout(() => {
-                            delete this.typingUsers[roomId][uid];
-                            this.typingUsers = { ...this.typingUsers };
+                            if (this.typingUsers[roomId]) delete this.typingUsers[roomId][uid];
                         }, 3000);
                     })
                     .subscribe();
@@ -2121,7 +2192,10 @@
                         }
                     });
 
-                    if (domChanged) this.updateVideoCount();
+                    if (domChanged) {
+                        this.updateVideoCount();
+                        this.$nextTick(() => this.attachAllVideoStreams());
+                    }
                 }
             },
 
@@ -2463,20 +2537,44 @@
                 }
             },
 
-            triggerImageUpload(context) {
+            async triggerImageUpload(context) {
                 const input = document.createElement('input'); input.type = 'file'; 
                 input.accept = context === 'chat' ? 'image/*,video/mp4,video/webm' : 'image/*';
-                input.onchange = (e) => {
+                input.onchange = async (e) => {
                     this.isUploading = true;
-                    setTimeout(() => this.processImage(e.target.files[0], context), 50);
+                    await this.processImage(e.target.files[0], context);
                 };
                 input.click();
             },
-            processImage(file, context) {
+            async processImage(file, context) {
                 if (!file) { this.isUploading = false; return; }
                 if (file.size > 10 * 1024 * 1024) { this.showToast("File limit is 10MB.", true); this.isUploading = false; return; }
                 
                 const isVideo = file.type.startsWith('video/');
+                
+                try {
+                    // Try to use Supabase Storage first for high performance
+                    const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}`;
+                    const { data, error } = await this.supabase.storage.from('chat-media').upload(fileName, file);
+                    
+                    if (!error) {
+                        const url = this.supabase.storage.from('chat-media').getPublicUrl(fileName).data.publicUrl;
+                        if (context === 'chat') {
+                            this.pendingMedia = { type: isVideo ? 'video' : 'image', data: url };
+                        } else {
+                            if (context === 'setup') this.authAvatar = url;
+                            else if (context === 'edit') this.editProfile.avatar = url;
+                            else if (context === 'banner') this.editProfile.banner = url;
+                            else if (context === 'server') this.newServerIcon = url;
+                            else if (context === 'serverEdit') this.editServer.icon = url;
+                            else if (context === 'serverBannerEdit') this.editServer.banner = url;
+                        }
+                        this.isUploading = false;
+                        return;
+                    }
+                } catch(e) {}
+
+                // Graceful fallback to local base64 quantizer if Bucket doesn't exist yet
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     if (isVideo && context === 'chat') {
@@ -2535,8 +2633,7 @@
             async joinVoiceRoom(channelId) {
                 if (this.inVoiceRoom) this.leaveVoiceRoom();
                 
-                // Active Call overlay initialization if jumping to an empty DM VC
-                if (channelId.includes('_')) {
+                if (channelId.startsWith('user_') && channelId.includes('_user_')) {
                     const partnerUid = this.getDmPartner(channelId);
                     if (!this.getVoiceUsers(channelId).some(p => p.uid === partnerUid)) {
                         this.apiSet('calls', `call_${channelId}`, {
@@ -2553,7 +2650,9 @@
                         stream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
                     }
                     
-                    const micTrack = stream.getAudioTracks()[0];
+                    this.hardwareStream = stream;
+                    
+                    const micTrack = this.hardwareStream.getAudioTracks()[0];
                     if(micTrack) micTrack.enabled = !this.isMuted;
                     
                     const canvas = document.createElement('canvas'); 
@@ -2568,7 +2667,10 @@
                         if(ctx) { ctx.fillStyle = ctx.fillStyle === '#000000' ? '#000001' : '#000000'; ctx.fillRect(0,0,1280,720); }
                     }, 100);
                     
-                    if(micTrack) this.localStream = new MediaStream([dummyVideo, micTrack]);
+                    if(micTrack) {
+                        this.localStream = new MediaStream([dummyVideo, micTrack]);
+                        this.setupAudioAnalysis(this.logicalUid, this.hardwareStream);
+                    }
                     else this.localStream = new MediaStream([dummyVideo]);
                     
                     this.inVoiceRoom = channelId; this.rtcVideoOff = true; this.isScreenSharing = false; this.viewingVoice = true; 
@@ -2576,24 +2678,21 @@
                     this.updatePresence();
                     this.updateVideoCount();
 
-                    setTimeout(() => {
-                        const localVid = document.getElementById('local-video');
-                        if (localVid) {
-                            localVid.srcObject = this.localStream;
-                            localVid.style.opacity = '0';
-                        }
-                    }, 500);
+                    this.$nextTick(() => {
+                        this.attachAllVideoStreams();
+                    });
                     
                 } catch(e) { this.showToast("Mic access denied or failed.", true); }
             },
 
             leaveVoiceRoom() {
+                if (this.hardwareStream) this.hardwareStream.getTracks().forEach(t => t.stop());
                 if (this.localStream) this.localStream.getTracks().forEach(t => t.stop());
                 if (this.screenStream) this.stopScreenShare();
                 if (this.dummyCanvasInterval) { clearInterval(this.dummyCanvasInterval); this.dummyCanvasInterval = null; }
                 
                 Object.values(this.simplePeers).forEach(p => p.destroy());
-                this.simplePeers = {}; this.voicePeers = {}; 
+                this.simplePeers = {}; this.voicePeers = {}; this.audioAnalyzers = {}; this.speakingUsers = {};
                 
                 const grid = document.getElementById('fullscreen-video-grid');
                 if(grid) {
@@ -2602,12 +2701,11 @@
                     });
                 }
                 
-                // Clear any outbound ringing states
                 if (this.inVoiceRoom && this.inVoiceRoom.includes('_')) {
                     this.apiDelete('calls', `call_${this.inVoiceRoom}`);
                 }
 
-                this.inVoiceRoom = null; this.localStream = null; this.viewingVoice = false; this.fullscreenVideoId = null;
+                this.inVoiceRoom = null; this.localStream = null; this.hardwareStream = null; this.viewingVoice = false; this.fullscreenVideoId = null;
                 this.updateVideoCount();
                 
                 this.apiUpdate('presence', this.logicalUid, { status: 'online', currentVoice: null, isScreenSharing: false, isCameraOff: true, lastActive: Date.now() });
@@ -2615,8 +2713,8 @@
 
             toggleMute() {
                 this.isMuted = !this.isMuted;
-                if(this.localStream) {
-                    this.localStream.getAudioTracks().forEach(t => t.enabled = !this.isMuted);
+                if(this.hardwareStream) {
+                    this.hardwareStream.getAudioTracks().forEach(t => t.enabled = !this.isMuted);
                 }
                 this.updatePresence();
             },
@@ -2642,6 +2740,7 @@
                         const vidTrack = vidStream.getVideoTracks()[0];
                         const oldTrack = this.localStream.getVideoTracks()[0];
                         
+                        this.hardwareStream.addTrack(vidTrack);
                         this.localStream.removeTrack(oldTrack);
                         this.localStream.addTrack(vidTrack);
                         
@@ -2652,16 +2751,15 @@
                         this.rtcVideoOff = false; this.viewingVoice = true; 
                         this.updatePresence();
 
-                        const localVid = document.getElementById('local-video');
-                        if (localVid) { 
-                            localVid.srcObject = null; localVid.srcObject = this.localStream; 
-                            localVid.style.opacity = '1';
-                        }
+                        this.$nextTick(() => { this.attachAllVideoStreams(); });
                     } catch(e) { this.showToast("Camera access denied.", true); }
                 } else {
-                    const vidTrack = this.localStream.getVideoTracks()[0];
+                    const vidTrack = this.hardwareStream.getVideoTracks()[0];
                     if (vidTrack) {
                         vidTrack.stop();
+                        this.hardwareStream.removeTrack(vidTrack);
+                        
+                        const oldTrack = this.localStream.getVideoTracks()[0];
                         
                         const canvas = document.createElement('canvas'); 
                         canvas.width = 1280; canvas.height = 720;
@@ -2675,21 +2773,15 @@
                             if(ctx) { ctx.fillStyle = ctx.fillStyle === '#000000' ? '#000001' : '#000000'; ctx.fillRect(0,0,1280,720); }
                         }, 100);
                         
-                        this.localStream.removeTrack(vidTrack);
+                        this.localStream.removeTrack(oldTrack);
                         this.localStream.addTrack(dummyVideo);
                         
                         Object.values(this.simplePeers).forEach(p => {
-                            try { p.replaceTrack(vidTrack, dummyVideo, this.localStream); } catch(e){}
+                            try { p.replaceTrack(oldTrack, dummyVideo, this.localStream); } catch(e){}
                         });
                         
                         this.rtcVideoOff = true;
                         this.updatePresence();
-
-                        const localVid = document.getElementById('local-video');
-                        if (localVid) { 
-                            localVid.srcObject = null; localVid.srcObject = this.localStream; 
-                            localVid.style.opacity = '0';
-                        }
                     }
                 }
             },
@@ -2714,6 +2806,7 @@
                         wrapper.onclick = () => this.toggleFullscreenVideo(screenId);
                         
                         const v = document.createElement('video');
+                        v.id = `vid_${screenId}`;
                         v.autoplay = true; v.playsInline = true; v.muted = true;
                         v.srcObject = this.screenStream;
                         v.className = "w-full h-full bg-black object-contain";
@@ -2780,6 +2873,8 @@
 
                 peer.on('stream', stream => {
                     this.voicePeers[targetUid] = true;
+                    this.setupAudioAnalysis(targetUid, stream);
+                    
                     setTimeout(() => {
                         const grid = document.getElementById('fullscreen-video-grid'); if(!grid) return;
                         
@@ -2796,7 +2891,7 @@
                             wrapper = document.createElement('div');
                             wrapper.id = wrapperId; 
                             wrapper.className = "video-wrapper group";
-                            wrapper.setAttribute('x-bind:class', `fullscreenVideoId === '${vId}' ? 'video-fullscreen-mode' : ''`);
+                            wrapper.setAttribute('x-bind:class', `(fullscreenVideoId === '${vId}' ? 'video-fullscreen-mode ' : '') + (speakingUsers['${targetUid}'] && !'${isScreen}' ? 'speaking' : '')`);
                             wrapper.onclick = () => this.toggleFullscreenVideo(vId);
                             
                             const v = document.createElement('video');
@@ -2806,7 +2901,6 @@
                             v.onloadedmetadata = () => { 
                                 v.play().catch(e => {
                                     console.warn("Autoplay blocked:", e); 
-                                    // iOS Safari Autoplay Unblocker Fallback
                                     const unblockBtn = document.createElement('button');
                                     unblockBtn.className = "absolute inset-0 bg-black/80 text-white font-bold z-50 flex flex-col items-center justify-center";
                                     unblockBtn.innerHTML = "<i class='ph-fill ph-play-circle text-4xl mb-2 text-[#5865F2]'></i>Tap to View Video";
