@@ -10,11 +10,13 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     
-    <!-- CRITICAL POLYFILLS FOR SIMPLE-PEER IN BROWSER -->
+    <!-- CRITICAL POLYFILLS FOR WEBRTC AND SIMPLE-PEER -->
     <script>
         window.global = window;
         window.process = { env: { DEBUG: undefined } };
     </script>
+    <!-- WebRTC Adapter for flawless iOS/Mobile Safari compatibility -->
+    <script src="https://webrtc.github.io/adapter/adapter-latest.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/simple-peer/9.11.1/simplepeer.min.js"></script>
 
     <style>
@@ -43,7 +45,7 @@
             cursor: pointer; transition: all 0.2s ease-in-out;
         }
         
-        /* Flawless Grid Scaling Logic */
+        /* Flawless Grid Scaling Logic w/ Aspect Ratio Clamping */
         .grid-count-1 .video-wrapper { width: 100%; max-height: calc(100vh - 2rem); max-width: calc((100vh - 2rem) * 16 / 9); }
         .grid-count-2 .video-wrapper { width: calc(50% - 0.5rem); max-height: calc(100vh - 2rem); max-width: calc((100vh - 2rem) * 16 / 9); }
         .grid-count-3 .video-wrapper, .grid-count-4 .video-wrapper { width: calc(50% - 0.5rem); max-height: calc(50vh - 1.5rem); max-width: calc((50vh - 1.5rem) * 16 / 9); }
@@ -54,7 +56,7 @@
         .video-wrapper:hover { border-color: #5865F2; }
         .video-wrapper video { width: 100%; height: 100%; background-color: #000; object-fit: cover; }
 
-        /* Fixed Fullscreen Mode */
+        /* Fixed Fullscreen Mode - Absolute Top Z-Index */
         .video-fullscreen-mode {
             position: absolute !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important;
             width: 100% !important; height: 100% !important; z-index: 50 !important; 
@@ -136,7 +138,6 @@
          @window:resize="pipX = window.innerWidth - 240; pipY = window.innerHeight - 380;">
          
          <div class="w-full h-full relative group">
-             <!-- The PiP video element dynamically mapped via JS -->
              <video id="pip-video" autoplay playsinline muted class="w-full h-full object-cover"></video>
              
              <!-- Avatar Fallback for PiP -->
@@ -334,7 +335,7 @@
                                 <i class="ph ph-plus"></i>
                             </div>
                             
-                            <!-- DM List (Sorted by recent) -->
+                            <!-- DM List (Sorted by recent) w/ Date Times -->
                             <template x-for="dm in sortedDms" :key="dm.id">
                                 <button @click="openDM(dm.id)" class="w-full flex items-center px-2 py-1.5 rounded-md transition group relative" :class="activeTarget === dm.id && activeView === 'home' ? 'bg-[#3f4147] text-white' : 'hover:bg-[#35373c] text-gray-400 hover:text-gray-200'">
                                     <div class="relative flex-shrink-0 mr-3">
@@ -446,15 +447,6 @@
                                             </div>
                                         </template>
                                     </div>
-                                    
-                                    <!-- Contextual "Show Video" button if you are in THIS channel -->
-                                    <template x-if="inVoiceRoom === channel.id && !viewingVoice">
-                                        <div class="pl-6 mt-1 mb-2 ml-4">
-                                            <button @click="viewingVoice = true; activeChannelId = null;" class="w-full flex items-center justify-center gap-2 py-1 bg-[#1e1f22] hover:bg-[#111214] border border-[#3f4147] rounded text-xs font-bold text-gray-300 hover:text-white transition">
-                                                <i class="ph-fill ph-video-camera"></i> Show Video Grid
-                                            </button>
-                                        </div>
-                                    </template>
                                 </div>
                             </template>
                         </div>
@@ -543,23 +535,17 @@
                         <template x-if="activeView === 'discovery'">
                             <div class="flex items-center"><i class="ph-fill ph-compass mr-2 text-gray-400 text-xl"></i> Discover Servers</div>
                         </template>
-                        <template x-if="activeView === 'home' && activeTarget && !viewingVoice">
+                        <template x-if="activeView === 'home' && activeTarget">
                             <div class="flex items-center gap-2">
                                 <i class="ph ph-at mr-1 text-gray-400 text-xl"></i>
                                 <span x-text="getUser(getDmPartner(activeTarget))?.displayName || 'Loading...'"></span>
                                 <span class="text-xs text-gray-400 font-medium" x-text="'@' + getUser(getDmPartner(activeTarget))?.username"></span>
                             </div>
                         </template>
-                        <template x-if="activeView === 'server' && !viewingVoice">
+                        <template x-if="activeView === 'server'">
                             <div class="flex items-center">
                                 <i class="ph ph-hash mr-2 text-gray-400 text-xl"></i>
                                 <span x-text="getChannelName(activeChannelId) || 'Loading...'"></span>
-                            </div>
-                        </template>
-                        <template x-if="viewingVoice">
-                            <div class="flex items-center text-gray-100">
-                                <i class="ph-fill ph-video-camera mr-2 text-xl text-[#23A559]"></i>
-                                <span>Voice Call — <span x-text="getChannelName(inVoiceRoom) || 'Loading...'"></span></span>
                             </div>
                         </template>
                     </div>
@@ -573,7 +559,7 @@
                             </button>
                         </template>
 
-                        <template x-if="(activeView === 'server' && !viewingVoice) || (activeView === 'home' && activeTarget)">
+                        <template x-if="activeView === 'server' || (activeView === 'home' && activeTarget)">
                             <button @click="showMembersList = !showMembersList" class="p-1 text-gray-400 hover:text-gray-200 hover:bg-[#3f4147] rounded-md transition" title="Toggle Member List">
                                 <i class="ph-fill ph-users text-xl"></i>
                             </button>
@@ -581,12 +567,42 @@
                     </div>
                 </div>
 
-                <!-- WebRTC Fullscreen Video Grid or Outgoing Call Ringing -->
+                <!-- DM Active Call Header Banner (Discord Style) -->
+                <template x-if="activeView === 'home' && activeTarget && inVoiceRoom === activeTarget && !viewingVoice">
+                    <div class="flex-shrink-0 bg-[#000000] border-b border-[#1e1f22] p-4 flex flex-col relative group">
+                        <div class="flex justify-center gap-8 h-40">
+                            <!-- You -->
+                            <div class="relative w-72 h-full bg-[#1e1f22] rounded-lg overflow-hidden border border-[#2b2d31] flex items-center justify-center shadow-lg">
+                                <div class="absolute inset-0 z-0" :style="'background-color: ' + (currentUserProfile?.dominantColor || '#5865F2')"></div>
+                                <img :src="currentUserProfile?.avatar" class="w-16 h-16 rounded-full object-cover shadow-2xl relative z-10 border-2 border-[#1e1f22]">
+                                <div class="absolute bottom-2 left-2 bg-black/60 px-2 py-1 rounded text-xs text-white font-bold backdrop-blur-sm z-20">You</div>
+                            </div>
+                            <!-- Partner -->
+                            <div class="relative w-72 h-full bg-[#1e1f22] rounded-lg overflow-hidden border border-[#2b2d31] flex items-center justify-center shadow-lg">
+                                <template x-if="outgoingCall">
+                                    <div class="absolute inset-0 rounded-full ringing-pfp m-auto w-16 h-16 z-0"></div>
+                                </template>
+                                <div class="absolute inset-0 z-0" :class="outgoingCall ? 'bg-black/80' : ''" :style="!outgoingCall ? 'background-color: ' + (getUser(getDmPartner(activeTarget))?.dominantColor || '#5865F2') : ''"></div>
+                                <img :src="getUser(getDmPartner(activeTarget))?.avatar" class="w-16 h-16 rounded-full object-cover shadow-2xl relative z-10 border-2 border-[#1e1f22]" :class="outgoingCall ? 'grayscale' : ''">
+                                <div class="absolute bottom-2 left-2 bg-black/60 px-2 py-1 rounded text-xs text-white font-bold backdrop-blur-sm z-20" x-text="getUser(getDmPartner(activeTarget))?.displayName"></div>
+                            </div>
+                        </div>
+                        <button @click="viewingVoice = true" class="absolute top-2 right-2 text-white bg-black/50 hover:bg-black p-1.5 rounded opacity-0 group-hover:opacity-100 transition">
+                            <i class="ph-bold ph-arrows-out-simple"></i>
+                        </button>
+                    </div>
+                </template>
+
+                <!-- WebRTC Fullscreen Video Grid for Server VCs and Expanded DMs -->
                 <div x-show="viewingVoice && inVoiceRoom" class="flex-1 bg-[#000000] flex flex-col relative overflow-hidden" style="display: none;">
                     
-                    <!-- Outgoing Ringing Overlay -->
-                    <template x-if="outgoingCall">
-                        <div class="absolute inset-0 z-[60] bg-[#1e1f22] flex flex-col items-center justify-center">
+                    <button @click="viewingVoice = false" class="absolute top-4 right-4 z-[60] bg-black/50 hover:bg-black text-white p-2 rounded-full transition shadow-lg" title="Back to Chat">
+                        <i class="ph-bold ph-arrows-in-simple text-xl"></i>
+                    </button>
+
+                    <!-- Outgoing Ringing Overlay Fullscreen -->
+                    <template x-if="outgoingCall && activeView === 'home'">
+                        <div class="absolute inset-0 z-[50] bg-[#1e1f22] flex flex-col items-center justify-center">
                             <div class="relative w-32 h-32 mb-8">
                                 <div class="absolute inset-0 rounded-full ringing-pfp"></div>
                                 <img :src="getUser(outgoingCall.target)?.avatar" class="w-full h-full rounded-full object-cover border-4 border-[#313338] grayscale relative z-10">
@@ -616,8 +632,13 @@
                     </div>
                 </div>
 
-                <!-- Text Chat Window -->
-                <div x-show="!viewingVoice && activeView !== 'discovery' && (activeTarget || activeChannelId)" class="flex-1 overflow-y-auto flex flex-col p-4" id="chatContainer">
+                <!-- Text Chat Window with Pagination Logic -->
+                <div x-show="!viewingVoice && activeView !== 'discovery' && (activeTarget || activeChannelId)" class="flex-1 overflow-y-auto flex flex-col p-4 relative" id="chatContainer" @scroll="if($event.target.scrollTop === 0) loadMoreMessages()">
+                    
+                    <div x-show="isLoadingHistory" class="absolute top-4 left-1/2 transform -translate-x-1/2 bg-[#2b2d31] text-gray-300 px-4 py-1.5 rounded-full text-xs font-bold shadow-lg flex items-center gap-2 z-50">
+                        <i class="ph ph-spinner-gap animate-spin text-[#5865F2]"></i> Loading history...
+                    </div>
+
                     <template x-if="!currentChatId">
                         <div class="flex flex-col items-center justify-center h-full text-gray-500">
                             <i class="ph-fill ph-chat-circle-dots text-6xl mb-4 text-[#3f4147]"></i>
@@ -1238,9 +1259,10 @@
             directFriendRequestUsername: '',
             
             servers: [], dms: [], messages: [], filteredMessages: [], users: {}, globalPresence: [], _colorCache: {},
+            messageLimit: 30, isLoadingHistory: false,
             
             originalTitle: "Le BaroChat™", flashInterval: null, isFlashing: false,
-            typingUsers: {}, _lastTypingSent: 0,
+            typingUsers: {}, typingTimeouts: {}, _lastTypingSent: 0,
             activeCalls: [], 
 
             get myServers() { 
@@ -1270,8 +1292,8 @@
                 const groups = {};
                 this.myFriendsList.forEach(f => {
                     const p = this.activePresence.find(x => x.uid === f.uid);
-                    if (p && p.currentVoice) {
-                        const key = `${p.currentServer || 'dm'}_${p.currentVoice}`;
+                    if (p && p.currentVoice && !p.currentVoice.includes('_')) { // Excludes DMs from Active Now
+                        const key = `${p.currentServer}_${p.currentVoice}`;
                         if (!groups[key]) groups[key] = { key, serverId: p.currentServer, voiceId: p.currentVoice, users: [] };
                         groups[key].users.push(f);
                     }
@@ -1288,11 +1310,7 @@
             },
 
             joinActiveCall(serverId, voiceId) {
-                if (serverId && serverId !== 'dm') {
-                    this.openServer(serverId);
-                } else if (serverId === 'dm') {
-                    this.openDM(voiceId);
-                }
+                this.openServer(serverId);
                 setTimeout(() => {
                     this.handleVoiceChannelClick(voiceId);
                 }, 100);
@@ -1408,7 +1426,6 @@
             },
             get typingText() {
                 if (!this.currentChatId || !this.typingUsers[this.currentChatId]) return '';
-                const now = Date.now();
                 const active = Object.keys(this.typingUsers[this.currentChatId])
                     .filter(uid => uid !== this.logicalUid)
                     .map(uid => this.typingUsers[this.currentChatId][uid]);
@@ -1435,14 +1452,36 @@
                 await this.apiUpdate('calls', callId, { status: 'declined' });
             },
 
+            loadMoreMessages() {
+                const total = this.messages.filter(m => m.roomId === this.currentChatId).length;
+                if (this.messageLimit >= total) return;
+                
+                this.isLoadingHistory = true;
+                const c = document.getElementById('chatContainer');
+                const oldHeight = c.scrollHeight;
+                
+                setTimeout(() => {
+                    this.messageLimit += 30;
+                    this.filterMessages();
+                    
+                    this.$nextTick(() => {
+                        const c = document.getElementById('chatContainer');
+                        c.scrollTop = c.scrollHeight - oldHeight;
+                        this.isLoadingHistory = false;
+                    });
+                }, 500);
+            },
+
             get groupedMessages() {
                 if (!this.filteredMessages || this.filteredMessages.length === 0) return [];
                 const groups = [];
                 let currentGroup = null;
                 let lastDateStr = null;
                 let foundUnread = false;
+                
+                const culledMessages = this.filteredMessages.slice(-this.messageLimit);
 
-                for (const msg of this.filteredMessages) {
+                for (const msg of culledMessages) {
                     const dateObj = new Date(msg.timestamp);
                     const dateStr = dateObj.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
                     let showDateSeparator = false;
@@ -1518,6 +1557,10 @@
                 let safe = this.escapeHTML(text);
                 safe = safe.replace(/@([a-zA-Z0-9_]+)/g, '<span class="text-[#5865F2] bg-[#5865F2]/20 px-1 rounded font-medium cursor-pointer hover:underline">@$1</span>');
                 return safe;
+            },
+            isMentioned(text) {
+                if(!this.currentUserProfile || !this.currentUserProfile.username || !text) return false;
+                return text.includes('@' + this.currentUserProfile.username);
             },
             
             checkMentions() {
@@ -1636,7 +1679,9 @@
                     this.$watch('filteredMessages', () => {
                         this.$nextTick(() => {
                             const c = document.getElementById('chatContainer');
-                            if(c) c.scrollTop = c.scrollHeight;
+                            if(c && c.scrollTop >= c.scrollHeight - c.clientHeight - 100) {
+                                c.scrollTop = c.scrollHeight;
+                            }
                         });
                         if(this.currentChatId && this.messages.length > 0) {
                             const lastMsg = this.messages[this.messages.length - 1];
@@ -1644,6 +1689,7 @@
                         }
                     });
                     this.$watch('currentChatId', (newVal) => { 
+                        this.messageLimit = 30; // reset cull limit on switch
                         this.filterMessages(); 
                         if (!this.viewingVoice) this.markRead(newVal); 
                     });
@@ -1753,8 +1799,10 @@
                     if(idx>=0) this.activeCalls.splice(idx, 1, merged); else this.activeCalls.push(merged);
                 } else if(collection === 'messages') {
                     const idx = this.messages.findIndex(m=>m.id===id);
-                    if(idx>=0) this.messages.splice(idx, 1, merged); else this.messages.push(merged);
-                    this.filterMessages();
+                    if(idx>=0) {
+                        this.messages.splice(idx, 1, merged);
+                        this.filterMessages();
+                    }
                 }
 
                 await this.apiSet(collection, id, merged);
@@ -1910,7 +1958,7 @@
                         const { roomId, uid, username } = payload.payload;
                         if (!this.typingUsers[roomId]) this.typingUsers[roomId] = {};
                         this.typingUsers[roomId][uid] = username;
-                        this.typingUsers = { ...this.typingUsers }; // reactivity hook
+                        this.typingUsers = { ...this.typingUsers }; 
                         
                         if (!this.typingTimeouts) this.typingTimeouts = {};
                         if (this.typingTimeouts[`${roomId}_${uid}`]) clearTimeout(this.typingTimeouts[`${roomId}_${uid}`]);
@@ -1933,7 +1981,7 @@
                             const d = row.data; d.id = row.document_id;
                             const idx = this.globalPresence.findIndex(p=>p.uid===d.uid);
                             if(idx>=0) {
-                                if (d.lastActive > this.globalPresence[idx].lastActive) {
+                                if (d.lastActive >= this.globalPresence[idx].lastActive) {
                                     d._localLastSeen = now;
                                     this.globalPresence.splice(idx, 1, d);
                                 }
@@ -1973,7 +2021,9 @@
                     }
                     else if (c === 'messages') { 
                         const idx = this.messages.findIndex(m=>m.id===id); 
-                        if(idx>=0) { this.messages.splice(idx, 1, d); } else {
+                        if(idx>=0) { 
+                            this.messages.splice(idx, 1, d); 
+                        } else {
                             this.messages.push(d);
                             if (document.hidden && d.senderId !== this.logicalUid) {
                                 if (d.roomId === this.currentChatId || this.isMentioned(d.text) || d.roomId.includes(this.logicalUid)) {
@@ -2030,6 +2080,7 @@
                     const fallback = document.getElementById(`fallback_${p.uid}_cam`);
                     if (fallback) {
                         fallback.style.opacity = p.isCameraOff ? '1' : '0';
+                        fallback.style.pointerEvents = p.isCameraOff ? 'auto' : 'none';
                     }
                 });
             },
@@ -2484,7 +2535,8 @@
             async joinVoiceRoom(channelId) {
                 if (this.inVoiceRoom) this.leaveVoiceRoom();
                 
-                if (channelId.startsWith('user_') && channelId.includes('_user_')) {
+                // Active Call overlay initialization if jumping to an empty DM VC
+                if (channelId.includes('_')) {
                     const partnerUid = this.getDmPartner(channelId);
                     if (!this.getVoiceUsers(channelId).some(p => p.uid === partnerUid)) {
                         this.apiSet('calls', `call_${channelId}`, {
@@ -2550,6 +2602,7 @@
                     });
                 }
                 
+                // Clear any outbound ringing states
                 if (this.inVoiceRoom && this.inVoiceRoom.includes('_')) {
                     this.apiDelete('calls', `call_${this.inVoiceRoom}`);
                 }
@@ -2753,6 +2806,7 @@
                             v.onloadedmetadata = () => { 
                                 v.play().catch(e => {
                                     console.warn("Autoplay blocked:", e); 
+                                    // iOS Safari Autoplay Unblocker Fallback
                                     const unblockBtn = document.createElement('button');
                                     unblockBtn.className = "absolute inset-0 bg-black/80 text-white font-bold z-50 flex flex-col items-center justify-center";
                                     unblockBtn.innerHTML = "<i class='ph-fill ph-play-circle text-4xl mb-2 text-[#5865F2]'></i>Tap to View Video";
